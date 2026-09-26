@@ -38,8 +38,9 @@
 
         <!-- Driver Oficial Neo4j para Cypher y Grafos -->
         <dependency>
-            <groupId>io.quarkus</groupId>
+            <groupId>io.quarkiverse.neo4j</groupId>
             <artifactId>quarkus-neo4j</artifactId>
+            <version>4.4.0</version>
         </dependency>
 
         <!-- WebSockets para Chat Bidireccional en Tiempo Real -->
@@ -50,12 +51,15 @@
 
         <!-- Cliente S3 / MinIO para Almacenamiento Multimedia -->
         <dependency>
-            <groupId>io.quarkus</groupId>
+            <groupId>io.quarkiverse.amazonservices</groupId>
             <artifactId>quarkus-amazon-s3</artifactId>
+            <version>2.18.1</version>
         </dependency>
+        <!-- Exigido en build-time por AmazonServicesClientsProcessor de la extensión -->
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>url-connection-client</artifactId>
+            <version>2.27.20</version>
         </dependency>
 
         <!-- Web Push VAPID Notification Support -->
