@@ -24,19 +24,30 @@ que cerraron el diseño de `US-01` y resolvieron los dos últimos bloqueos T0—
 `gemini-3.1-pro-high` vía `agy`. La auditoría que encontró 16 hallazgos la corrió un modelo
 gratuito distinto. Son dos agentes distintos haciendo dos trabajos distintos, por diseño.
 
-### Continuity: qué pasa si se agota la cuota
+### De dónde sale la cuota, y por qué hay tres pools distintos
 
-El recurso escaso no es Gemini. **El recurso escaso es el free tier de `opencode`**: los
-modelos gratuitos son los que se agotan, y cuando se agotan no hay canal de vuelta.
+No hay un único "lado estable". Hay **tres pools de cuota independientes**, y el balance
+real se midió en producción el 2026-09-26, cuando el free tier de Gemini se agotó a mitad
+del delta spec de US-02:
 
-Por eso el handoff va **hacia** `gemini-cli` y no al revés. Cuando la cuota de `opencode` se
-agota a mitad de un flujo, el orquestador pasa el contexto por handoff a `gemini-cli` para que
-la documentación continúe sin perder estado.
+| Pool | Dónde | Quién lo usa | Qué pasa al agotarse |
+|---|---|---|---|
+| **Antigravity / `agy`** | `gemini-3.1-pro-high` vía `agy` | Trabajo de arquitecto (D13, D14 de US-01) | Se corta el diseño. Es un pool aparte, con cuota propia |
+| **Gemini free tier** | `google/gemini-3.6-flash` | **6 de 11 fases**: `sdd-propose`, `sdd-spec`, `sdd-design`, `sdd-tasks`, `sdd-verify`, `sdd-research` | **Se cae toda la cadena de planificación y la verificación.** Límite observado: 20 requests |
+| **OpenCode free tier** | `opencode/*-free` | `sdd-apply`, `sdd-archive`, `sdd-explore`, `sdd-init`, `sdd-onboard` | Se corta la implementación, no la planificación |
 
-Esto no convierte a Gemini en plan B. Lo confirma: **el handoff apunta a Gemini porque
-Gemini es el lado estable del sistema.** Si el handoff fuera al revés —si Gemini fuera el que
-se puede quedar sin cuota y Opencode el respaldo— entonces sí sería auxilio, y habría que
-escribirlo así de explícito para no mentirse.
+**El handoff, en los dos sentidos.** La documentación no se corta junto con la verificación:
+si `sdd-apply` queda sin cuota, `sdd-tasks` sigue disponible. Y al revés: si se agota el
+free tier de Gemini, las fases de implementación siguen libres. Por eso la continuidad se
+decide por fase, no por proyecto.
+
+**Lo que no se hace:** pasar una fase a un modelo de otro pool sin decirlo. Una decisión de
+arquitectura tomada con un modelo distinto de la cadena de planificación produce un
+artifact que el resto de la cadena no puede defender.
+
+Esto no convierte a Gemini en plan B ni lo contrario. Lo que hace es **dejar de mentir sobre
+cuál de los dos lados es frágil**, que es la pregunta que importa cuando la cuota se agota
+a las 23:00 y hay que saber qué se puede seguir haciendo.
 
 **No se usan Claude ni Minimax.** Los roles que esos nombres describían hoy los ejecutan
 `opencode` y `gemini-cli`; ver `opencode-qa.md` y `opencode-builder.md`.

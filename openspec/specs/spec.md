@@ -15,7 +15,7 @@ Testing no configurado por ahora. No hay runners (JUnit/Vitest). Todo test en sp
 No hay ESLint ni Prettier. Confiar en TSC y Javac.
 
 ### R3. CI/CD
-Solo compila: `mvn compile` y `npm run build`.
+Solo compila: `mvn compile` (backend) y `pnpm run build` (frontend). **pnpm**, no npm: `config.yaml` lo establece y `pnpm-lock.yaml` está versionado.
 
 ## Capabilities (Domains)
 

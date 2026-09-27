@@ -9,64 +9,139 @@ working_dir: backend
 context: |
   Tech Stack: Quarkus + Java + Maven, Neo4j 5.20 + APOC (Grafo Social), MinIO S3, WebSockets de Quarkus, Web Push / VAPID, React 18 + Vite + TypeScript + Tailwind.
   Architecture: Arquitectura Hexagonal en 4 anillos (domain, port/in, port/out, application, infrastructure).
-  Testing: No existe configuración de pruebas actualmente.
+  Testing: JUnit 5 vía quarkus-junit5 en backend; Vitest + Testing Library + jsdom en frontend. Ambos runners operativos.
   Style: No existe configurado linter ni formatter.
   Deployment: Docker Compose, red bridge red-distribuida, datos semilla en docker/neo4j-seed.cql.
+  Toolchain: Maven 3.9.6 y Temurin JDK 21 en ~/.local/opt. ~/.bashrc define MAVEN_HOME y JAVA_HOME
+    pero NO los agrega al PATH: hay que invocar $MAVEN_HOME/bin/mvn, o exportarlos antes de correr Maven.
+    El sistema sólo tiene java-25-openjdk-headless, que es un JRE sin javac y NO compila.
+  Gestor de paquetes: pnpm 10.x. npm no se usa. pnpm-lock.yaml está versionado; package-lock.json fue eliminado.
 
 ## Testing & Quality
 testing:
   strict_tdd: false
   runner:
-    available: false # Nota: no hay runner configurado en pom.xml ni en frontend/package.json
+    available: true
+    backend:
+      framework: JUnit 5
+      via: "io.quarkus:quarkus-junit5 (scope test, sin versión explícita: la gestiona el quarkus-bom)"
+      runner: Maven Surefire, incluido en la extensión de test de Quarkus
+      extras: "mockito-junit-jupiter, rest-assured, org.testcontainers:neo4j"
+      command: $MAVEN_HOME/bin/mvn test
+      baseline: 5 pruebas verdes en PostTest (contrato del modelo de dominio)
+    frontend:
+      framework: Vitest
+      via: "vitest + @vitejs/plugin-react, configurado en frontend/vitest.config.ts"
+      environment: jsdom
+      libraries: "@testing-library/react, @testing-library/dom, @testing-library/jest-dom, @testing-library/user-event"
+      setup: frontend/src/test/setup.ts (jest-dom + cleanup manual; globals desactivados)
+      command: pnpm test
+      coverage_command: pnpm run test:coverage
+      baseline: 8 pruebas verdes en UserSuggestionsCard.test.tsx
+    conventions:
+      - Las pruebas van colocaladas junto al código: <archivo>.test.tsx
+      - Imports explícitos desde 'vitest' (globals: false). No usar describe/it/expect globales.
+      - tsconfig incluye src, por lo que pnpm run build typechequea también las pruebas
   layers:
     unit:
-      available: false
+      available: true
     integration:
-      available: false
+      available: true
+      note: "org.testcontainers:neo4j disponible para probar consultas Cypher. Requiere Docker."
     e2e:
       available: false
+      note: Sin runner e2e configurado (Playwright/Cypress). Declarado como no disponible a propósito.
   coverage:
-    available: false
+    available: true
+    provider: v8
+    command: pnpm run test:coverage
+    baseline: 10.84% al 2026-09-26. Subirá con cada historia aplicada.
   quality:
     linter:
-      available: false # Nota: no existe script de lint
+      available: false
     type_checker:
       tool: tsc y javac
-      command: npm run build (frontend); mvn compile (backend)
+      command: pnpm run build (frontend); $MAVEN_HOME/bin/mvn compile (backend)
     formatter:
       available: false
 
 ## SDD Rules for This Project
 rules:
   proposal:
-    - Include DB schema changes (Cambios en el grafo: nodos, relaciones, propiedades)
+    - "Include DB schema changes (Cambios en el grafo: nodos, relaciones, propiedades)"
     - Identify permission requirements (Autenticación y autorización afectada)
     - Reference domain module dependencies (Puertos y adaptadores afectados)
   specs:
     - Use Given/When/Then for scenarios
     - Specify query behavior (Consultas Cypher esperadas, nodos/relaciones retornadas)
     - Define validation rules (Constraints en Neo4j, validación en Quarkus)
+    - OpenSpec delta format obligatorio:
+      - Encabezado `## ADDED Requirements` o `## MODIFIED Requirements` antes de cada requerimiento
+      - "`### Requirement:` para cada requerimiento"
+      - "`#### Scenario:` (cuatro hashes) para cada scenario"
+      - "Un directorio por capability: `specs/<capability>/spec.md`"
   design:
-    - Document entity relationships (Grafo: :Usuario, :Post, :MensajeChat y relaciones SIGUE, PUBLICA, REACCIONA)
+    - "Document entity relationships (Grafo: :Usuario, :Post, :MensajeChat y relaciones SIGUE, PUBLICA, REACCIONA)"
     - Show Hexagonal Architecture ports/adapters used
+    - "Restricción Neo4j-only: no inventar bases relacionales"
+    - "Restricción de anillos hexagonales: respetar domain, port/in, port/out, application, infrastructure"
+    - "No inventar autenticación antes de US-01: JWT está diseñado pero no construido; no implementar autenticación antes de esa historia"
   tasks:
-    - Group by phase: Domain Model → Ports → Service → Adapter → Resources
-    - Keep tasks atomic
+    - "Cambio a nivel de STORY: un OpenSpec change por TICKET LINEAL (US-XX), no por capa. Cada ticket es fullstack (front + back) y lo ejecuta una sola persona."
+    - >-
+      Fases verticales y causales que cruzan ambas capas: (1) Dominio + esquema
+      de grafo [back] — sin el nodo :Usuario no hay grafo. (2) Puertos +
+      adaptadores de salida [back] — sin persistencia no hay datos. (3) Servicio
+      (use case) + recurso REST [back] — sin API no hay cliente. (4) Cliente HTTP
+      + estado de sesión [front] — sin estado no hay UI. (5) Componentes de UI
+      [front]. (6) Integración + verificación [both] — mvn compile y pnpm run build.
+    - Cada fase debe declarar qué desbloquea.
+    - >-
+      Fase de tests obligatoria. Cada historia incluye pruebas, colocaladas junto al código
+      (archivo.test.tsx en frontend, ClaseTest.java en backend), y deben fallar si el
+      comportamiento se rompe.
+    - >-
+      No afirmar comportamiento correcto sin una prueba que lo cubra. Si una prueba debe
+      quedar pendiente, justificar el motivo.
+    - Pruebas de contrato en el dominio antes que pruebas de UI cuando ambas sean posibles.
+    - >-
+      No añadir dependencias de test sin comprobar que el build sigue resolviendo.
+      Deben quedar verdes $MAVEN_HOME/bin/mvn test y pnpm test.
+    - Mantener tareas atómicas.
   apply:
     - Follow existing Quarkus Hexagonal patterns (domain/port/application/infrastructure)
-    - No migrations SQL: usar Neo4j y dataset semilla docker/neo4j-seed.cql
+    - "No migrations SQL: usar Neo4j y dataset semilla docker/neo4j-seed.cql"
+    - No inventar autenticación antes de US-01
+    - "Ejecutar las pruebas durante la implementación, no sólo al final: $MAVEN_HOME/bin/mvn test y pnpm test"
   verify:
-    - Run compile checks: mvn compile && cd ../frontend && npm run build
-    - (Tests disabled until runner is added)
+    - Ejecutar compilación Y pruebas. Ninguna historia se cierra con sólo compilación.
+    - "Backend: $MAVEN_HOME/bin/mvn test"
+    - "Frontend: cd ../frontend && pnpm test && pnpm run build"
+    - Una historia con pruebas rojas o ausentes se reporta como WARNING, no como PASS.
+    - Un defecto funcional detectado por una prueba se corrige o se documenta como deuda known_debt;
+      nunca se desactiva la prueba para dejarla verde.
+    - La cobertura no es un criterio de bloqueo por sí sola; se registra como dato de seguimiento.
 
 ## CI/CD
 ci:
   commands:
-    - mvn compile
-    - cd ../frontend && npm run build
+    - $MAVEN_HOME/bin/mvn test
+    - cd ../frontend && pnpm test
+    - cd ../frontend && pnpm run build
 
 ## Known Debt
 known_debt:
-  - No hay tests configurados
   - No hay lint configurado
+  - No hay runner e2e (Playwright/Cypress); sólo unitarias e integración con Testcontainers
+  - La cobertura es baja (10.84% al 2026-09-26) porque las historias aún no están implementadas
+  - strict_tdd está en false. Pasarlo a true es una decisión de proceso del equipo, no un cambio de configuración.
   - No hay código de auth implementado (se define autenticación JWT en diseño pero no está construido todavía)
+  - >-
+    CUELLO DE BOTELLA DE PLANIFICACIÓN: las fases que producen los artifacts SDD
+    (sdd-propose, sdd-spec, sdd-design, sdd-tasks) y la verificación (sdd-verify)
+    corren todas sobre `google/gemini-3.6-flash`, en el free tier con límite de
+    20 requests. Ese pool se agotó medido el 2026-09-26 y corta las cinco fases de
+    golpe. Las fases sdd-apply, sdd-archive y sdd-explore usan modelos free de
+    OpenCode y no se ven afectadas. Consecuencia práctica: si se agota la cuota a
+    mitad de un change, el proposal puede quedar escrito y spec/design/tasks
+    pendientes, y no hay forma de retomarlos hasta que se libere el pool.

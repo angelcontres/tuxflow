@@ -218,7 +218,7 @@ La aplicación del mismo mecanismo a los endpoints de `feed`, `posts`, `chat` y 
 10. Formulario de registro y formulario de inicio de sesión.
 11. Vista y edición de perfil, con subida de avatar.
 12. Controles de sesión en `Navbar`.
-13. `cd backend && mvn compile` y `cd frontend && npm run build` en verde.
+13. `cd backend && mvn compile` y `cd frontend && pnpm run build` en verde.
 
 ---
 
@@ -254,5 +254,5 @@ La aplicación del mismo mecanismo a los endpoints de `feed`, `posts`, `chat` y 
 - [ ] Cerrar sesión descarta el token del almacenamiento del navegador
 - [ ] El estado de sesión se actualiza al registrarse, al iniciar sesión y al cerrar sesión
 - [ ] `cd backend && mvn compile` sale con código 0
-- [ ] `cd frontend && npm run build` sale con código 0
+- [ ] `cd frontend && pnpm run build` sale con código 0
 - [ ] Ningún archivo de prueba fue creado
