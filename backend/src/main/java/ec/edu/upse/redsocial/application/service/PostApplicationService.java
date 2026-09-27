@@ -5,17 +5,14 @@ import ec.edu.upse.redsocial.domain.port.out.GrafoPersistencePort;
 import ec.edu.upse.redsocial.domain.port.out.NotificationPushPort;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-
 import java.util.UUID;
 
 @ApplicationScoped
 public class PostApplicationService implements CrearPostUseCase {
 
-    @Inject
-    GrafoPersistencePort grafoPersistencePort;
+    @Inject GrafoPersistencePort grafoPersistencePort;
 
-    @Inject
-    NotificationPushPort notificationPushPort;
+    @Inject NotificationPushPort notificationPushPort;
 
     @Override
     public String crearPost(String autorId, String autorUsername, String texto, String mediaUrl) {

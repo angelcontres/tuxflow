@@ -5,7 +5,6 @@ import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-
 import java.util.Map;
 
 @Path("/api/posts")
@@ -13,8 +12,7 @@ import java.util.Map;
 @Consumes(MediaType.APPLICATION_JSON)
 public class PostResource {
 
-    @Inject
-    CrearPostUseCase crearPostUseCase;
+    @Inject CrearPostUseCase crearPostUseCase;
 
     @POST
     public Response crearPost(Map<String, String> request) {

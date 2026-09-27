@@ -10,7 +10,7 @@ context: |
   Tech Stack: Quarkus + Java + Maven, Neo4j 5.20 + APOC (Grafo Social), MinIO S3, WebSockets de Quarkus, Web Push / VAPID, React 18 + Vite + TypeScript + Tailwind.
   Architecture: Arquitectura Hexagonal en 4 anillos (domain, port/in, port/out, application, infrastructure).
   Testing: JUnit 5 vía quarkus-junit5 en backend; Vitest + Testing Library + jsdom en frontend. Ambos runners operativos.
-  Style: No existe configurado linter ni formatter.
+  Style: ESLint 10 con Prettier en frontend; SpotBugs y Spotless en backend. Ver bloque testing.quality.
   Deployment: Docker Compose, red bridge red-distribuida, datos semilla en docker/neo4j-seed.cql.
   Toolchain: Maven 3.9.6 y Temurin JDK 21 en ~/.local/opt. ~/.bashrc define MAVEN_HOME y JAVA_HOME
     pero NO los agrega al PATH: hay que invocar $MAVEN_HOME/bin/mvn, o exportarlos antes de correr Maven.
@@ -58,12 +58,30 @@ testing:
     baseline: 10.84% al 2026-09-26. Subirá con cada historia aplicada.
   quality:
     linter:
-      available: false
+      available: true
+      frontend:
+        tool: ESLint 10 flat config
+        command: pnpm run lint
+        estado: verificado, 0 errores, 1 warning preexistente en App.tsx:36
+      backend:
+        tool: SpotBugs 4.8.6.0
+        command: $MAVEN_HOME/bin/mvn spotbugs:check
+        estado: verificado, 0 bugs con la exclusión aplicada
+        alcance: effort Max, threshold Medium, failOnError true
+        excepciones: backend/spotbugs-exclude.xml
     type_checker:
       tool: tsc y javac
       command: pnpm run build (frontend); $MAVEN_HOME/bin/mvn compile (backend)
     formatter:
-      available: false
+      available: true
+      frontend:
+        tool: Prettier 3.9.9
+        command: pnpm run format:check
+        estado: verificado, 22 archivos reformateados y limpios
+      backend:
+        tool: Spotless 2.44.0 con google-java-format AOSP
+        command: $MAVEN_HOME/bin/mvn spotless:check
+        estado: verificado, 18 archivos reformateados y mvn verify en verde
 
 ## SDD Rules for This Project
 rules:
@@ -124,14 +142,15 @@ rules:
 
 ## CI/CD
 ci:
+  # OJO: el backend usa `verify` y no `test`. Spotless y SpotBugs están atados a la
+  # fase verify, así que con `mvn test` no se ejecutaría ninguno de los dos.
   commands:
-    - $MAVEN_HOME/bin/mvn test
-    - cd ../frontend && pnpm test
-    - cd ../frontend && pnpm run build
+    - $MAVEN_HOME/bin/mvn verify
+    - cd ../frontend && pnpm run check
 
 ## Known Debt
 known_debt:
-  - No hay lint configurado
+  - No hay análisis estático de Java más allá de SpotBugs, que sólo ve el bytecode ya compilado
   - No hay runner e2e (Playwright/Cypress); sólo unitarias e integración con Testcontainers
   - La cobertura es baja (10.84% al 2026-09-26) porque las historias aún no están implementadas
   - strict_tdd está en false. Pasarlo a true es una decisión de proceso del equipo, no un cambio de configuración.

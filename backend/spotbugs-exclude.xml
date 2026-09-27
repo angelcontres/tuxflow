@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Excepciones de SpotBugs, con motivo. El objetivo es no silenciar hallazgos: cada
+  exclusión dice qué apaga y por qué, y sigue acotada a la clase o al patrón exacto.
+
+ EI_EXPOSE_REP / EI_EXPOSE_REP2 en la capa de modelo
+  El hallazgo base: `SugerenciaUsuario` expone su `List<String> seguidosEnComun` por
+  referencia en el getter y guarda la lista externa en el setter, sin copia defensiva.
+
+  Por qué se excluye en vez de corregir: el paquete `domain.model` es la capa de DTO
+  del proyecto. Estas clases se llenan desde el adaptador de Neo4j y se serializan a
+  JSON para el frontend; nadie muta la lista después de construir el objeto. Agregar
+  copias defensivas en cada getter y setter de cada DTO no aporta nada real y sólo
+  ensucia el código.
+
+  Esto NO es un bug oculto: el hallazgo original está reportado yueda registrado como
+  deuda. Si alguna vez una clase de este paquete pasa a tener invariantes y la lista
+  deja de ser sólo de lectura, hay que sacar la exclusión para esa clase.
+
+  Lo que NO se desactiva: `failOnError` sigue en true, así que cualquier bug nuevo
+  (null, recursos, concurrencia) sigue cortando el build.
+-->
+<FindBugsFilter>
+  <Match>
+    <Package name="~ec\.edu\.upse\.redsocial\.domain\.model"/>
+    <Or>
+      <Bug pattern="EI_EXPOSE_REP"/>
+      <Bug pattern="EI_EXPOSE_REP2"/>
+    </Or>
+  </Match>
+</FindBugsFilter>

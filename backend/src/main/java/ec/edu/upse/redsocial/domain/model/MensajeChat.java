@@ -17,15 +17,35 @@ public class MensajeChat {
         this.timestamp = System.currentTimeMillis();
     }
 
-    public String getEmisorId() { return emisorId; }
-    public void setEmisorId(String emisorId) { this.emisorId = emisorId; }
+    public String getEmisorId() {
+        return emisorId;
+    }
 
-    public String getDestinatarioId() { return destinatarioId; }
-    public void setDestinatarioId(String destinatarioId) { this.destinatarioId = destinatarioId; }
+    public void setEmisorId(String emisorId) {
+        this.emisorId = emisorId;
+    }
 
-    public String getContenido() { return contenido; }
-    public void setContenido(String contenido) { this.contenido = contenido; }
+    public String getDestinatarioId() {
+        return destinatarioId;
+    }
 
-    public long getTimestamp() { return timestamp; }
-    public void setTimestamp(long timestamp) { this.timestamp = timestamp; }
+    public void setDestinatarioId(String destinatarioId) {
+        this.destinatarioId = destinatarioId;
+    }
+
+    public String getContenido() {
+        return contenido;
+    }
+
+    public void setContenido(String contenido) {
+        this.contenido = contenido;
+    }
+
+    public long getTimestamp() {
+        return timestamp;
+    }
+
+    public void setTimestamp(long timestamp) {
+        this.timestamp = timestamp;
+    }
 }

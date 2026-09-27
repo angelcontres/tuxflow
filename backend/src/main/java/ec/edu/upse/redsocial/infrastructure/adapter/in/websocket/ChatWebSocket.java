@@ -6,7 +6,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.websocket.*;
 import jakarta.websocket.server.PathParam;
 import jakarta.websocket.server.ServerEndpoint;
-
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -35,7 +34,11 @@ public class ChatWebSocket {
     @OnError
     public void onError(Session session, @PathParam("userId") String userId, Throwable throwable) {
         sesionesActivas.remove(userId);
-        LOG.warning("Adaptador WebSocket: Error en sesión de " + userId + ": " + throwable.getMessage());
+        LOG.warning(
+                "Adaptador WebSocket: Error en sesión de "
+                        + userId
+                        + ": "
+                        + throwable.getMessage());
     }
 
     @OnMessage
