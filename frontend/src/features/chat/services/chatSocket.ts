@@ -35,7 +35,7 @@ export class ChatSocketManager {
       const payload: ChatMessage = {
         emisorId: '',
         destinatarioId,
-        contenido
+        contenido,
       };
       this.socket.send(JSON.stringify(payload));
     } else {

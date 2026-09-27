@@ -20,7 +20,7 @@ export const App: React.FC = () => {
     try {
       const [feedData, sugData] = await Promise.all([
         fetchFeedBySocialGraph(currentUserId).catch(() => []),
-        fetchSugerenciasGrafo(currentUserId).catch(() => [])
+        fetchSugerenciasGrafo(currentUserId).catch(() => []),
       ]);
       setPosts(feedData);
       setSugerencias(sugData);
@@ -41,7 +41,6 @@ export const App: React.FC = () => {
 
       <main className="max-w-6xl mx-auto px-4 pt-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-          
           {/* Columna Principal: Feed (2 columnas en desktop) */}
           <section className="lg:col-span-2">
             <CreatePostForm
@@ -56,11 +55,7 @@ export const App: React.FC = () => {
                 <p className="text-xs text-slate-500">Recorriendo grafo social en Neo4j...</p>
               </div>
             ) : (
-              <FeedList
-                posts={posts}
-                currentUserId={currentUserId}
-                onRefresh={loadAllData}
-              />
+              <FeedList posts={posts} currentUserId={currentUserId} onRefresh={loadAllData} />
             )}
           </section>
 

@@ -26,7 +26,11 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUserId, onLikeC
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-sky-500 to-indigo-500 flex items-center justify-center text-white font-bold text-sm shadow-sm ring-2 ring-slate-100">
             {post.autorAvatar ? (
-              <img src={post.autorAvatar} alt={post.autorUsername} className="w-full h-full rounded-full object-cover" />
+              <img
+                src={post.autorAvatar}
+                alt={post.autorUsername}
+                className="w-full h-full rounded-full object-cover"
+              />
             ) : (
               post.autorUsername.charAt(0).toUpperCase()
             )}
@@ -72,7 +76,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUserId, onLikeC
           }`}
         >
           <Heart className={`w-4 h-4 ${post.likedByMe ? 'fill-rose-500 text-rose-500' : ''}`} />
-          <span>{post.totalLikes} {post.totalLikes === 1 ? 'Me gusta' : 'Me gustas'}</span>
+          <span>
+            {post.totalLikes} {post.totalLikes === 1 ? 'Me gusta' : 'Me gustas'}
+          </span>
         </button>
 
         <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-medium hover:bg-slate-100 hover:text-slate-800 transition-colors">

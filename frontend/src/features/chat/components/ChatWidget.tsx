@@ -36,7 +36,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId }) => {
     chatSocketManager.sendMessage(destinatarioId, mensaje);
     setMensajes((prev) => [
       ...prev,
-      { emisorId: currentUserId, destinatarioId, contenido: mensaje }
+      { emisorId: currentUserId, destinatarioId, contenido: mensaje },
     ]);
     setMensaje('');
   };
@@ -88,10 +88,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId }) => {
           mensajes.map((m, idx) => {
             const isMe = m.emisorId === currentUserId;
             return (
-              <div
-                key={idx}
-                className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
-              >
+              <div key={idx} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                 <div
                   className={`max-w-[85%] text-xs px-3 py-2 rounded-2xl ${
                     isMe

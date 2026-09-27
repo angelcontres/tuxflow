@@ -11,7 +11,7 @@ interface CreatePostFormProps {
 export const CreatePostForm: React.FC<CreatePostFormProps> = ({
   currentUserId,
   currentUsername,
-  onPostCreated
+  onPostCreated,
 }) => {
   const [texto, setTexto] = useState('');
   const [mediaUrl, setMediaUrl] = useState('');
@@ -28,7 +28,7 @@ export const CreatePostForm: React.FC<CreatePostFormProps> = ({
         autorId: currentUserId,
         autorUsername: currentUsername,
         texto,
-        mediaUrl: mediaUrl.trim() || undefined
+        mediaUrl: mediaUrl.trim() || undefined,
       });
       setTexto('');
       setMediaUrl('');
