@@ -89,6 +89,34 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-smallrye-openapi</artifactId>
         </dependency>
+
+        <!-- Test: extension de test de Quarkus. Aporta JUnit 5 y configura Surefire. -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-junit5</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Test: Mockito para aislar adaptadores de infraestructura. -->
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Test: base en memoria para consultas Cypher sin depender de un Neo4j externo. -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>neo4j</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Test: pruebas de REST sobre el recurso, sin levantar el servidor. -->
+        <dependency>
+            <groupId>io.rest-assured</groupId>
+            <artifactId>rest-assured</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -103,6 +131,78 @@
                         <goals>
                             <goal>build</goal>
                             <goal>generate-code</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!--
+                Formato: Spotless con google-java-format.
+
+                Elección sobre las alternativas: Spotless es un plugin de Maven, así que
+                `spotless:check` se ata al ciclo de vida y `spotless:apply` repara todo de
+                una. Alternativas descartadas: google-java-format suelto obliga a un
+                script aparte y no se integra con Maven; el fmt-maven-plugin usa palantir,
+                menos conocido. Google Java Format es el estándar de facto y es
+                determinista: el mismo código produce siempre el mismo formato.
+            -->
+            <plugin>
+                <groupId>com.diffplug.spotless</groupId>
+                <artifactId>spotless-maven-plugin</artifactId>
+                <version>2.44.0</version>
+                <configuration>
+                    <java>
+                        <includes>
+                            <include>src/main/java/**/*.java</include>
+                            <include>src/test/java/**/*.java</include>
+                        </includes>
+                        <googleJavaFormat>
+                            <style>AOSP</style>
+                        </googleJavaFormat>
+                        <removeUnusedImports/>
+                        <trimTrailingWhitespace/>
+                        <endWithNewline/>
+                    </java>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>spotless-check</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!--
+                Lint: SpotBugs.
+
+                Elección sobre las alternativas: SpotBugs encuentra bugs reales
+                (desreferencias nulas, fugas de recursos, condiciones de carrera) en el
+                bytecode ya compilado, que es justo lo que `javac` no reporta. Descartado
+                Checkstyle porque su mayor valor es el estilo, y eso ya lo cubre Spotless:
+                usar ambos juntos sólo genera conflictos. Descartado PMD por solaparse con
+                SpotBugs. Descartado Error Prone por ser intrusivo: reemplaza el
+                compilador y obliga a flags como -XDcompilePolicy, lo que puede romper la
+                compilación de Quarkus. Se deja en nivel medio para dar señal alta
+                sin ruido.
+            -->
+            <plugin>
+                <groupId>com.github.spotbugs</groupId>
+                <artifactId>spotbugs-maven-plugin</artifactId>
+                <version>4.8.6.0</version>
+                <configuration>
+                    <effort>Max</effort>
+                    <threshold>Medium</threshold>
+                    <failOnError>true</failOnError>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>spotbugs-check</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
                         </goals>
                     </execution>
                 </executions>
