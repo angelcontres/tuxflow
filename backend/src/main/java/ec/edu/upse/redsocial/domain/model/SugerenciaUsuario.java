@@ -12,21 +12,51 @@ public class SugerenciaUsuario {
 
     public SugerenciaUsuario() {}
 
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
+    public String getId() {
+        return id;
+    }
 
-    public String getUsername() { return username; }
-    public void setUsername(String username) { this.username = username; }
+    public void setId(String id) {
+        this.id = id;
+    }
 
-    public String getNombre() { return nombre; }
-    public void setNombre(String nombre) { this.nombre = nombre; }
+    public String getUsername() {
+        return username;
+    }
 
-    public String getAvatar() { return avatar; }
-    public void setAvatar(String avatar) { this.avatar = avatar; }
+    public void setUsername(String username) {
+        this.username = username;
+    }
 
-    public long getConexionesEnComun() { return conexionesEnComun; }
-    public void setConexionesEnComun(long conexionesEnComun) { this.conexionesEnComun = conexionesEnComun; }
+    public String getNombre() {
+        return nombre;
+    }
 
-    public List<String> getSeguidosEnComun() { return seguidosEnComun; }
-    public void setSeguidosEnComun(List<String> seguidosEnComun) { this.seguidosEnComun = seguidosEnComun; }
+    public void setNombre(String nombre) {
+        this.nombre = nombre;
+    }
+
+    public String getAvatar() {
+        return avatar;
+    }
+
+    public void setAvatar(String avatar) {
+        this.avatar = avatar;
+    }
+
+    public long getConexionesEnComun() {
+        return conexionesEnComun;
+    }
+
+    public void setConexionesEnComun(long conexionesEnComun) {
+        this.conexionesEnComun = conexionesEnComun;
+    }
+
+    public List<String> getSeguidosEnComun() {
+        return seguidosEnComun;
+    }
+
+    public void setSeguidosEnComun(List<String> seguidosEnComun) {
+        this.seguidosEnComun = seguidosEnComun;
+    }
 }

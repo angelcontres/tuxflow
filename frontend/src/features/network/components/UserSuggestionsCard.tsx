@@ -12,7 +12,7 @@ interface UserSuggestionsCardProps {
 export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
   sugerencias,
   currentUserId,
-  onNetworkUpdated
+  onNetworkUpdated,
 }) => {
   const handleFollow = async (targetId: string) => {
     try {

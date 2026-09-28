@@ -6,7 +6,6 @@ import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-
 import java.util.List;
 
 @Path("/api/feed")
@@ -14,8 +13,7 @@ import java.util.List;
 @Consumes(MediaType.APPLICATION_JSON)
 public class FeedResource {
 
-    @Inject
-    ObtenerFeedUseCase obtenerFeedUseCase;
+    @Inject ObtenerFeedUseCase obtenerFeedUseCase;
 
     @GET
     @Path("/{userId}")

@@ -30,6 +30,7 @@ src/
 ```
 
 ## Estilos y Diseño
+
 - **Tailwind CSS 3.4**: Clases de utilidad modernas sin CSS redundante.
 - **Lucide React**: Iconografía minimalista para redes sociales.
 - **PWA / Service Worker**: `public/sw.js` para recibir alertas nativas del sistema operativo en segundo plano.

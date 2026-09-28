@@ -1,0 +1,13 @@
+# actionlint configuration — Red Social Distribuida
+#
+# Configuración para evitar falsos positivos en el validador de GitHub Actions.
+# Dado que corremos sobre contenedores de Docker Compose locales y podríamos
+# usar un self-hosted runner específico ('docker-runner') para Neo4j y MinIO,
+# actionlint lo marcaría como "unknown label" sin este mapa.
+#
+# Declarar la etiqueta acá deja el gate limpio y protege contra regresiones 
+# reales cuando se configuren los workflows de CI formales.
+self-hosted-runner:
+  labels:
+    - docker-runner
+    - local-dev

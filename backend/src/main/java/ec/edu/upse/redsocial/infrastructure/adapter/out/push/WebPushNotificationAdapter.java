@@ -4,10 +4,9 @@ import ec.edu.upse.redsocial.domain.port.out.GrafoPersistencePort;
 import ec.edu.upse.redsocial.domain.port.out.NotificationPushPort;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
-
 import java.util.List;
 import java.util.logging.Logger;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 @ApplicationScoped
 public class WebPushNotificationAdapter implements NotificationPushPort {
@@ -23,13 +22,18 @@ public class WebPushNotificationAdapter implements NotificationPushPort {
     @ConfigProperty(name = "redsocial.vapid.subject")
     String subject;
 
-    @Inject
-    GrafoPersistencePort grafoPersistencePort;
+    @Inject GrafoPersistencePort grafoPersistencePort;
 
     @Override
-    public void notificarSeguidoresNuevoPost(String autorId, String autorUsername, String postTexto) {
-        List<String> suscripciones = grafoPersistencePort.obtenerSuscripcionesPushDeSeguidores(autorId);
-        LOG.info("Hexagonal Outbound Push Adapter: Notificando a " + suscripciones.size() + " seguidores de: " + autorUsername);
+    public void notificarSeguidoresNuevoPost(
+            String autorId, String autorUsername, String postTexto) {
+        List<String> suscripciones =
+                grafoPersistencePort.obtenerSuscripcionesPushDeSeguidores(autorId);
+        LOG.info(
+                "Hexagonal Outbound Push Adapter: Notificando a "
+                        + suscripciones.size()
+                        + " seguidores de: "
+                        + autorUsername);
 
         for (String subJson : suscripciones) {
             try {

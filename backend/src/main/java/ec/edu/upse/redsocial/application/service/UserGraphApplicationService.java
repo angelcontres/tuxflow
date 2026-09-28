@@ -6,15 +6,13 @@ import ec.edu.upse.redsocial.domain.port.in.GestionarGrafoSocialUseCase;
 import ec.edu.upse.redsocial.domain.port.out.GrafoPersistencePort;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-
 import java.util.List;
 import java.util.Map;
 
 @ApplicationScoped
 public class UserGraphApplicationService implements GestionarGrafoSocialUseCase {
 
-    @Inject
-    GrafoPersistencePort grafoPersistencePort;
+    @Inject GrafoPersistencePort grafoPersistencePort;
 
     @Override
     public void registrarUsuario(Usuario usuario) {

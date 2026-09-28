@@ -2,7 +2,7 @@ import axios from 'axios';
 import { SugerenciaUsuario } from '../types/network.types';
 
 const api = axios.create({
-  baseURL: '/api'
+  baseURL: '/api',
 });
 
 export const fetchSugerenciasGrafo = async (userId: string): Promise<SugerenciaUsuario[]> => {

@@ -3,7 +3,6 @@ package ec.edu.upse.redsocial.domain.port.out;
 import ec.edu.upse.redsocial.domain.model.Post;
 import ec.edu.upse.redsocial.domain.model.SugerenciaUsuario;
 import ec.edu.upse.redsocial.domain.model.Usuario;
-
 import java.util.List;
 import java.util.Map;
 
@@ -25,9 +24,14 @@ public interface GrafoPersistencePort {
 
     // Operaciones del Grafo
     void guardarUsuario(Usuario u);
+
     void seguirUsuario(String seguidorId, String seguidoId);
+
     void dejarDeSeguir(String seguidorId, String seguidoId);
+
     void crearPost(String autorId, String postId, String texto, String mediaUrl);
+
     void alternarLike(String userId, String postId);
+
     List<String> obtenerSuscripcionesPushDeSeguidores(String autorId);
 }

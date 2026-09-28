@@ -13,30 +13,75 @@ public class Post {
 
     public Post() {}
 
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
+    public String getId() {
+        return id;
+    }
 
-    public String getTexto() { return texto; }
-    public void setTexto(String texto) { this.texto = texto; }
+    public void setId(String id) {
+        this.id = id;
+    }
 
-    public String getMediaUrl() { return mediaUrl; }
-    public void setMediaUrl(String mediaUrl) { this.mediaUrl = mediaUrl; }
+    public String getTexto() {
+        return texto;
+    }
 
-    public String getFechaCreacion() { return fechaCreacion; }
-    public void setFechaCreacion(String fechaCreacion) { this.fechaCreacion = fechaCreacion; }
+    public void setTexto(String texto) {
+        this.texto = texto;
+    }
 
-    public String getAutorId() { return autorId; }
-    public void setAutorId(String autorId) { this.autorId = autorId; }
+    public String getMediaUrl() {
+        return mediaUrl;
+    }
 
-    public String getAutorUsername() { return autorUsername; }
-    public void setAutorUsername(String autorUsername) { this.autorUsername = autorUsername; }
+    public void setMediaUrl(String mediaUrl) {
+        this.mediaUrl = mediaUrl;
+    }
 
-    public String getAutorAvatar() { return autorAvatar; }
-    public void setAutorAvatar(String autorAvatar) { this.autorAvatar = autorAvatar; }
+    public String getFechaCreacion() {
+        return fechaCreacion;
+    }
 
-    public long getTotalLikes() { return totalLikes; }
-    public void setTotalLikes(long totalLikes) { this.totalLikes = totalLikes; }
+    public void setFechaCreacion(String fechaCreacion) {
+        this.fechaCreacion = fechaCreacion;
+    }
 
-    public boolean isLikedByMe() { return likedByMe; }
-    public void setLikedByMe(boolean likedByMe) { this.likedByMe = likedByMe; }
+    public String getAutorId() {
+        return autorId;
+    }
+
+    public void setAutorId(String autorId) {
+        this.autorId = autorId;
+    }
+
+    public String getAutorUsername() {
+        return autorUsername;
+    }
+
+    public void setAutorUsername(String autorUsername) {
+        this.autorUsername = autorUsername;
+    }
+
+    public String getAutorAvatar() {
+        return autorAvatar;
+    }
+
+    public void setAutorAvatar(String autorAvatar) {
+        this.autorAvatar = autorAvatar;
+    }
+
+    public long getTotalLikes() {
+        return totalLikes;
+    }
+
+    public void setTotalLikes(long totalLikes) {
+        this.totalLikes = totalLikes;
+    }
+
+    public boolean isLikedByMe() {
+        return likedByMe;
+    }
+
+    public void setLikedByMe(boolean likedByMe) {
+        this.likedByMe = likedByMe;
+    }
 }
