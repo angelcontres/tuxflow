@@ -223,18 +223,134 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
             """;
         try (var session = driver.session()) {
             session.executeWrite(
-                    tx ->
-                            tx.run(
-                                    cypher,
-                                    Values.parameters(
-                                            "id", u.getId(),
-                                            "username", u.getUsername(),
-                                            "email", u.getEmail(),
-                                            "nombre", u.getNombre(),
-                                            "avatarUrl",
-                                                    u.getAvatarUrl() != null
-                                                            ? u.getAvatarUrl()
-                                                            : "")));
+                    tx -> {
+                        tx.run(
+                                cypher,
+                                Values.parameters(
+                                        "id", u.getId(),
+                                        "username", u.getUsername(),
+                                        "email", u.getEmail(),
+                                        "nombre", u.getNombre(),
+                                        "avatarUrl",
+                                                u.getAvatarUrl() != null
+                                                        ? u.getAvatarUrl()
+                                                        : ""))
+                                .consume();
+                        return null;
+                    });
+        }
+    }
+
+    @Override
+    public Optional<Usuario> obtenerUsuarioPorId(String userId) {
+        String cypher =
+                """
+            MATCH (u:Usuario {id: $userId})
+            RETURN u.id AS id,
+                   u.username AS username,
+                   u.email AS email,
+                   u.nombre AS nombre,
+                   u.avatarUrl AS avatarUrl,
+                   u.pushSubscriptionJson AS pushSubscriptionJson;
+            """;
+        try (var session = driver.session()) {
+            return session.executeRead(
+                    tx -> {
+                        var result = tx.run(cypher, Values.parameters("userId", userId));
+                        if (result.hasNext()) {
+                            Record record = result.next();
+                            Usuario u = new Usuario();
+                            u.setId(record.get("id").asString());
+                            u.setUsername(record.get("username").asString());
+                            u.setEmail(
+                                    record.get("email").isNull()
+                                            ? null
+                                            : record.get("email").asString());
+                            u.setNombre(
+                                    record.get("nombre").isNull()
+                                            ? null
+                                            : record.get("nombre").asString());
+                            u.setAvatarUrl(
+                                    record.get("avatarUrl").isNull()
+                                            ? null
+                                            : record.get("avatarUrl").asString());
+                            u.setPushSubscriptionJson(
+                                    record.get("pushSubscriptionJson").isNull()
+                                            ? null
+                                            : record.get("pushSubscriptionJson").asString());
+                            return Optional.of(u);
+                        }
+                        return Optional.empty();
+                    });
+        }
+    }
+
+    @Override
+    public List<Usuario> listarUsuarios() {
+        String cypher =
+                """
+            MATCH (u:Usuario)
+            RETURN u.id AS id,
+                   u.username AS username,
+                   u.email AS email,
+                   u.nombre AS nombre,
+                   u.avatarUrl AS avatarUrl,
+                   u.pushSubscriptionJson AS pushSubscriptionJson
+            ORDER BY u.nombre ASC;
+            """;
+        try (var session = driver.session()) {
+            return session.executeRead(
+                    tx -> {
+                        var result = tx.run(cypher);
+                        List<Usuario> list = new ArrayList<>();
+                        while (result.hasNext()) {
+                            Record record = result.next();
+                            Usuario u = new Usuario();
+                            u.setId(record.get("id").asString());
+                            u.setUsername(record.get("username").asString());
+                            u.setEmail(
+                                    record.get("email").isNull()
+                                            ? null
+                                            : record.get("email").asString());
+                            u.setNombre(
+                                    record.get("nombre").isNull()
+                                            ? null
+                                            : record.get("nombre").asString());
+                            u.setAvatarUrl(
+                                    record.get("avatarUrl").isNull()
+                                            ? null
+                                            : record.get("avatarUrl").asString());
+                            u.setPushSubscriptionJson(
+                                    record.get("pushSubscriptionJson").isNull()
+                                            ? null
+                                            : record.get("pushSubscriptionJson").asString());
+                            list.add(u);
+                        }
+                        return list;
+                    });
+        }
+    }
+
+    @Override
+    public void actualizarAvatarUsuario(String userId, String avatarUrl) {
+        String cypher =
+                """
+            MATCH (u:Usuario {id: $userId})
+            SET u.avatarUrl = $avatarUrl
+            """;
+        try (var session = driver.session()) {
+            session.executeWrite(
+                    tx -> {
+                        tx.run(
+                                cypher,
+                                Values.parameters(
+                                        "userId",
+                                        userId,
+                                        "avatarUrl",
+                                        avatarUrl != null ? avatarUrl : ""))
+                                .consume();
+                        return null;
+                    });
         }
     }
 
@@ -248,11 +364,14 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
             """;
         try (var session = driver.session()) {
             session.executeWrite(
-                    tx ->
-                            tx.run(
-                                    cypher,
-                                    Values.parameters(
-                                            "seguidorId", seguidorId, "seguidoId", seguidoId)));
+                    tx -> {
+                        tx.run(
+                                cypher,
+                                Values.parameters(
+                                        "seguidorId", seguidorId, "seguidoId", seguidoId))
+                                .consume();
+                        return null;
+                    });
         }
     }
 
@@ -265,11 +384,14 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
             """;
         try (var session = driver.session()) {
             session.executeWrite(
-                    tx ->
-                            tx.run(
-                                    cypher,
-                                    Values.parameters(
-                                            "seguidorId", seguidorId, "seguidoId", seguidoId)));
+                    tx -> {
+                        tx.run(
+                                cypher,
+                                Values.parameters(
+                                        "seguidorId", seguidorId, "seguidoId", seguidoId))
+                                .consume();
+                        return null;
+                    });
         }
     }
 
@@ -288,14 +410,17 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
             """;
         try (var session = driver.session()) {
             session.executeWrite(
-                    tx ->
-                            tx.run(
-                                    cypher,
-                                    Values.parameters(
-                                            "autorId", autorId,
-                                            "postId", postId,
-                                            "texto", texto,
-                                            "mediaUrl", mediaUrl != null ? mediaUrl : "")));
+                    tx -> {
+                        tx.run(
+                                cypher,
+                                Values.parameters(
+                                        "autorId", autorId,
+                                        "postId", postId,
+                                        "texto", texto,
+                                        "mediaUrl", mediaUrl != null ? mediaUrl : ""))
+                                .consume();
+                        return null;
+                    });
         }
     }
 
@@ -309,7 +434,11 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
             """;
         try (var session = driver.session()) {
             session.executeWrite(
-                    tx -> tx.run(cypher, Values.parameters("userId", userId, "postId", postId)));
+                    tx -> {
+                        tx.run(cypher, Values.parameters("userId", userId, "postId", postId))
+                                .consume();
+                        return null;
+                    });
         }
     }
 

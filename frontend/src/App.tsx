@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Navbar } from './shared/components/Navbar';
 import { CreatePostForm } from './features/feed/components/CreatePostForm';
 import { FeedList } from './features/feed/components/FeedList';
@@ -10,13 +10,13 @@ import { Post } from './features/feed/types/post.types';
 import { SugerenciaUsuario } from './features/network/types/network.types';
 
 export const App: React.FC = () => {
-  const [currentUserId] = useState<string>('carlos-patino');
-  const [currentUsername] = useState<string>('carlos');
+  const [currentUserId, setCurrentUserId] = useState<string>('carlos-patino');
+  const [currentUsername, setCurrentUsername] = useState<string>('carlos');
   const [posts, setPosts] = useState<Post[]>([]);
   const [sugerencias, setSugerencias] = useState<SugerenciaUsuario[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  const loadAllData = async () => {
+  const loadAllData = useCallback(async () => {
     try {
       const [feedData, sugData] = await Promise.all([
         fetchFeedBySocialGraph(currentUserId).catch(() => []),
@@ -29,15 +29,25 @@ export const App: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUserId]);
 
   useEffect(() => {
     loadAllData();
-  }, [currentUserId]);
+  }, [loadAllData]);
+
+  const handleUserChange = (userId: string, username: string) => {
+    setCurrentUserId(userId);
+    setCurrentUsername(username);
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-12">
-      <Navbar currentUsername={currentUsername} />
+      <Navbar
+        currentUserId={currentUserId}
+        currentUsername={currentUsername}
+        onUserChange={handleUserChange}
+        onProfileUpdated={loadAllData}
+      />
 
       <main className="max-w-6xl mx-auto px-4 pt-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">

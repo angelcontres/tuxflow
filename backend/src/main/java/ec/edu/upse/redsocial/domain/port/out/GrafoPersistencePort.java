@@ -5,6 +5,7 @@ import ec.edu.upse.redsocial.domain.model.SugerenciaUsuario;
 import ec.edu.upse.redsocial.domain.model.Usuario;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public interface GrafoPersistencePort {
     // 1. Feed Cronológico Filtrado por Grafo Social (2 Saltos)
@@ -24,6 +25,12 @@ public interface GrafoPersistencePort {
 
     // Operaciones del Grafo
     void guardarUsuario(Usuario u);
+
+    Optional<Usuario> obtenerUsuarioPorId(String id);
+
+    List<Usuario> listarUsuarios();
+
+    void actualizarAvatarUsuario(String userId, String avatarUrl);
 
     void seguirUsuario(String seguidorId, String seguidoId);
 

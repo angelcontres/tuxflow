@@ -2,11 +2,24 @@ package ec.edu.upse.redsocial.domain.port.in;
 
 import ec.edu.upse.redsocial.domain.model.SugerenciaUsuario;
 import ec.edu.upse.redsocial.domain.model.Usuario;
+import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public interface GestionarGrafoSocialUseCase {
     void registrarUsuario(Usuario usuario);
+
+    Optional<Usuario> obtenerUsuarioPorId(String id);
+
+    List<Usuario> listarUsuarios();
+
+    String subirAvatar(
+            String userId,
+            InputStream inputStream,
+            long contentLength,
+            String contentType,
+            String extension);
 
     void seguir(String seguidorId, String seguidoId);
 

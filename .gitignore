@@ -6,6 +6,7 @@ target/
 *.ear
 *.logs
 .mvn/
+.m2/
 
 # Node / React
 node_modules/
