@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Navbar } from './shared/components/Navbar';
 import { CreatePostForm } from './features/feed/components/CreatePostForm';
 import { FeedList } from './features/feed/components/FeedList';
@@ -8,15 +8,16 @@ import { fetchFeedBySocialGraph } from './features/feed/services/feedApi';
 import { fetchSugerenciasGrafo } from './features/network/services/networkApi';
 import { Post } from './features/feed/types/post.types';
 import { SugerenciaUsuario } from './features/network/types/network.types';
+import { UserCheck } from 'lucide-react';
 
 export const App: React.FC = () => {
-  const [currentUserId] = useState<string>('carlos-patino');
-  const [currentUsername] = useState<string>('carlos');
+  const [currentUserId, setCurrentUserId] = useState<string>('carlos-patino');
+  const [currentUsername, setCurrentUsername] = useState<string>('carlos');
   const [posts, setPosts] = useState<Post[]>([]);
   const [sugerencias, setSugerencias] = useState<SugerenciaUsuario[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  const loadAllData = async () => {
+  const loadAllData = useCallback(async () => {
     try {
       const [feedData, sugData] = await Promise.all([
         fetchFeedBySocialGraph(currentUserId).catch(() => []),
@@ -29,20 +30,30 @@ export const App: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUserId]);
 
   useEffect(() => {
     loadAllData();
-  }, [currentUserId]);
+  }, [loadAllData]);
+
+  const handleUserChange = (userId: string, username: string) => {
+    setCurrentUserId(userId);
+    setCurrentUsername(username);
+  };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 pb-12">
-      <Navbar currentUsername={currentUsername} />
+    <div className="min-h-screen bg-slate-100 text-slate-900 pb-16">
+      <Navbar
+        currentUserId={currentUserId}
+        currentUsername={currentUsername}
+        onUserChange={handleUserChange}
+        onProfileUpdated={loadAllData}
+      />
 
-      <main className="max-w-6xl mx-auto px-4 pt-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-          {/* Columna Principal: Feed (2 columnas en desktop) */}
-          <section className="lg:col-span-2">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 pt-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* COLUMNA PRINCIPAL: FORMULARIO DE POST Y FEED */}
+          <section className="lg:col-span-7 space-y-4">
             <CreatePostForm
               currentUserId={currentUserId}
               currentUsername={currentUsername}
@@ -50,24 +61,48 @@ export const App: React.FC = () => {
             />
 
             {loading ? (
-              <div className="bg-white rounded-2xl p-8 text-center border border-slate-200/80">
-                <div className="animate-spin w-6 h-6 border-2 border-sky-600 border-t-transparent rounded-full mx-auto mb-2" />
-                <p className="text-xs text-slate-500">Recorriendo grafo social en Neo4j...</p>
+              <div className="bg-white rounded-xl p-8 text-center border border-slate-200 shadow-xs">
+                <div className="animate-spin w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full mx-auto mb-3" />
+                <p className="text-xs text-slate-500 font-medium">
+                  Cargando publicaciones desde el grafo Neo4j...
+                </p>
               </div>
             ) : (
               <FeedList posts={posts} currentUserId={currentUserId} onRefresh={loadAllData} />
             )}
           </section>
 
-          {/* Columna Lateral: Sugerencias de Grafo + Chat en Vivo */}
-          <aside className="space-y-6">
+          {/* BARRA LATERAL DERECHA: SESIÓN + SUGERENCIAS + CHAT */}
+          <aside className="lg:col-span-5 space-y-6">
+            {/* Tarjeta de Sesión Activa */}
+            <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
+                {currentUsername.charAt(0).toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-slate-900 truncate">@{currentUsername}</p>
+                <p className="text-[11px] text-emerald-600 font-medium flex items-center gap-1">
+                  <UserCheck className="w-3.5 h-3.5 text-emerald-500" />
+                  Sesión activa en Grafo Social
+                </p>
+              </div>
+            </div>
+
+            {/* Sugerencias de Red (Neo4j 2º Grado) */}
             <UserSuggestionsCard
               sugerencias={sugerencias}
               currentUserId={currentUserId}
               onNetworkUpdated={loadAllData}
             />
 
+            {/* Chat en Vivo por WebSocket */}
             <ChatWidget currentUserId={currentUserId} />
+
+            {/* Pie Informativo */}
+            <footer className="text-center text-xs text-slate-400 py-2">
+              <p>Red Social Distribuida • Neo4j & MinIO S3</p>
+              <p className="text-[11px] mt-0.5">Universidad Estatal Península de Santa Elena</p>
+            </footer>
           </aside>
         </div>
       </main>
