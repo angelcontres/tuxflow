@@ -10,7 +10,6 @@ import {
   AlertCircle,
   X,
   Users,
-  Music,
   Search,
   Plus,
 } from 'lucide-react';
@@ -237,36 +236,36 @@ export const Navbar: React.FC<NavbarProps> = ({
       {/* Barra de Navegación Superior Estilo TikTok */}
       <header className="sticky top-0 z-50 bg-[#010101]/95 backdrop-blur-md border-b border-white/10 transition-all">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
-          {/* Logo TikTok / TuxTok con Efecto Cromático Neón */}
+          {/* Logo TikTok / FrutaTok con Efecto Cromático Neón */}
           <div className="flex items-center gap-2.5 cursor-pointer shrink-0">
             <div className="w-9 h-9 rounded-xl bg-black border border-white/20 flex items-center justify-center shadow-lg relative overflow-hidden group">
               <div className="absolute inset-0 bg-gradient-to-tr from-[#25F4EE]/20 to-[#FE2C55]/20 group-hover:opacity-100 transition-opacity" />
-              <Music className="w-5 h-5 text-white relative z-10 drop-shadow-[2px_0_0_#25F4EE,-2px_0_0_#FE2C55]" />
+              <span className="text-xl relative z-10 select-none">🍉</span>
             </div>
             <div className="flex items-baseline gap-1">
               <span className="font-black text-2xl tracking-tighter text-white">
-                Tux<span className="text-[#FE2C55]">Tok</span>
+                Fruta<span className="text-[#FE2C55]">Tok</span>
               </span>
               <span className="text-[10px] font-extrabold text-[#25F4EE] tracking-widest uppercase bg-[#25F4EE]/10 px-1.5 py-0.5 rounded border border-[#25F4EE]/30">
-                UPSE
+                SHOP
               </span>
             </div>
           </div>
 
-          {/* Barra de Búsqueda TikTok Píldora */}
+          {/* Barra de Búsqueda FrutaTok Píldora */}
           <div className="hidden md:flex items-center flex-1 max-w-md bg-[#2f313f]/60 hover:bg-[#2f313f]/80 transition-colors border border-transparent focus-within:border-white/20 rounded-full px-4 py-2 text-xs">
             <input
               type="text"
-              placeholder="Buscar creadores, publicaciones y hashtags..."
+              placeholder="Buscar mangos, frutillas, aguacates, huertos o cosechas..."
               className="w-full bg-transparent text-white placeholder-neutral-400 focus:outline-none text-xs"
             />
             <div className="h-4 w-[1px] bg-white/10 mx-2" />
             <Search className="w-4 h-4 text-neutral-400 shrink-0 cursor-pointer hover:text-white" />
           </div>
 
-          {/* Botones de Acción Estilo TikTok (+ Cargar, Mensajes, Notificaciones, Perfil) */}
+          {/* Botones de Acción Estilo TikTok (+ Vender Fruta, Mensajes, Notificaciones, Perfil) */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Botón "+ Cargar" de TikTok */}
+            {/* Botón "+ Vender Fruta" de FrutaTok */}
             <button
               onClick={() => {
                 setActiveTab('register');
@@ -275,12 +274,12 @@ export const Navbar: React.FC<NavbarProps> = ({
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-sm bg-white/10 hover:bg-white/15 border border-white/20 text-white font-bold text-xs transition-all cursor-pointer active:scale-95"
             >
               <Plus className="w-4 h-4 text-[#25F4EE]" />
-              <span className="hidden sm:inline">Cargar / Registrar</span>
+              <span className="hidden sm:inline">+ Vender Fruta</span>
             </button>
 
-            {/* Mensajes */}
+            {/* Mensajes / Pedidos */}
             <button
-              title="Mensajes directos"
+              title="Mensajes y pedidos"
               className="p-2 rounded-full text-white/80 hover:text-white hover:bg-white/10 transition-colors relative"
             >
               <MessageSquare className="w-5 h-5" />
@@ -289,7 +288,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Notificaciones */}
             <button
-              title="Bandeja de entrada"
+              title="Notificaciones de ofertas"
               className="p-2 rounded-full text-white/80 hover:text-white hover:bg-white/10 transition-colors relative"
             >
               <Bell className="w-5 h-5" />

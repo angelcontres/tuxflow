@@ -30,7 +30,10 @@ export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
           <div className="p-1.5 rounded-lg bg-[#FE2C55]/15 text-[#FE2C55]">
             <Network className="w-4 h-4" />
           </div>
-          <h3 className="font-bold text-sm text-white">Sugerencias de Red</h3>
+          <h3 className="font-bold text-sm text-white flex items-center gap-1.5">
+            <span>Sugerencias de Red</span>
+            <span className="text-xs">🍎</span>
+          </h3>
         </div>
         <span className="text-[10px] font-bold bg-[#25F4EE]/15 text-[#25F4EE] px-2 py-0.5 rounded-full flex items-center gap-1 border border-[#25F4EE]/30">
           <Sparkles className="w-3 h-3" />
@@ -57,8 +60,9 @@ export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
                   {sug.username.charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-white hover:underline cursor-pointer">
-                    @{sug.username}
+                  <h4 className="text-xs font-bold text-white hover:underline cursor-pointer flex items-center gap-1">
+                    <span>@{sug.username}</span>
+                    <span className="text-[10px] text-amber-300 font-normal">🌾</span>
                   </h4>
                   <p className="text-[11px] text-neutral-400">
                     {sug.conexionesEnComun} conexión(es) mutua(s)
