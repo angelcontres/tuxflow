@@ -1,18 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import {
-  Bell,
-  MessageSquare,
-  User,
-  Edit3,
-  UserPlus,
-  Upload,
-  Check,
-  AlertCircle,
-  X,
-  Users,
-  Search,
-  Plus,
-} from 'lucide-react';
+import { User, Edit3, UserPlus, Upload, Check, AlertCircle, X, Users, Share2 } from 'lucide-react';
 import { Usuario } from '../../features/user/types/user.types';
 import {
   fetchUsuario,
@@ -55,7 +42,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   // Feedback state
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(
-    null
+    null,
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -118,7 +105,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       setEditAvatarUrl(res.avatarUrl);
       setFeedback({
         type: 'success',
-        message: '¡Avatar subido exitosamente a MinIO S3!',
+        message: 'Avatar subido exitosamente a MinIO S3.',
       });
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : 'Error al subir imagen a MinIO';
@@ -140,7 +127,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       setRegAvatarUrl(res.avatarUrl);
       setFeedback({
         type: 'success',
-        message: '¡Avatar subido exitosamente a MinIO S3!',
+        message: 'Avatar subido exitosamente a MinIO S3.',
       });
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : 'Error al subir imagen a MinIO';
@@ -170,7 +157,10 @@ export const Navbar: React.FC<NavbarProps> = ({
       };
       const updated = await registerOrUpdateUsuario(payload);
       setCurrentUserProfile(updated);
-      setFeedback({ type: 'success', message: 'Perfil actualizado exitosamente en el grafo Neo4j.' });
+      setFeedback({
+        type: 'success',
+        message: 'Perfil actualizado exitosamente en el grafo Neo4j.',
+      });
       onProfileUpdated?.();
       setActiveTab('view');
     } catch (err: unknown) {
@@ -181,7 +171,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
   };
 
-  // Handle new user registration
+  // Handle new user registration (US-01)
   const handleRegisterUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!regId.trim() || !regUsername.trim() || !regNombre.trim()) {
@@ -205,7 +195,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       await registerOrUpdateUsuario(payload);
       setFeedback({
         type: 'success',
-        message: `¡Usuario @${payload.username} registrado exitosamente en el grafo!`,
+        message: `Usuario @${payload.username} registrado exitosamente en el grafo.`,
       });
 
       onUserChange?.(payload.id, payload.username);
@@ -233,258 +223,219 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      {/* Barra de Navegación Superior Estilo TikTok */}
-      <header className="sticky top-0 z-50 bg-[#010101]/95 backdrop-blur-md border-b border-white/10 transition-all">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
-          {/* Logo TikTok / FrutaTok con Efecto Cromático Neón */}
-          <div className="flex items-center gap-2.5 cursor-pointer shrink-0">
-            <div className="w-9 h-9 rounded-xl bg-black border border-white/20 flex items-center justify-center shadow-lg relative overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-tr from-[#25F4EE]/20 to-[#FE2C55]/20 group-hover:opacity-100 transition-opacity" />
-              <span className="text-xl relative z-10 select-none">🍉</span>
+      <header className="sticky top-0 z-40 bg-white border-b border-slate-200 shadow-xs">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+          {/* Logo Simple y Base */}
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
+              <Share2 className="w-5 h-5" />
             </div>
-            <div className="flex items-baseline gap-1">
-              <span className="font-black text-2xl tracking-tighter text-white">
-                Fruta<span className="text-[#FE2C55]">Tok</span>
-              </span>
-              <span className="text-[10px] font-extrabold text-[#25F4EE] tracking-widest uppercase bg-[#25F4EE]/10 px-1.5 py-0.5 rounded border border-[#25F4EE]/30">
-                SHOP
+            <div>
+              <span className="font-bold text-lg text-slate-900 tracking-tight">Red Social</span>
+              <span className="hidden sm:inline-block ml-1.5 text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                UPSE
               </span>
             </div>
           </div>
 
-          {/* Barra de Búsqueda FrutaTok Píldora */}
-          <div className="hidden md:flex items-center flex-1 max-w-md bg-[#2f313f]/60 hover:bg-[#2f313f]/80 transition-colors border border-transparent focus-within:border-white/20 rounded-full px-4 py-2 text-xs">
-            <input
-              type="text"
-              placeholder="Buscar mangos, frutillas, aguacates, huertos o cosechas..."
-              className="w-full bg-transparent text-white placeholder-neutral-400 focus:outline-none text-xs"
-            />
-            <div className="h-4 w-[1px] bg-white/10 mx-2" />
-            <Search className="w-4 h-4 text-neutral-400 shrink-0 cursor-pointer hover:text-white" />
-          </div>
-
-          {/* Botones de Acción Estilo TikTok (+ Vender Fruta, Mensajes, Notificaciones, Perfil) */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            {/* Botón "+ Vender Fruta" de FrutaTok */}
+          {/* Acciones de Usuario */}
+          <div className="flex items-center gap-3">
             <button
               onClick={() => {
                 setActiveTab('register');
                 setIsModalOpen(true);
               }}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-sm bg-white/10 hover:bg-white/15 border border-white/20 text-white font-bold text-xs transition-all cursor-pointer active:scale-95"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium text-xs transition-colors cursor-pointer"
             >
-              <Plus className="w-4 h-4 text-[#25F4EE]" />
-              <span className="hidden sm:inline">+ Vender Fruta</span>
+              <UserPlus className="w-4 h-4 text-blue-600" />
+              <span>Nuevo Usuario</span>
             </button>
 
-            {/* Mensajes / Pedidos */}
-            <button
-              title="Mensajes y pedidos"
-              className="p-2 rounded-full text-white/80 hover:text-white hover:bg-white/10 transition-colors relative"
-            >
-              <MessageSquare className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#FE2C55] rounded-full" />
-            </button>
-
-            {/* Notificaciones */}
-            <button
-              title="Notificaciones de ofertas"
-              className="p-2 rounded-full text-white/80 hover:text-white hover:bg-white/10 transition-colors relative"
-            >
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#25F4EE] rounded-full" />
-            </button>
-
-            <div className="h-6 w-[1px] bg-white/10 hidden sm:block" />
-
-            {/* Avatar del Usuario Activo */}
+            {/* Perfil del Usuario Activo */}
             <button
               onClick={() => {
                 setActiveTab('view');
                 setIsModalOpen(true);
               }}
-              className="flex items-center gap-2 p-1 rounded-full hover:bg-white/10 transition-all border border-transparent hover:border-white/15 text-left cursor-pointer"
-              title="Ver perfil y cambiar de usuario en Neo4j"
+              className="flex items-center gap-2.5 p-1 sm:px-2.5 sm:py-1.5 rounded-lg hover:bg-slate-100 transition-colors text-left cursor-pointer border border-transparent hover:border-slate-200"
+              title="Ver perfil o cambiar de sesión"
             >
               <div className="relative">
                 {avatarSrc ? (
                   <img
                     src={avatarSrc}
                     alt={currentUsername}
-                    className="w-9 h-9 rounded-full object-cover ring-2 ring-[#FE2C55] transition-all"
+                    className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200"
                     onError={(e) => {
                       (e.target as HTMLElement).style.display = 'none';
                     }}
                   />
                 ) : (
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#25F4EE] to-[#FE2C55] flex items-center justify-center text-white font-black text-xs shadow-md ring-2 ring-white/20">
+                  <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs">
                     {initial}
                   </div>
                 )}
-                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-[#25F4EE] ring-2 ring-black" />
+                <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white" />
               </div>
-              <div className="hidden lg:block pr-1">
-                <p className="text-xs font-bold text-white leading-tight">@{currentUsername}</p>
-                <p className="text-[10px] text-[#25F4EE] font-semibold">En línea</p>
+              <div className="hidden sm:block">
+                <p className="text-xs font-semibold text-slate-800 leading-tight">
+                  {currentUserProfile?.nombre || currentUsername}
+                </p>
+                <p className="text-[11px] text-slate-500">@{currentUsername}</p>
               </div>
             </button>
           </div>
         </div>
       </header>
 
-      {/* Modal de Perfil e Identidad Social (Tema Oscuro TikTok) */}
+      {/* Modal de Perfil e Identidad */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-          <div className="bg-[#161823] rounded-3xl shadow-2xl border border-white/15 w-full max-w-lg overflow-hidden animate-scale-up text-white">
-            {/* Header con Pestañas */}
-            <div className="bg-black/60 border-b border-white/10 px-6 pt-5 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden">
+            {/* Cabecera del Modal */}
+            <div className="border-b border-slate-200 px-6 pt-5 pb-3">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-black text-white flex items-center gap-2">
-                  <User className="w-5 h-5 text-[#FE2C55]" />
-                  Perfil e Identidad Social
+                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <User className="w-5 h-5 text-blue-600" />
+                  Perfil de Usuario
                 </h2>
                 <button
                   onClick={() => setIsModalOpen(false)}
-                  className="p-1.5 rounded-xl text-neutral-400 hover:text-white hover:bg-white/10 transition-colors"
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              {/* Tabs de Navegación */}
+              {/* Tabs */}
               <div className="flex gap-2">
                 <button
                   onClick={() => {
                     setActiveTab('view');
                     setFeedback(null);
                   }}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
                     activeTab === 'view'
-                      ? 'bg-[#FE2C55] text-white shadow-md shadow-[#FE2C55]/30'
-                      : 'text-neutral-400 hover:bg-white/5 hover:text-white'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-slate-600 hover:bg-slate-100'
                   }`}
                 >
                   <User className="w-3.5 h-3.5" />
-                  Ver Perfil
+                  Mi Perfil
                 </button>
                 <button
                   onClick={() => {
                     setActiveTab('edit');
                     setFeedback(null);
                   }}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
                     activeTab === 'edit'
-                      ? 'bg-[#FE2C55] text-white shadow-md shadow-[#FE2C55]/30'
-                      : 'text-neutral-400 hover:bg-white/5 hover:text-white'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-slate-600 hover:bg-slate-100'
                   }`}
                 >
                   <Edit3 className="w-3.5 h-3.5" />
-                  Editar Perfil
+                  Editar
                 </button>
                 <button
                   onClick={() => {
                     setActiveTab('register');
                     setFeedback(null);
                   }}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
                     activeTab === 'register'
-                      ? 'bg-[#25F4EE] text-black shadow-md shadow-[#25F4EE]/30'
-                      : 'text-neutral-400 hover:bg-white/5 hover:text-white'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-slate-600 hover:bg-slate-100'
                   }`}
                 >
                   <UserPlus className="w-3.5 h-3.5" />
-                  Nuevo Registro
+                  Registrar
                 </button>
               </div>
             </div>
 
-            {/* Cuerpo del Modal */}
+            {/* Contenido del Modal */}
             <div className="p-6 max-h-[75vh] overflow-y-auto">
               {/* Alerta de Feedback */}
               {feedback && (
                 <div
-                  className={`mb-4 p-3.5 rounded-2xl flex items-center gap-2.5 text-xs font-medium ${
+                  className={`mb-4 p-3 rounded-lg flex items-center gap-2.5 text-xs font-medium ${
                     feedback.type === 'success'
-                      ? 'bg-emerald-950/60 text-emerald-300 border border-emerald-500/40'
-                      : 'bg-rose-950/60 text-rose-300 border border-rose-500/40'
+                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                      : 'bg-rose-50 text-rose-800 border border-rose-200'
                   }`}
                 >
                   {feedback.type === 'success' ? (
-                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <Check className="w-4 h-4 text-emerald-600 shrink-0" />
                   ) : (
-                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
                   )}
                   <span>{feedback.message}</span>
                 </div>
               )}
 
-              {/* TAB 1: VIEW PROFILE */}
+              {/* TAB 1: VER PERFIL */}
               {activeTab === 'view' && (
                 <div className="space-y-6">
-                  <div className="flex flex-col sm:flex-row items-center gap-5 p-5 bg-black/40 rounded-2xl border border-white/10">
-                    <div className="relative">
-                      {currentUserProfile?.avatarUrl ? (
-                        <img
-                          src={currentUserProfile.avatarUrl}
-                          alt={currentUserProfile.nombre}
-                          className="w-20 h-20 rounded-full object-cover ring-4 ring-[#FE2C55] shadow-xl"
-                          onError={(e) => {
-                            (e.target as HTMLElement).style.display = 'none';
-                          }}
-                        />
-                      ) : (
-                        <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-[#25F4EE] to-[#FE2C55] flex items-center justify-center text-white font-black text-2xl shadow-xl ring-4 ring-white/20">
-                          {initial}
-                        </div>
-                      )}
-                      <span className="absolute -bottom-1 -right-1 px-2 py-0.5 bg-[#25F4EE] text-black text-[10px] font-black rounded-full shadow-md">
-                        ACTIVO
-                      </span>
-                    </div>
+                  <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                    {currentUserProfile?.avatarUrl ? (
+                      <img
+                        src={currentUserProfile.avatarUrl}
+                        alt={currentUserProfile.nombre}
+                        className="w-16 h-16 rounded-full object-cover ring-2 ring-blue-500 shadow-xs"
+                        onError={(e) => {
+                          (e.target as HTMLElement).style.display = 'none';
+                        }}
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-xl shadow-xs">
+                        {initial}
+                      </div>
+                    )}
 
-                    <div className="text-center sm:text-left flex-1">
-                      <h3 className="text-lg font-black text-white">
+                    <div className="flex-1">
+                      <h3 className="text-base font-bold text-slate-900">
                         {currentUserProfile?.nombre || currentUsername}
                       </h3>
-                      <p className="text-sm font-bold text-[#FE2C55]">
+                      <p className="text-xs font-medium text-blue-600">
                         @{currentUserProfile?.username || currentUsername}
                       </p>
-                      <p className="text-xs text-neutral-400 mt-1">
+                      <p className="text-xs text-slate-500 mt-0.5">
                         {currentUserProfile?.email || 'Sin correo configurado'}
                       </p>
-                      <div className="mt-2 text-[11px] font-mono bg-white/5 border border-white/10 px-2.5 py-0.5 rounded-md inline-block text-neutral-300">
+                      <span className="mt-1.5 inline-block text-[11px] font-mono text-slate-400 bg-white border border-slate-200 px-2 py-0.5 rounded">
                         ID: {currentUserId}
-                      </div>
+                      </span>
                     </div>
                   </div>
 
-                  {/* Botones de Acción */}
+                  {/* Acciones Rápidas */}
                   <div className="flex gap-2">
                     <button
                       onClick={() => setActiveTab('edit')}
-                      className="flex-1 py-2.5 px-4 bg-[#FE2C55] hover:bg-[#e0264b] text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#FE2C55]/20 cursor-pointer active:scale-95"
+                      className="flex-1 py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                     >
-                      <Edit3 className="w-4 h-4" />
-                      Editar Datos y Avatar
+                      <Edit3 className="w-3.5 h-3.5" />
+                      Editar Perfil
                     </button>
                     <button
                       onClick={() => setActiveTab('register')}
-                      className="py-2.5 px-4 bg-white/10 hover:bg-white/15 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer"
+                      className="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                     >
-                      <UserPlus className="w-4 h-4 text-[#25F4EE]" />
-                      Registrar Otro
+                      <UserPlus className="w-3.5 h-3.5" />
+                      Nuevo Usuario
                     </button>
                   </div>
 
-                  {/* Selector de Sesión de Usuario en Neo4j */}
-                  <div className="pt-4 border-t border-white/10">
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-xs font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1.5">
-                        <Users className="w-3.5 h-3.5 text-[#25F4EE]" />
+                  {/* Cambiar de Sesión */}
+                  <div className="pt-4 border-t border-slate-200">
+                    <div className="flex items-center justify-between mb-2.5">
+                      <p className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                        <Users className="w-4 h-4 text-slate-500" />
                         Cambiar de Sesión Activa
                       </p>
-                      <span className="text-[11px] text-neutral-400 font-mono">
-                        {availableUsers.length} en grafo
+                      <span className="text-[11px] text-slate-400 font-medium">
+                        {availableUsers.length} en la base
                       </span>
                     </div>
 
@@ -495,13 +446,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <button
                             key={u.id}
                             onClick={() => handleSelectUser(u)}
-                            className={`p-2 rounded-xl text-left flex items-center gap-2.5 transition-all border cursor-pointer ${
+                            className={`p-2 rounded-lg text-left flex items-center gap-2 transition-all border cursor-pointer ${
                               isCurrent
-                                ? 'bg-[#FE2C55]/20 border-[#FE2C55] text-white font-bold'
-                                : 'bg-black/30 hover:bg-white/5 border-white/10 text-neutral-300'
+                                ? 'bg-blue-50 border-blue-300 text-blue-900 font-semibold'
+                                : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
                             }`}
                           >
-                            <div className="w-7 h-7 rounded-full bg-neutral-800 flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden ring-1 ring-white/10">
+                            <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden">
                               {u.avatarUrl ? (
                                 <img
                                   src={u.avatarUrl}
@@ -516,10 +467,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                               )}
                             </div>
                             <div className="truncate">
-                              <p className="text-xs font-semibold truncate leading-tight">
+                              <p className="text-xs truncate leading-tight">
                                 {u.nombre || u.username}
                               </p>
-                              <p className="text-[10px] text-neutral-400 truncate">@{u.username}</p>
+                              <p className="text-[10px] text-slate-500 truncate">@{u.username}</p>
                             </div>
                           </button>
                         );
@@ -529,11 +480,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
               )}
 
-              {/* TAB 2: EDIT PROFILE */}
+              {/* TAB 2: EDITAR PERFIL */}
               {activeTab === 'edit' && (
                 <form onSubmit={handleSaveProfile} className="space-y-4">
                   <div>
-                    <label className="block text-xs font-bold text-neutral-300 mb-1">
+                    <label className="block text-xs font-medium text-slate-700 mb-1">
                       Nombre Completo
                     </label>
                     <input
@@ -541,13 +492,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                       value={editNombre}
                       onChange={(e) => setEditNombre(e.target.value)}
                       placeholder="Ej. Angel Villon"
-                      className="w-full px-3.5 py-2.5 text-xs bg-black/40 border border-white/10 rounded-xl focus:outline-none focus:border-[#FE2C55] text-white font-medium"
+                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-neutral-300 mb-1">
+                    <label className="block text-xs font-medium text-slate-700 mb-1">
                       Correo Electrónico
                     </label>
                     <input
@@ -555,19 +506,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                       value={editEmail}
                       onChange={(e) => setEditEmail(e.target.value)}
                       placeholder="usuario@upse.edu.ec"
-                      className="w-full px-3.5 py-2.5 text-xs bg-black/40 border border-white/10 rounded-xl focus:outline-none focus:border-[#FE2C55] text-white font-medium"
+                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                     />
                   </div>
 
-                  {/* Subida de Avatar a MinIO */}
-                  <div className="p-4 bg-black/40 rounded-2xl border border-white/10 space-y-3">
+                  {/* Subida de Avatar a MinIO S3 */}
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
                     <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-neutral-300 flex items-center gap-1.5">
-                        <Upload className="w-3.5 h-3.5 text-[#25F4EE]" />
-                        Avatar en MinIO S3
+                      <label className="text-xs font-medium text-slate-700 flex items-center gap-1.5">
+                        <Upload className="w-3.5 h-3.5 text-blue-600" />
+                        Avatar (MinIO S3)
                       </label>
                       {editAvatarUrl && (
-                        <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
+                        <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
                           <Check className="w-3 h-3" /> Imagen cargada
                         </span>
                       )}
@@ -578,15 +529,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <img
                           src={editAvatarUrl}
                           alt="Avatar preview"
-                          className="w-12 h-12 rounded-full object-cover ring-2 ring-[#FE2C55] shrink-0"
+                          className="w-12 h-12 rounded-full object-cover ring-2 ring-blue-500 shrink-0"
                         />
                       ) : (
-                        <div className="w-12 h-12 rounded-full bg-neutral-800 flex items-center justify-center text-white font-bold shrink-0">
+                        <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-bold shrink-0">
                           {initial}
                         </div>
                       )}
 
-                      <div className="flex-1 space-y-1">
+                      <div className="flex-1">
                         <input
                           type="file"
                           ref={editFileInputRef}
@@ -598,26 +549,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                           type="button"
                           disabled={isUploadingEditAvatar}
                           onClick={() => editFileInputRef.current?.click()}
-                          className="w-full py-2 px-3 bg-white/10 hover:bg-white/20 border border-white/10 rounded-xl text-xs font-bold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                          className="w-full py-2 px-3 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium text-slate-700 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
                         >
-                          <Upload className="w-3.5 h-3.5 text-[#25F4EE]" />
-                          {isUploadingEditAvatar
-                            ? 'Subiendo a MinIO...'
-                            : 'Seleccionar Imagen desde Disco'}
+                          <Upload className="w-3.5 h-3.5 text-blue-600" />
+                          {isUploadingEditAvatar ? 'Subiendo...' : 'Seleccionar archivo local'}
                         </button>
                       </div>
                     </div>
 
                     <div>
-                      <span className="text-[10px] text-neutral-400 block mb-1">
-                        O pega una URL directa de imagen:
-                      </span>
                       <input
                         type="url"
                         value={editAvatarUrl}
                         onChange={(e) => setEditAvatarUrl(e.target.value)}
-                        placeholder="http://localhost:9000/redsocial-media/..."
-                        className="w-full px-3 py-1.5 text-[11px] bg-black/60 border border-white/10 rounded-lg focus:outline-none focus:border-[#25F4EE] text-neutral-300 font-mono"
+                        placeholder="O ingresa URL directa de imagen"
+                        className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 font-mono"
                       />
                     </div>
                   </div>
@@ -626,71 +572,71 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <button
                       type="button"
                       onClick={() => setActiveTab('view')}
-                      className="px-4 py-2.5 rounded-xl text-xs font-semibold text-neutral-400 hover:bg-white/5 transition-colors cursor-pointer"
+                      className="px-3.5 py-2 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
                     >
                       Cancelar
                     </button>
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="px-5 py-2.5 bg-[#FE2C55] hover:bg-[#e0264b] text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-[#FE2C55]/20 flex items-center gap-2 disabled:opacity-50 cursor-pointer active:scale-95"
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
                     >
-                      <Check className="w-4 h-4" />
-                      {isSubmitting ? 'Guardando...' : 'Guardar Cambios en Neo4j'}
+                      <Check className="w-3.5 h-3.5" />
+                      {isSubmitting ? 'Guardando...' : 'Guardar Cambios'}
                     </button>
                   </div>
                 </form>
               )}
 
-              {/* TAB 3: REGISTER NEW USER */}
+              {/* TAB 3: REGISTRO DE NUEVO USUARIO (TUX-52 / US-01) */}
               {activeTab === 'register' && (
                 <form onSubmit={handleRegisterUser} className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-bold text-neutral-300 mb-1">
-                        ID Único <span className="text-[#FE2C55]">*</span>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">
+                        ID Único <span className="text-rose-500">*</span>
                       </label>
                       <input
                         type="text"
                         value={regId}
                         onChange={(e) => setRegId(e.target.value)}
                         placeholder="nuevo-programador"
-                        className="w-full px-3 py-2 text-xs bg-black/40 border border-white/10 rounded-xl focus:outline-none focus:border-[#25F4EE] text-white font-mono"
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-slate-900"
                         required
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-neutral-300 mb-1">
-                        Username <span className="text-[#FE2C55]">*</span>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">
+                        Username <span className="text-rose-500">*</span>
                       </label>
                       <input
                         type="text"
                         value={regUsername}
                         onChange={(e) => setRegUsername(e.target.value)}
                         placeholder="dev_upse"
-                        className="w-full px-3 py-2 text-xs bg-black/40 border border-white/10 rounded-xl focus:outline-none focus:border-[#25F4EE] text-white font-mono"
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-slate-900"
                         required
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-neutral-300 mb-1">
-                      Nombre Completo <span className="text-[#FE2C55]">*</span>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">
+                      Nombre Completo <span className="text-rose-500">*</span>
                     </label>
                     <input
                       type="text"
                       value={regNombre}
                       onChange={(e) => setRegNombre(e.target.value)}
                       placeholder="Programador Insano"
-                      className="w-full px-3 py-2 text-xs bg-black/40 border border-white/10 rounded-xl focus:outline-none focus:border-[#FE2C55] text-white"
+                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-neutral-300 mb-1">
+                    <label className="block text-xs font-medium text-slate-700 mb-1">
                       Correo Institucional
                     </label>
                     <input
@@ -698,19 +644,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                       value={regEmail}
                       onChange={(e) => setRegEmail(e.target.value)}
                       placeholder="dev@upse.edu.ec"
-                      className="w-full px-3 py-2 text-xs bg-black/40 border border-white/10 rounded-xl focus:outline-none focus:border-[#FE2C55] text-white"
+                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
                     />
                   </div>
 
-                  {/* Avatar upload a MinIO */}
-                  <div className="p-4 bg-black/40 rounded-2xl border border-white/10 space-y-3">
-                    <label className="text-xs font-bold text-neutral-300 flex items-center justify-between">
+                  {/* Subir avatar a MinIO */}
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
+                    <label className="text-xs font-medium text-slate-700 flex items-center justify-between">
                       <span className="flex items-center gap-1.5">
-                        <Upload className="w-3.5 h-3.5 text-[#25F4EE]" />
+                        <Upload className="w-3.5 h-3.5 text-blue-600" />
                         Subir Avatar a MinIO
                       </span>
                       {regAvatarUrl && (
-                        <span className="text-[10px] text-emerald-400 font-semibold">Listo</span>
+                        <span className="text-[10px] text-emerald-600 font-semibold">Listo</span>
                       )}
                     </label>
 
@@ -719,10 +665,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <img
                           src={regAvatarUrl}
                           alt="Preview"
-                          className="w-12 h-12 rounded-full object-cover ring-2 ring-[#FE2C55] shrink-0"
+                          className="w-12 h-12 rounded-full object-cover ring-2 ring-blue-500 shrink-0"
                         />
                       ) : (
-                        <div className="w-12 h-12 rounded-full bg-neutral-800 flex items-center justify-center text-neutral-400 font-bold shrink-0">
+                        <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center text-slate-400 font-bold shrink-0">
                           +
                         </div>
                       )}
@@ -739,10 +685,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                           type="button"
                           disabled={isUploadingRegAvatar}
                           onClick={() => regFileInputRef.current?.click()}
-                          className="w-full py-2 px-3 bg-white/10 hover:bg-white/20 border border-white/10 rounded-xl text-xs font-bold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                          className="w-full py-2 px-3 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium text-slate-700 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
                         >
-                          <Upload className="w-3.5 h-3.5 text-[#25F4EE]" />
-                          {isUploadingRegAvatar ? 'Subiendo...' : 'Subir Archivo de Imagen'}
+                          <Upload className="w-3.5 h-3.5 text-blue-600" />
+                          {isUploadingRegAvatar ? 'Subiendo...' : 'Seleccionar archivo local'}
                         </button>
                       </div>
                     </div>
@@ -751,8 +697,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                       type="url"
                       value={regAvatarUrl}
                       onChange={(e) => setRegAvatarUrl(e.target.value)}
-                      placeholder="O pega URL: https://images.unsplash.com/..."
-                      className="w-full px-3 py-1.5 text-[11px] bg-black/60 border border-white/10 rounded-lg focus:outline-none focus:border-[#25F4EE] text-neutral-300 font-mono"
+                      placeholder="O ingresa URL: https://images.unsplash.com/..."
+                      className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-slate-700"
                     />
                   </div>
 
@@ -760,17 +706,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <button
                       type="button"
                       onClick={() => setActiveTab('view')}
-                      className="px-4 py-2.5 rounded-xl text-xs font-semibold text-neutral-400 hover:bg-white/5 transition-colors cursor-pointer"
+                      className="px-3.5 py-2 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
                     >
                       Cancelar
                     </button>
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="px-5 py-2.5 bg-[#FE2C55] hover:bg-[#e0264b] text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-[#FE2C55]/20 flex items-center gap-2 disabled:opacity-50 cursor-pointer active:scale-95"
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
                     >
-                      <UserPlus className="w-4 h-4" />
-                      {isSubmitting ? 'Registrando...' : 'Registrar en Grafo Social (POST /api/users)'}
+                      <UserPlus className="w-3.5 h-3.5" />
+                      {isSubmitting ? 'Registrando...' : 'Registrar en Grafo Social'}
                     </button>
                   </div>
                 </form>

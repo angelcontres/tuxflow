@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, User, Radio, ShoppingBag } from 'lucide-react';
+import { Send, User, MessageSquare } from 'lucide-react';
 import { ChatMessage } from '../types/chat.types';
 import { chatSocketManager } from '../services/chatSocket';
 
@@ -12,12 +12,6 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId }) => {
   const [mensaje, setMensaje] = useState('');
   const [mensajes, setMensajes] = useState<ChatMessage[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  const quickMessages = [
-    '🥭 ¿Tienes cajas disponibles?',
-    '🚚 ¿Hacen envíos hoy?',
-    '🍓 Quiero reservar 2 canastas',
-  ];
 
   useEffect(() => {
     chatSocketManager.connect(currentUserId, (nuevoMensaje) => {
@@ -35,9 +29,9 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId }) => {
     }
   }, [mensajes]);
 
-  const handleEnviar = (e?: React.FormEvent, textoManual?: string) => {
-    if (e) e.preventDefault();
-    const textoAEnviar = (textoManual || mensaje).trim();
+  const handleEnviar = (e: React.FormEvent) => {
+    e.preventDefault();
+    const textoAEnviar = mensaje.trim();
     if (!textoAEnviar || !destinatarioId.trim()) return;
 
     chatSocketManager.sendMessage(destinatarioId, textoAEnviar);
@@ -45,71 +39,54 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId }) => {
       ...prev,
       { emisorId: currentUserId, destinatarioId, contenido: textoAEnviar },
     ]);
-    if (!textoManual) {
-      setMensaje('');
-    }
+    setMensaje('');
   };
 
   return (
-    <div className="bg-[#161823] rounded-2xl p-5 shadow-2xl border border-white/10 backdrop-blur-md">
-      {/* Header estilo TikTok Direct Messages Frutero */}
+    <div className="bg-white rounded-xl p-5 shadow-xs border border-slate-200">
+      {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-lg bg-[#FE2C55]/15 text-[#FE2C55]">
-            <ShoppingBag className="w-4 h-4" />
+          <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
+            <MessageSquare className="w-4 h-4" />
           </div>
-          <h3 className="font-extrabold text-sm text-white tracking-tight flex items-center gap-1.5">
-            <span>Chat de Pedidos en Vivo</span>
-            <span className="text-xs">🍉</span>
-          </h3>
+          <h3 className="font-semibold text-sm text-slate-900">Mensajes en Vivo</h3>
         </div>
-        <span className="text-[10px] font-bold tracking-wider uppercase text-[#25F4EE] bg-[#25F4EE]/10 px-2 py-0.5 rounded-full flex items-center gap-1 border border-[#25F4EE]/20">
-          <Radio className="w-3 h-3 animate-pulse" />
+        <span className="text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1 border border-emerald-100">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
           WebSocket
         </span>
       </div>
 
-      {/* Selector de productor a contactar */}
-      <div className="mb-2">
-        <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block mb-1">
-          Pedir Fruta a:
+      {/* Selector de destinatario */}
+      <div className="mb-3">
+        <label className="text-[11px] font-medium text-slate-600 block mb-1">
+          Enviar mensaje a (ID):
         </label>
         <div className="relative">
           <input
             type="text"
             value={destinatarioId}
             onChange={(e) => setDestinatarioId(e.target.value)}
-            placeholder="ID de productor (ej. beatriz, paulo)"
-            className="w-full bg-black/40 border border-white/10 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-[#25F4EE] font-mono"
+            placeholder="ID de usuario (ej. beatriz, paulo)"
+            className="w-full bg-slate-50 border border-slate-300 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
           />
-          <User className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-2.5" />
+          <User className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" />
         </div>
       </div>
 
-      {/* Botones de Consulta Rápida de Frutas */}
-      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 mb-2">
-        {quickMessages.map((qm, i) => (
-          <button
-            key={i}
-            type="button"
-            onClick={() => handleEnviar(undefined, qm)}
-            className="text-[10px] font-semibold text-neutral-300 hover:text-white bg-white/5 hover:bg-white/10 px-2 py-0.5 rounded-lg transition-colors border border-white/5 shrink-0 cursor-pointer"
-          >
-            {qm}
-          </button>
-        ))}
-      </div>
-
-      {/* Ventana de mensajes */}
+      {/* Historial de mensajes */}
       <div
         ref={scrollRef}
-        className="h-44 overflow-y-auto rounded-xl bg-black/40 border border-white/5 p-3 space-y-2 mb-3"
+        className="h-48 overflow-y-auto rounded-lg bg-slate-50 border border-slate-200 p-3 space-y-2 mb-3"
       >
         {mensajes.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center text-neutral-500 text-xs py-4">
-            <span className="text-xl mb-1">🧺</span>
-            <p>Canal de pedidos directo con el agricultor.</p>
-            <p className="text-[11px] text-neutral-400 mt-1">Escribe o usa las consultas rápidas.</p>
+          <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 text-xs py-4">
+            <MessageSquare className="w-6 h-6 mb-1 text-slate-300" />
+            <p>No hay mensajes en esta conversación.</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              Escribe para iniciar el chat en tiempo real.
+            </p>
           </div>
         ) : (
           mensajes.map((m, idx) => {
@@ -117,10 +94,10 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId }) => {
             return (
               <div key={idx} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                 <div
-                  className={`max-w-[85%] text-xs px-3 py-2 rounded-2xl ${
+                  className={`max-w-[85%] text-xs px-3 py-2 rounded-xl ${
                     isMe
-                      ? 'bg-[#FE2C55] text-white rounded-br-xs shadow-md shadow-[#FE2C55]/20 font-medium'
-                      : 'bg-white/10 text-white border border-white/10 rounded-bl-xs'
+                      ? 'bg-blue-600 text-white rounded-br-xs'
+                      : 'bg-white text-slate-800 border border-slate-200 rounded-bl-xs shadow-2xs'
                   }`}
                 >
                   {m.contenido}
@@ -131,19 +108,19 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId }) => {
         )}
       </div>
 
-      {/* Input de envío */}
-      <form onSubmit={(e) => handleEnviar(e)} className="flex gap-2">
+      {/* Formulario de envío */}
+      <form onSubmit={handleEnviar} className="flex gap-2">
         <input
           type="text"
           value={mensaje}
           onChange={(e) => setMensaje(e.target.value)}
-          placeholder="Mensaje o pedido de fruta..."
-          className="flex-1 bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-[#FE2C55]"
+          placeholder="Escribe un mensaje..."
+          className="flex-1 bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
         <button
           type="submit"
           disabled={!mensaje.trim()}
-          className="p-2 bg-[#FE2C55] hover:bg-[#e0264b] disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl shadow-md shadow-[#FE2C55]/25 transition-all cursor-pointer active:scale-95"
+          className="p-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-colors cursor-pointer"
         >
           <Send className="w-3.5 h-3.5" />
         </button>
