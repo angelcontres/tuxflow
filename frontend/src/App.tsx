@@ -4,6 +4,7 @@ import { CreatePostForm } from './features/feed/components/CreatePostForm';
 import { FeedList } from './features/feed/components/FeedList';
 import { UserSuggestionsCard } from './features/network/components/UserSuggestionsCard';
 import { ChatWidget } from './features/chat/components/ChatWidget';
+import { LoginScreen } from './features/auth/components/LoginScreen';
 import { fetchFeedBySocialGraph } from './features/feed/services/feedApi';
 import { fetchSeguidos, fetchSugerenciasGrafo } from './features/network/services/networkApi';
 import { Post } from './features/feed/types/post.types';
@@ -42,8 +43,9 @@ export function fusionarRed(seguidos: Usuario[], sugerencias: SugerenciaUsuario[
 }
 
 export const App: React.FC = () => {
-  const [currentUserId, setCurrentUserId] = useState<string>('carlos-patino');
-  const [currentUsername, setCurrentUsername] = useState<string>('carlos');
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [currentUserId, setCurrentUserId] = useState<string>('');
+  const [currentUsername, setCurrentUsername] = useState<string>('');
   const [posts, setPosts] = useState<Post[]>([]);
   const [red, setRed] = useState<FilaRed[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -73,6 +75,24 @@ export const App: React.FC = () => {
     setCurrentUsername(username);
   };
 
+  const handleLogin = (userId: string, username: string) => {
+    setCurrentUserId(userId);
+    setCurrentUsername(username);
+    setIsAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setCurrentUserId('');
+    setCurrentUsername('');
+    setPosts([]);
+    setRed([]);
+  };
+
+  if (!isAuthenticated) {
+    return <LoginScreen onLogin={handleLogin} />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 pb-16">
       <Navbar
@@ -80,6 +100,7 @@ export const App: React.FC = () => {
         currentUsername={currentUsername}
         onUserChange={handleUserChange}
         onProfileUpdated={loadAllData}
+        onLogout={handleLogout}
       />
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 pt-6">

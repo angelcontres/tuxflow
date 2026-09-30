@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { User, Edit3, UserPlus, Upload, Check, AlertCircle, X, Users, Share2 } from 'lucide-react';
+import { User, Edit3, UserPlus, Upload, Check, AlertCircle, X, Users, Share2, LogOut } from 'lucide-react';
 import { Usuario } from '../../features/user/types/user.types';
 import {
   fetchUsuario,
@@ -13,6 +13,7 @@ interface NavbarProps {
   currentUsername: string;
   onUserChange?: (userId: string, username: string) => void;
   onProfileUpdated?: () => void;
+  onLogout?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -20,6 +21,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentUsername,
   onUserChange,
   onProfileUpdated,
+  onLogout,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'view' | 'edit' | 'register'>('view');
@@ -284,6 +286,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <p className="text-[11px] text-slate-500">@{currentUsername}</p>
               </div>
             </button>
+
+            {/* Botón de Logout */}
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                title="Cerrar sesión"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
       </header>

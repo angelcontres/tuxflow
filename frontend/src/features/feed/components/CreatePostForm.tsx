@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { Image, Send, Upload, X } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Image, Send, Upload, X, Check, AlertCircle } from 'lucide-react';
 import { submitPost } from '../services/feedApi';
 import { uploadAvatar } from '../../user/services/userApi';
 
@@ -19,7 +19,27 @@ export const CreatePostForm: React.FC<CreatePostFormProps> = ({
   const [showMediaInput, setShowMediaInput] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (feedbackTimeoutRef.current) {
+        clearTimeout(feedbackTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const showFeedback = (type: 'success' | 'error', message: string) => {
+    setFeedback({ type, message });
+    if (feedbackTimeoutRef.current) {
+      clearTimeout(feedbackTimeoutRef.current);
+    }
+    feedbackTimeoutRef.current = setTimeout(() => {
+      setFeedback(null);
+    }, 4000);
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -52,16 +72,36 @@ export const CreatePostForm: React.FC<CreatePostFormProps> = ({
       setTexto('');
       setMediaUrl('');
       setShowMediaInput(false);
+      showFeedback('success', 'Publicación creada exitosamente');
       onPostCreated();
     } catch (err) {
       console.error('Error al publicar post:', err);
+      showFeedback('error', 'Error al crear la publicación');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="bg-white rounded-xl p-4 sm:p-5 shadow-xs border border-slate-200 mb-6">
+    <div className="bg-white rounded-xl p-4 sm:p-5 shadow-xs border border-slate-200 mb-6 relative">
+      {/* Toast de Feedback */}
+      {feedback && (
+        <div
+          className={`absolute top-2 right-2 left-2 z-10 p-3 rounded-lg flex items-center gap-2.5 text-xs font-medium shadow-lg animate-in fade-in slide-in-from-top-2 duration-300 ${
+            feedback.type === 'success'
+              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+              : 'bg-rose-50 text-rose-800 border border-rose-200'
+          }`}
+        >
+          {feedback.type === 'success' ? (
+            <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+          ) : (
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+          )}
+          <span>{feedback.message}</span>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit}>
         <div className="flex gap-3">
           <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex-shrink-0 flex items-center justify-center font-bold text-sm shadow-xs">
