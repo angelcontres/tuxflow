@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { UserSuggestionsCard } from './UserSuggestionsCard';
 import { followUserInGraph, unfollowUserInGraph } from '../services/networkApi';
@@ -85,6 +85,70 @@ describe('UserSuggestionsCard', () => {
       expect(screen.getByText('@beatriz')).toBeInTheDocument();
       expect(screen.getByText('@david')).toBeInTheDocument();
       expect(screen.getAllByRole('button', { name: /seguir/i })).toHaveLength(2);
+    });
+  });
+
+  describe('Intermediarios en común', () => {
+    it('muestra los usernames de los intermediarios junto al contador', () => {
+      renderCard({
+        filas: [
+          sugerencia({
+            username: 'david',
+            conexionesEnComun: 2,
+            seguidosEnComun: ['beatriz', 'paulo'],
+          }),
+        ],
+      });
+
+      expect(screen.getByText('Conocido por @beatriz, @paulo')).toBeInTheDocument();
+    });
+
+    it('conserva el contador de conexiones mutuas cuando muestra los intermediarios', () => {
+      renderCard({
+        filas: [sugerencia({ conexionesEnComun: 2, seguidosEnComun: ['beatriz', 'paulo'] })],
+      });
+
+      expect(screen.getByText('2 conexión(es) mutua(s)')).toBeInTheDocument();
+    });
+
+    it('omite la línea de intermediarios cuando el arreglo llega vacío', () => {
+      renderCard({ filas: [sugerencia({ conexionesEnComun: 0, seguidosEnComun: [] })] });
+
+      expect(screen.queryByText(/Conocido por/)).not.toBeInTheDocument();
+      expect(screen.getByText('0 conexión(es) mutua(s)')).toBeInTheDocument();
+    });
+
+    it('no muestra intermediarios en las filas que no son sugerencias', () => {
+      renderCard({ filas: [seguidoFila()] });
+
+      expect(screen.queryByText(/Conocido por/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Avatar de la sugerencia', () => {
+    const AVATAR = 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150';
+
+    it('muestra el avatar recibido en lugar del círculo con la inicial', () => {
+      renderCard({ filas: [sugerencia({ username: 'david', avatar: AVATAR })] });
+
+      expect(screen.getByAltText('Avatar de @david')).toBeInTheDocument();
+      expect(screen.queryByText('D')).not.toBeInTheDocument();
+    });
+
+    it('vuelve al círculo con la inicial cuando la imagen no carga', () => {
+      renderCard({ filas: [sugerencia({ username: 'david', avatar: AVATAR })] });
+
+      fireEvent.error(screen.getByAltText('Avatar de @david'));
+
+      expect(screen.queryByAltText('Avatar de @david')).not.toBeInTheDocument();
+      expect(screen.getByText('D')).toBeInTheDocument();
+    });
+
+    it('usa la inicial cuando la sugerencia no trae avatar', () => {
+      renderCard({ filas: [sugerencia({ username: 'david' })] });
+
+      expect(screen.queryByRole('img')).not.toBeInTheDocument();
+      expect(screen.getByText('D')).toBeInTheDocument();
     });
   });
 

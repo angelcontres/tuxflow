@@ -17,9 +17,11 @@ export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
   const [confirmados, setConfirmados] = useState<Record<string, boolean>>({});
   const [errorPorId, setErrorPorId] = useState<Record<string, string | null>>({});
   const [enVuelo, setEnVuelo] = useState<Record<string, boolean>>({});
+  const [avatarCaido, setAvatarCaido] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setConfirmados({});
+    setAvatarCaido({});
   }, [filas]);
 
   const seguidoVisible = (fila: FilaRed): boolean => confirmados[fila.id] ?? fila.seguido;
@@ -74,15 +76,29 @@ export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
             const seguido = seguidoVisible(fila);
             const error = errorPorId[fila.id];
             const cargando = enVuelo[fila.id] === true;
+            const avatarUrl = esSugerencia(fila) ? fila.avatar : fila.avatarUrl;
+            const seguidosEnComun = esSugerencia(fila) ? fila.seguidosEnComun : null;
+            const mostrarAvatar = Boolean(avatarUrl) && avatarCaido[fila.id] !== true;
             return (
               <div
                 key={fila.id}
                 className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition-colors"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs shrink-0">
-                    {fila.username.charAt(0).toUpperCase()}
-                  </div>
+                  {mostrarAvatar ? (
+                    <div className="w-9 h-9 rounded-full overflow-hidden bg-slate-200 shrink-0">
+                      <img
+                        src={avatarUrl}
+                        alt={`Avatar de @${fila.username}`}
+                        className="w-full h-full object-cover"
+                        onError={() => setAvatarCaido((prev) => ({ ...prev, [fila.id]: true }))}
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-9 h-9 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs shrink-0">
+                      {fila.username.charAt(0).toUpperCase()}
+                    </div>
+                  )}
                   <div>
                     <h4 className="text-xs font-semibold text-slate-800 hover:underline cursor-pointer">
                       @{fila.username}
@@ -92,6 +108,11 @@ export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
                         ? `${fila.conexionesEnComun} conexión(es) mutua(s)`
                         : fila.nombre || 'Persona que sigues'}
                     </p>
+                    {seguidosEnComun && seguidosEnComun.length > 0 && (
+                      <p className="text-[11px] text-slate-400">
+                        Conocido por {seguidosEnComun.map((nombre) => `@${nombre}`).join(', ')}
+                      </p>
+                    )}
                     {error && (
                       <p role="alert" className="text-[11px] text-red-600 font-medium">
                         {error}
