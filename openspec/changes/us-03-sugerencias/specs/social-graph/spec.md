@@ -64,11 +64,18 @@ representación de respaldo cuando el avatar no esté disponible.
 ### Requirement: No modificar el contrato de datos de sugerencias
 
 El sistema NO DEBE agregar campos, endpoints ni tipos nuevos para satisfacer esta historia. La verificación
-de la implementación se limita a la compilación de frontend.
+de la implementación se limita al build de frontend y a la suite de pruebas.
 
 #### Scenario: El contrato permanece intacto
 
 - **GIVEN** que la historia se implementó
 - **WHEN** se inspecciona el código modificado
-- **THEN** el único archivo cambiado es `UserSuggestionsCard.tsx`
+- **THEN** el único archivo de producción cambiado es `UserSuggestionsCard.tsx`
 - **AND** `networkApi.ts` y `network.types.ts` no fueron modificados
+
+#### Scenario: El comportamiento nuevo queda cubierto por pruebas
+
+- **GIVEN** que la historia se implementó
+- **WHEN** se inspecciona el diff
+- **THEN** el único archivo adicional es `UserSuggestionsCard.test.tsx`
+- **AND** ese archivo contiene pruebas que fallan si `seguidosEnComun` o `avatar` vuelven a ignorarse

@@ -42,13 +42,13 @@ aceptación de TUX-58.
 
 ### Directrices de implementación
 
-- [ ] Conservar el contador como primera línea. No reemplazarlo: responde la pregunta rápida antes del detalle.
-- [ ] Renderizar los usernames con el `@` que ya usa el encabezado de la tarjeta, para que la convención
+- [x] Conservar el contador como primera línea. No reemplazarlo: responde la pregunta rápida antes del detalle.
+- [x] Renderizar los usernames con el `@` que ya usa el encabezado de la tarjeta, para que la convención
       visual sea la misma en ambos lugares.
-- [ ] Unir los usernames con una coma o con un punto y coma. No hace falta ningún componente nuevo.
-- [ ] Si el arreglo viene vacío, no renderizar la línea. El bloque completo se omite, no se muestra vacío.
-- [ ] Es JSX directo sobre el arreglo. No hace falta `useState`, `useMemo` ni ningún otro hook.
-- [ ] No deduplicar: `collect` sobre una ruta de dos saltos no produce repetidos para el mismo sugerido.
+- [x] Unir los usernames con una coma o con un punto y coma. No hace falta ningún componente nuevo.
+- [x] Si el arreglo viene vacío, no renderizar la línea. El bloque completo se omite, no se muestra vacío.
+- [x] Es JSX directo sobre el arreglo. No hace falta `useState`, `useMemo` ni ningún otro hook.
+- [x] No deduplicar: `collect` sobre una ruta de dos saltos no produce repetidos para el mismo sugerido.
 
 ---
 
@@ -66,13 +66,15 @@ respaldo cuando la URL está vacía o la imagen no carga.
 
 ### Directrices de implementación
 
-- [ ] Reemplazar el `<div>` circular por un contenedor relativo que sostenga el `<img>` y el respaldo.
-- [ ] Reutilizar el círculo con la inicial que ya existe como respaldo. No se diseña uno nuevo.
-- [ ] Conmutar al respaldo con `onError` del `<img>`, mediante un booleano en el estado del componente
+- [x] Sustituir el círculo por un contenedor que sostenga el `<img>` y el respaldo.
+      **Desviación**: se usa `w-9 h-9 rounded-full overflow-hidden` en vez de `relative` + overlay
+      absoluto. Ambas harturas son idénticas; la conmutación es condicional, no superpuesta.
+- [x] Reutilizar el círculo con la inicial que ya existe como respaldo. No se diseña uno nuevo.
+- [x] Conmutar al respaldo con `onError` del `<img>`, mediante un booleano en el estado del componente
       que solo se activa ante error.
-- [ ] Mantener el tamaño actual del círculo (`.w-9 .h-9`) y el degradado, para no romper la alineación de la fila.
-- [ ] Usar un `alt` que no contradiga lo visible. El `@username` de al lado ya aporta el nombre.
-- [ ] No agregar manejo de error a las sugerencias: solo al avatar.
+- [x] Mantener el tamaño actual del círculo (`.w-9 .h-9`) y el degradado, para no romper la alineación de la fila.
+- [x] Usar un `alt` que no contradiga lo visible. El `@username` de al lado ya aporta el nombre.
+- [x] No agregar manejo de error a las sugerencias: solo al avatar.
 
 ---
 
@@ -90,13 +92,59 @@ respaldo cuando la URL está vacía o la imagen no carga.
 Comando único, desde `frontend`:
 
 ```bash
-pnpm run build
+pnpm run check
 ```
 
-No hay suite de pruebas en el proyecto, por decisión registrada en `openspec/config.yaml`. La disciplina
-manual en navegador es la verificación real de esta historia.
+> **Corrección**: esta sección afirmaba antes que "no hay suite de pruebas en el proyecto". Es falso.
+> `openspec/config.yaml` registra ambos runners operativos (JUnit 5 y Vitest), y
+> `UserSuggestionsCard.test.tsx` ya existía con 14 pruebas. La verificación real de esta historia es
+> `pnpm run check`, que encadena `format:check`, `lint`, `test` y `build`.
 
-- [ ] `pnpm run build` termina en verde desde `frontend`
-- [ ] `networkApi.ts` y `network.types.ts` sin modificar
-- [ ] En navegador: una sugerencia con 2 intermediarios muestra el número y los dos usernames
-- [ ] En navegador: una sugerencia sin avatar muestra el círculo con la inicial
+- [x] `pnpm run check` termina en verde desde `frontend`
+- [x] `networkApi.ts` y `network.types.ts` sin modificar
+- [x] Las 14 pruebas preexistentes siguen verdes sin haberlas tocado
+- [x] Las pruebas nuevas fallan si se revierte `UserSuggestionsCard.tsx` (verificado con `git stash`)
+- [x] En navegador: una sugerencia con 2 intermediarios muestra el número y los dos usernames
+- [x] En navegador: una sugerencia sin avatar muestra el círculo con la inicial
+
+> Verificado en Microsoft Edge 153 mediante el MCP de Playwright contra `pnpm dev` en `:3001` con el
+> backend real y el dataset semilla cargado. Lectura del DOM de la fila de `@david`:
+>
+> ```
+> encabezado: "@david"
+> lineas: ["2 conexión(es) mutua(s)", "Conocido por @paulo, @beatriz"]
+> hayImg: true    alt: "Avatar de @david"    cargada: true (naturalWidth > 0)
+> ```
+>
+> Para el respaldo se forzó un error de carga real apuntando el `src` del `<img>` a un puerto cerrado
+> (`http://localhost:9/no-existe.png`), lo que produjo `net::ERR_UNSAFE_PORT` en la consola del navegador
+> y confirmó la conmutación:
+>
+> ```
+> { habiaImg: true, imgSigue: false, inicial: "D" }
+> ```
+
+## Defecto latente detectado, fuera de alcance
+
+`Neo4jGrafoAdapter.obtenerSugerenciasUsuarios()` lee `nombre` y `seguidosEnComun` sin guarda `isNull()`.
+Un nodo `:Usuario` sin `nombre` hace fallar el endpoint completo. El seed define `nombre` en los seis
+nodos, así que no se manifiesta aquí, pero la guarda sigue pendiente y ya estaba diferida a US-09 en
+`openspec/ROADMAP.md`.
+
+Durante la verificación en navegador se encontró otro defecto, este **ya activo**: `GET /api/feed/{id}`
+devuelve **500** para todos los usuarios.
+
+```
+org.neo4j.driver.exceptions.value.Uncoercible: Cannot coerce INTEGER to Java String
+  at Neo4jGrafoAdapter.lambda$obtenerFeedCronologico$0(Neo4jGrafoAdapter.java:53)
+```
+
+`crearPost` escribe `fechaCreacion = datetime().epochMillis` (entero) y el seed escribe el mismo tipo, pero
+`obtenerFeedCronologico` lo lee con `record.get("fecha").asString()`. Es el mismo desajuste de tipos que ya
+figuraba en `openspec/ROADMAP.md`, y afecta a la consulta obligatoria #1, no a la #2. **US-03 no lo toca**:
+`GET /api/users/{userId}/sugerencias` responde 200 con normalidad. Requiere su propia historia.
+
+El criterio de aceptación escribe `seguidosEnComun = ["beatriz", "paulo"]`. El endpoint devuelve el
+mismo conjunto en orden `["paulo", "beatriz"]`. `collect()` no garantiza orden en Cypher sin `ORDER BY`
+interno, así que el orden literal no es una propiedad estable de la consulta. Se cumple el contenido,
+que es lo que el criterio exige; no se modifica la consulta obligatoria #2 para forzar un orden.
