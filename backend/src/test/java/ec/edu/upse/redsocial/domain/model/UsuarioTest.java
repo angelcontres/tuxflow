@@ -10,7 +10,8 @@ import org.junit.jupiter.api.Test;
 /**
  * Pruebas del contrato del modelo de dominio {@link Usuario}.
  *
- * <p>Verifica constructores, accesores y mutadores requeridos para la gestión de identidad en el grafo.
+ * <p>Verifica constructores, accesores y mutadores requeridos para la gestión de identidad en el
+ * grafo.
  */
 class UsuarioTest {
 

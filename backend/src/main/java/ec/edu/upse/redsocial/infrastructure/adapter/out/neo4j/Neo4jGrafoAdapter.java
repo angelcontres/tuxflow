@@ -143,6 +143,37 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
         }
     }
 
+    // --- Usuarios seguidos por un perfil (lectura directa de [:SIGUE]) ---
+    @Override
+    public List<Usuario> obtenerSeguidos(String userId) {
+        String cypher =
+                """
+            MATCH (u:Usuario {id: $userId})-[:SIGUE]->(s:Usuario)
+            RETURN s.id AS id, s.username AS username, s.nombre AS nombre, s.avatarUrl AS avatarUrl
+            """;
+
+        try (var session = driver.session()) {
+            return session.executeRead(
+                    tx -> {
+                        var result = tx.run(cypher, Values.parameters("userId", userId));
+                        List<Usuario> usuarios = new ArrayList<>();
+                        while (result.hasNext()) {
+                            Record record = result.next();
+                            Usuario u = new Usuario();
+                            u.setId(record.get("id").asString());
+                            u.setUsername(record.get("username").asString());
+                            u.setNombre(record.get("nombre").asString());
+                            u.setAvatarUrl(
+                                    record.get("avatarUrl").isNull()
+                                            ? null
+                                            : record.get("avatarUrl").asString());
+                            usuarios.add(u);
+                        }
+                        return usuarios;
+                    });
+        }
+    }
+
     // --- 4. Grado de Separación y Camino Más Corto (Shortest Path) ---
     @Override
     public Map<String, Object> obtenerCaminoMasCorto(String origenId, String destinoId) {
@@ -225,16 +256,16 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
             session.executeWrite(
                     tx -> {
                         tx.run(
-                                cypher,
-                                Values.parameters(
-                                        "id", u.getId(),
-                                        "username", u.getUsername(),
-                                        "email", u.getEmail(),
-                                        "nombre", u.getNombre(),
-                                        "avatarUrl",
-                                                u.getAvatarUrl() != null
-                                                        ? u.getAvatarUrl()
-                                                        : ""))
+                                        cypher,
+                                        Values.parameters(
+                                                "id", u.getId(),
+                                                "username", u.getUsername(),
+                                                "email", u.getEmail(),
+                                                "nombre", u.getNombre(),
+                                                "avatarUrl",
+                                                        u.getAvatarUrl() != null
+                                                                ? u.getAvatarUrl()
+                                                                : ""))
                                 .consume();
                         return null;
                     });
@@ -342,12 +373,12 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
             session.executeWrite(
                     tx -> {
                         tx.run(
-                                cypher,
-                                Values.parameters(
-                                        "userId",
-                                        userId,
-                                        "avatarUrl",
-                                        avatarUrl != null ? avatarUrl : ""))
+                                        cypher,
+                                        Values.parameters(
+                                                "userId",
+                                                userId,
+                                                "avatarUrl",
+                                                avatarUrl != null ? avatarUrl : ""))
                                 .consume();
                         return null;
                     });
@@ -366,9 +397,9 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
             session.executeWrite(
                     tx -> {
                         tx.run(
-                                cypher,
-                                Values.parameters(
-                                        "seguidorId", seguidorId, "seguidoId", seguidoId))
+                                        cypher,
+                                        Values.parameters(
+                                                "seguidorId", seguidorId, "seguidoId", seguidoId))
                                 .consume();
                         return null;
                     });
@@ -386,9 +417,9 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
             session.executeWrite(
                     tx -> {
                         tx.run(
-                                cypher,
-                                Values.parameters(
-                                        "seguidorId", seguidorId, "seguidoId", seguidoId))
+                                        cypher,
+                                        Values.parameters(
+                                                "seguidorId", seguidorId, "seguidoId", seguidoId))
                                 .consume();
                         return null;
                     });
@@ -412,12 +443,12 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
             session.executeWrite(
                     tx -> {
                         tx.run(
-                                cypher,
-                                Values.parameters(
-                                        "autorId", autorId,
-                                        "postId", postId,
-                                        "texto", texto,
-                                        "mediaUrl", mediaUrl != null ? mediaUrl : ""))
+                                        cypher,
+                                        Values.parameters(
+                                                "autorId", autorId,
+                                                "postId", postId,
+                                                "texto", texto,
+                                                "mediaUrl", mediaUrl != null ? mediaUrl : ""))
                                 .consume();
                         return null;
                     });

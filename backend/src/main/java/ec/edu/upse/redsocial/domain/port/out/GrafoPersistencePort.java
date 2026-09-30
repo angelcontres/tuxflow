@@ -14,6 +14,8 @@ public interface GrafoPersistencePort {
     // 2. Algoritmo de Sugerencia de Usuarios (2do Grado)
     List<SugerenciaUsuario> obtenerSugerenciasUsuarios(String userId);
 
+    List<Usuario> obtenerSeguidos(String userId);
+
     // 3. Seguidores y Conexiones en Común entre Dos Perfiles
     List<Usuario> obtenerSeguidoresEnComun(String userA, String userB);
 
