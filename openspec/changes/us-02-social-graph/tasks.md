@@ -44,10 +44,10 @@
 - **Boundary de rollback**: los tres archivos más el test. Revertirlos elimina `obtenerSeguidos` de la cadena; el resto del backend sigue compilando.
 - **Verificación**: `$MAVEN_HOME/bin/mvn test` desde `backend` (JUnit 5 vía Surefire; `UsuarioTest`/`PostTest` existentes siguen verdes).
 
-- [ ] 1.1 Declarar `List<Usuario> obtenerSeguidos(String userId);` en `GestionarGrafoSocialUseCase.java`, en el estilo de `obtenerSugerencias` y `obtenerSeguidoresEnComun` (D6)
-- [ ] 1.2 Declarar `List<Usuario> obtenerSeguidos(String userId);` en `GrafoPersistencePort.java`, con nomenclatura verbo-primero del puerto (D6)
-- [ ] 1.3 Implementar el pass-through sin validación en `UserGraphApplicationService.java`, como `obtenerSugerencias` (líneas 62-65) (D6; Requirement Endpoint, escenario sin validación)
-- [ ] 1.4 Añadir test JUnit (Mockito, sin contenedor) que verifica delegación al puerto de salida y ausencia de validación: falla si el servicio filtra, transforma o valida (D6; Requirement Endpoint, escenario sin validación)
+- [x] 1.1 Declarar `List<Usuario> obtenerSeguidos(String userId);` en `GestionarGrafoSocialUseCase.java`, en el estilo de `obtenerSugerencias` y `obtenerSeguidoresEnComun` (D6)
+- [x] 1.2 Declarar `List<Usuario> obtenerSeguidos(String userId);` en `GrafoPersistencePort.java`, con nomenclatura verbo-primero del puerto (D6)
+- [x] 1.3 Implementar el pass-through sin validación en `UserGraphApplicationService.java`, como `obtenerSugerencias` (líneas 62-65) (D6; Requirement Endpoint, escenario sin validación)
+- [x] 1.4 Añadir test JUnit (Mockito, sin contenedor) que verifica delegación al puerto de salida y ausencia de validación: falla si el servicio filtra, transforma o valida (D6; Requirement Endpoint, escenario sin validación)
 
 ---
 
@@ -63,9 +63,9 @@
 - **Boundary de rollback**: ambos archivos más el test. Revertirlos retira el endpoint; la cadena de escritura (`seguirUsuario`, `dejarDeSeguir`, líneas 207 y 219 del adaptador) queda intacta.
 - **Verificación**: `$MAVEN_HOME/bin/mvn test` desde `backend`.
 
-- [ ] 2.1 Añadir `obtenerSeguidos` en `Neo4jGrafoAdapter.java` con `try (var session = driver.session()) { session.executeRead(...) }`, sin try/catch ni logging, reutilizando el mapeo de fila `Usuario` de `obtenerSeguidoresEnComun` (~líneas 131-138); Cypher de un solo `MATCH -[:SIGUE]->` que retorna `id, username, nombre, avatarUrl` (D6; Requirement Endpoint, escenarios con éxito y sin seguidos)
-- [ ] 2.2 Añadir `@GET @Path("/{userId}/follows")` en `UserGraphResource.java` como `@GET @Path("/{userId}/sugerencias")` (líneas 107-111): `Response.ok(useCase.obtenerSeguidos(userId)).build()`, sin try/catch (D6; Requirement Endpoint, escenario con éxito)
-- [ ] 2.3 Añadir test de contrato del endpoint (forma de respuesta y lista vacía); si el entorno no tiene Docker para Testcontainers (`config.yaml:50`), registrarlo como pendiente justificado en el propio test, nunca desactivar una prueba para dejarla verde (D6; Requirement Endpoint, ambos escenarios)
+- [x] 2.1 Añadir `obtenerSeguidos` en `Neo4jGrafoAdapter.java` con `try (var session = driver.session()) { session.executeRead(...) }`, sin try/catch ni logging, reutilizando el mapeo de fila `Usuario` de `obtenerSeguidoresEnComun` (~líneas 131-138); Cypher de un solo `MATCH -[:SIGUE]->` que retorna `id, username, nombre, avatarUrl` (D6; Requirement Endpoint, escenarios con éxito y sin seguidos)
+- [x] 2.2 Añadir `@GET @Path("/{userId}/follows")` en `UserGraphResource.java` como `@GET @Path("/{userId}/sugerencias")` (líneas 107-111): `Response.ok(useCase.obtenerSeguidos(userId)).build()`, sin try/catch (D6; Requirement Endpoint, escenario con éxito)
+- [x] 2.3 Añadir test de contrato del endpoint (forma de respuesta y lista vacía); si el entorno no tiene Docker para Testcontainers (`config.yaml:50`), registrarlo como pendiente justificado en el propio test, nunca desactivar una prueba para dejarla verde (D6; Requirement Endpoint, ambos escenarios)
 
 ---
 
@@ -81,9 +81,9 @@
 - **Boundary de rollback**: ambos archivos más el test. Revertirlos devuelve el cliente a seguir/dejar/sugerencias, sin afectar la tarjeta.
 - **Verificación**: `pnpm test` y `pnpm run build` desde `frontend`.
 
-- [ ] 3.1 Agregar `fetchSeguidos(userId)` en `frontend/src/features/network/services/networkApi.ts` siguiendo `fetchSugerenciasGrafo` exactamente (axios `api.get` desnudo a `/users/${userId}/follows`, sin headers ni manejo de errores) (D6)
-- [ ] 3.2 Agregar el tipo `Usuario` en `frontend/src/features/network/types/network.types.ts` con los nombres exactos del backend (`avatarUrl`, distinto de `avatar` en sugerencias) más la fila discriminada `seguido: boolean` que renderiza sugerencia o seguido (D6, D7)
-- [ ] 3.3 Añadir test Vitest colocalizado del cliente (respuesta 200 con forma `Usuario`, lista vacía); falla si cambia el path o la forma (D6; Requirement Endpoint, escenarios con éxito y sin seguidos)
+- [x] 3.1 Agregar `fetchSeguidos(userId)` en `frontend/src/features/network/services/networkApi.ts` siguiendo `fetchSugerenciasGrafo` exactamente (axios `api.get` desnudo a `/users/${userId}/follows`, sin headers ni manejo de errores) (D6)
+- [x] 3.2 Agregar el tipo `Usuario` en `frontend/src/features/network/types/network.types.ts` con los nombres exactos del backend (`avatarUrl`, distinto de `avatar` en sugerencias) más la fila discriminada `seguido: boolean` que renderiza sugerencia o seguido (D6, D7)
+- [x] 3.3 Añadir test Vitest colocalizado del cliente (respuesta 200 con forma `Usuario`, lista vacía); falla si cambia el path o la forma (D6; Requirement Endpoint, escenarios con éxito y sin seguidos)
 
 ---
 
@@ -99,10 +99,10 @@
 - **Boundary de rollback**: ambos archivos más los tests. Revertirlos devuelve la tarjeta al botón único de "Seguir".
 - **Verificación**: `pnpm test` y `pnpm run build` desde `frontend`.
 
-- [ ] 4.1 Sumar `fetchSeguidos` al `Promise.all` de `loadAllData` en `frontend/src/App.tsx` (líneas 20-33) y fusionar por id —seguidos primero, sin duplicados aunque un id venga en ambas fuentes, sin caída— manteniendo el `currentUserId` por defecto de `App.tsx:14` (D5) y `handleUserChange` intactos (D6; Requirement Alternancia, escenario usuario ya seguido)
-- [ ] 4.2 Eliminar `seguidosIds: Set<string>` y renderizar "Seguir"/"Dejar de seguir" por la bandera de cada fila en `frontend/src/features/network/components/UserSuggestionsCard.tsx`, con `handleToggle` que invoca `followUserInGraph` o `unfollowUserInGraph` y actualiza la bandera solo tras `await` exitoso, sin optimismo (D7 que supersede a D1; D2; Requirement Dejar de seguir, ambos escenarios; Requirement Alternancia, ambos escenarios; Requirement Reflejo inmediato, ambos escenarios)
-- [ ] 4.3 Agregar `errorPorId` con `role="alert"` conservando el botón previo ante rechazo, y deshabilitar el botón de la tarjeta mientras su promesa está en curso, en `frontend/src/features/network/components/UserSuggestionsCard.tsx` (D2, D3; Requirement Retroalimentación visible, ambos escenarios)
-- [ ] 4.4 Aplicar la copia D8 en `frontend/src/features/network/components/UserSuggestionsCard.tsx` —título "Tu red", subtítulo "Sugerencias y personas que sigues"— y extender `UserSuggestionsCard.test.tsx` con alternancia por bandera, error visible y render inicial de ya-seguido desde la fuente de seguidos (D8; Requirement Alternancia, escenario usuario ya seguido; Requirement Retroalimentación visible)
+- [x] 4.1 Sumar `fetchSeguidos` al `Promise.all` de `loadAllData` en `frontend/src/App.tsx` (líneas 20-33) y fusionar por id —seguidos primero, sin duplicados aunque un id venga en ambas fuentes, sin caída— manteniendo el `currentUserId` por defecto de `App.tsx:14` (D5) y `handleUserChange` intactos (D6; Requirement Alternancia, escenario usuario ya seguido)
+- [x] 4.2 Eliminar `seguidosIds: Set<string>` y renderizar "Seguir"/"Dejar de seguir" por la bandera de cada fila en `frontend/src/features/network/components/UserSuggestionsCard.tsx`, con `handleToggle` que invoca `followUserInGraph` o `unfollowUserInGraph` y actualiza la bandera solo tras `await` exitoso, sin optimismo (D7 que supersede a D1; D2; Requirement Dejar de seguir, ambos escenarios; Requirement Alternancia, ambos escenarios; Requirement Reflejo inmediato, ambos escenarios)
+- [x] 4.3 Agregar `errorPorId` con `role="alert"` conservando el botón previo ante rechazo, y deshabilitar el botón de la tarjeta mientras su promesa está en curso, en `frontend/src/features/network/components/UserSuggestionsCard.tsx` (D2, D3; Requirement Retroalimentación visible, ambos escenarios)
+- [x] 4.4 Aplicar la copia D8 en `frontend/src/features/network/components/UserSuggestionsCard.tsx` —título "Tu red", subtítulo "Sugerencias y personas que sigues"— y extender `UserSuggestionsCard.test.tsx` con alternancia por bandera, error visible y render inicial de ya-seguido desde la fuente de seguidos (D8; Requirement Alternancia, escenario usuario ya seguido; Requirement Retroalimentación visible)
 
 ---
 
@@ -118,9 +118,9 @@
 - **Boundary de rollback**: sin cambio de código; no hay reversión parcial.
 - **Verificación**: los cinco comandos de esta fase son la verificación.
 
-- [ ] 5.1 Ejecutar `$MAVEN_HOME/bin/mvn test` desde `backend` (JUnit 5; nunca `mvn` desnudo: no está en PATH y no hay `mvnw`, `config.yaml:15-16`)
-- [ ] 5.2 Ejecutar `$MAVEN_HOME/bin/mvn spotless:check` desde `backend` (`config.yaml:83`) y `$MAVEN_HOME/bin/mvn compile` (`config.yaml:74`)
-- [ ] 5.3 Ejecutar `pnpm test` y `pnpm run build` desde `frontend` (`frontend/package.json:10`, `config.yaml:74`)
+- [x] 5.1 Ejecutar `$MAVEN_HOME/bin/mvn test` desde `backend` (JUnit 5; nunca `mvn` desnudo: no está en PATH y no hay `mvnw`, `config.yaml:15-16`)
+- [x] 5.2 Ejecutar `$MAVEN_HOME/bin/mvn spotless:check` desde `backend` (`config.yaml:83`) y `$MAVEN_HOME/bin/mvn compile` (`config.yaml:74`)
+- [x] 5.3 Ejecutar `pnpm test` y `pnpm run build` desde `frontend` (`frontend/package.json:10`, `config.yaml:74`)
 
 ---
 
