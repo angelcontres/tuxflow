@@ -9,6 +9,8 @@ import jakarta.ws.rs.core.Response;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.jboss.resteasy.reactive.RestForm;
 import org.jboss.resteasy.reactive.multipart.FileUpload;
 
@@ -16,6 +18,8 @@ import org.jboss.resteasy.reactive.multipart.FileUpload;
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class UserGraphResource {
+
+    private static final Logger LOG = Logger.getLogger(UserGraphResource.class.getName());
 
     @Inject GestionarGrafoSocialUseCase gestionarGrafoSocialUseCase;
 
@@ -79,8 +83,9 @@ public class UserGraphResource {
                             userId, is, file.size(), contentType, extension);
             return Response.ok(Map.of("avatarUrl", avatarUrl)).build();
         } catch (Exception e) {
+            LOG.log(Level.SEVERE, "Failed to process avatar upload for user: " + userId, e);
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                    .entity(Map.of("error", "Error al procesar avatar: " + e.getMessage()))
+                    .entity(Map.of("error", "Error interno al procesar el avatar."))
                     .build();
         }
     }
