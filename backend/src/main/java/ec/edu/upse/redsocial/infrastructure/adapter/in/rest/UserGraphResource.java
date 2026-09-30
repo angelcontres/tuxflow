@@ -72,11 +72,8 @@ public class UserGraphResource {
         try (InputStream is = Files.newInputStream(file.uploadedFile())) {
             String fileName = file.fileName() != null ? file.fileName() : "avatar.jpg";
             String extension =
-                    fileName.contains(".")
-                            ? fileName.substring(fileName.lastIndexOf("."))
-                            : ".jpg";
-            String contentType =
-                    file.contentType() != null ? file.contentType() : "image/jpeg";
+                    fileName.contains(".") ? fileName.substring(fileName.lastIndexOf(".")) : ".jpg";
+            String contentType = file.contentType() != null ? file.contentType() : "image/jpeg";
             String avatarUrl =
                     gestionarGrafoSocialUseCase.subirAvatar(
                             userId, is, file.size(), contentType, extension);
@@ -108,6 +105,12 @@ public class UserGraphResource {
     @Path("/{userId}/sugerencias")
     public Response obtenerSugerencias(@PathParam("userId") String userId) {
         return Response.ok(gestionarGrafoSocialUseCase.obtenerSugerencias(userId)).build();
+    }
+
+    @GET
+    @Path("/{userId}/follows")
+    public Response obtenerSeguidos(@PathParam("userId") String userId) {
+        return Response.ok(gestionarGrafoSocialUseCase.obtenerSeguidos(userId)).build();
     }
 
     @GET

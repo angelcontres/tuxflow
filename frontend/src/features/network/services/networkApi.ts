@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { SugerenciaUsuario } from '../types/network.types';
+import { SugerenciaUsuario, Usuario } from '../types/network.types';
 
 const api = axios.create({
   baseURL: '/api',
@@ -7,6 +7,11 @@ const api = axios.create({
 
 export const fetchSugerenciasGrafo = async (userId: string): Promise<SugerenciaUsuario[]> => {
   const response = await api.get<SugerenciaUsuario[]>(`/users/${userId}/sugerencias`);
+  return response.data;
+};
+
+export const fetchSeguidos = async (userId: string): Promise<Usuario[]> => {
+  const response = await api.get<Usuario[]>(`/users/${userId}/follows`);
   return response.data;
 };
 

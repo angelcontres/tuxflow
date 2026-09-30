@@ -29,5 +29,7 @@ public interface GestionarGrafoSocialUseCase {
 
     List<Usuario> obtenerSeguidoresEnComun(String userA, String userB);
 
+    List<Usuario> obtenerSeguidos(String userId);
+
     Map<String, Object> obtenerCaminoMasCorto(String origen, String destino);
 }
