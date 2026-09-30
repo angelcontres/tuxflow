@@ -36,23 +36,32 @@ services:
       - minio_data:/data
     networks:
       - red-distribuida
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   # Inicializador automático del Bucket en MinIO
+  # Uses the mc bundled in the same image instead of downloading it:
+  # dl.min.io / dl.minio.io permanently return 410 Gone, so any download
+  # based init can never succeed. `mc --version` fails the container loudly
+  # if the binary ever stops shipping in the image.
   minio-init:
-    image: alpine:latest
+    image: docker.io/elestio/minio:latest
     depends_on:
-      - minio
+      minio:
+        condition: service_healthy
     networks:
       - red-distribuida
     entrypoint: >
       /bin/sh -c "
-      apk add --no-cache curl &&
-      curl -s -O https://dl.min.io/client/mc/release/linux-amd64/mc &&
-      chmod +x mc &&
-      ./mc alias set local http://minio:9000 minioadmin minioadmin;
-      ./mc mb local/redsocial-media --ignore-existing;
-      ./mc anonymous set download local/redsocial-media;
-      exit 0;
+      set -eu &&
+      mc --version &&
+      mc alias set local http://minio:9000 minioadmin minioadmin &&
+      mc mb local/redsocial-media --ignore-existing &&
+      mc anonymous set download local/redsocial-media
       "
 
   # Backend Quarkus (Java)
