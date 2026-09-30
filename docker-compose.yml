@@ -23,7 +23,7 @@ services:
 
   # Object Storage compatible con S3
   minio:
-    image: minio/minio:RELEASE.2024-05-10T01-41-38Z
+    image: docker.io/elestio/minio:latest
     container_name: redsocial-minio
     ports:
       - "9000:9000" # API S3
@@ -39,16 +39,19 @@ services:
 
   # Inicializador automático del Bucket en MinIO
   minio-init:
-    image: minio/mc:latest
+    image: alpine:latest
     depends_on:
       - minio
     networks:
       - red-distribuida
     entrypoint: >
       /bin/sh -c "
-      /usr/bin/mc alias set local http://minio:9000 minioadmin minioadmin;
-      /usr/bin/mc mb local/redsocial-media --ignore-existing;
-      /usr/bin/mc anonymous set download local/redsocial-media;
+      apk add --no-cache curl &&
+      curl -s -O https://dl.min.io/client/mc/release/linux-amd64/mc &&
+      chmod +x mc &&
+      ./mc alias set local http://minio:9000 minioadmin minioadmin;
+      ./mc mb local/redsocial-media --ignore-existing;
+      ./mc anonymous set download local/redsocial-media;
       exit 0;
       "
 
