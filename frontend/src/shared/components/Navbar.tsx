@@ -38,7 +38,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [regNombre, setRegNombre] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regAvatarUrl, setRegAvatarUrl] = useState('');
-  const [isUploadingRegAvatar, setIsUploadingRegAvatar] = useState(false);
+  // File picked in the register form. It is uploaded only AFTER the user is
+  // created, using the id returned by the create response.
+  const [regAvatarFile, setRegAvatarFile] = useState<File | null>(null);
+  const [regAvatarPreview, setRegAvatarPreview] = useState('');
 
   // Feedback state
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(
@@ -115,25 +118,33 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
   };
 
-  // Handle avatar upload for register
-  const handleRegAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle avatar file selection for register. The file is kept pending and
+  // uploaded after the user is created (see handleRegisterUser).
+  const handleRegAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setIsUploadingRegAvatar(true);
+    if (regAvatarPreview.startsWith('blob:')) {
+      URL.revokeObjectURL(regAvatarPreview);
+    }
+    setRegAvatarFile(file);
+    setRegAvatarPreview(URL.createObjectURL(file));
     setFeedback(null);
-    try {
-      const res = await uploadAvatar(file);
-      setRegAvatarUrl(res.avatarUrl);
-      setFeedback({
-        type: 'success',
-        message: 'Avatar subido exitosamente a MinIO S3.',
-      });
-    } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : 'Error al subir imagen a MinIO';
-      setFeedback({ type: 'error', message: errorMsg });
-    } finally {
-      setIsUploadingRegAvatar(false);
+  };
+
+  const resetRegisterForm = () => {
+    if (regAvatarPreview.startsWith('blob:')) {
+      URL.revokeObjectURL(regAvatarPreview);
+    }
+    setRegId('');
+    setRegUsername('');
+    setRegNombre('');
+    setRegEmail('');
+    setRegAvatarUrl('');
+    setRegAvatarFile(null);
+    setRegAvatarPreview('');
+    if (regFileInputRef.current) {
+      regFileInputRef.current.value = '';
     }
   };
 
@@ -171,7 +182,9 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
   };
 
-  // Handle new user registration (US-01)
+  // Handle new user registration (US-01): create the user first without an
+  // avatar, then upload the pending avatar file (if any) against the id from
+  // the create response so the upload actually links the avatar.
   const handleRegisterUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!regId.trim() || !regUsername.trim() || !regNombre.trim()) {
@@ -190,20 +203,41 @@ export const Navbar: React.FC<NavbarProps> = ({
         username: regUsername.trim().toLowerCase().replace(/\s+/g, '_'),
         nombre: regNombre.trim(),
         email: regEmail.trim(),
-        avatarUrl: regAvatarUrl.trim(),
       };
-      await registerOrUpdateUsuario(payload);
+      const created = await registerOrUpdateUsuario(payload);
+      const createdId = created?.id || payload.id;
+
+      const pendingFile = regAvatarFile;
+      const manualAvatarUrl = regAvatarUrl.trim();
+      if (pendingFile || manualAvatarUrl) {
+        try {
+          if (pendingFile) {
+            await uploadAvatar(pendingFile, createdId);
+          } else {
+            await registerOrUpdateUsuario({ ...payload, avatarUrl: manualAvatarUrl });
+          }
+        } catch (avatarErr: unknown) {
+          const uploadMsg =
+            avatarErr instanceof Error ? avatarErr.message : 'Error al subir imagen a MinIO';
+          // The user was already created: report it clearly and keep the modal
+          // open so the feedback stays visible instead of failing silently.
+          setFeedback({
+            type: 'error',
+            message: `Usuario @${payload.username} registrado, pero el avatar no pudo vincularse (${uploadMsg}). Reinténtalo desde Editar perfil.`,
+          });
+          onUserChange?.(createdId, payload.username);
+          resetRegisterForm();
+          return;
+        }
+      }
+
       setFeedback({
         type: 'success',
         message: `Usuario @${payload.username} registrado exitosamente en el grafo.`,
       });
 
-      onUserChange?.(payload.id, payload.username);
-      setRegId('');
-      setRegUsername('');
-      setRegNombre('');
-      setRegEmail('');
-      setRegAvatarUrl('');
+      onUserChange?.(createdId, payload.username);
+      resetRegisterForm();
       setIsModalOpen(false);
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : 'Error al registrar usuario';
@@ -219,6 +253,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   const avatarSrc = currentUserProfile?.avatarUrl || '';
+  const regPreviewSrc = regAvatarPreview || regAvatarUrl;
   const initial = (currentUserProfile?.nombre || currentUsername || '?').charAt(0).toUpperCase();
 
   return (
@@ -655,15 +690,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <Upload className="w-3.5 h-3.5 text-blue-600" />
                         Subir Avatar a MinIO
                       </span>
-                      {regAvatarUrl && (
+                      {regPreviewSrc && (
                         <span className="text-[10px] text-emerald-600 font-semibold">Listo</span>
                       )}
                     </label>
 
                     <div className="flex items-center gap-3">
-                      {regAvatarUrl ? (
+                      {regPreviewSrc ? (
                         <img
-                          src={regAvatarUrl}
+                          src={regPreviewSrc}
                           alt="Preview"
                           className="w-12 h-12 rounded-full object-cover ring-2 ring-blue-500 shrink-0"
                         />
@@ -683,13 +718,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                         />
                         <button
                           type="button"
-                          disabled={isUploadingRegAvatar}
+                          disabled={isSubmitting}
                           onClick={() => regFileInputRef.current?.click()}
                           className="w-full py-2 px-3 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium text-slate-700 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
                         >
                           <Upload className="w-3.5 h-3.5 text-blue-600" />
-                          {isUploadingRegAvatar ? 'Subiendo...' : 'Seleccionar archivo local'}
+                          Seleccionar archivo local
                         </button>
+                        {regAvatarFile && (
+                          <p className="mt-1 text-[10px] text-slate-500 truncate">
+                            Archivo seleccionado: {regAvatarFile.name} — se subirá al registrar.
+                          </p>
+                        )}
                       </div>
                     </div>
 
