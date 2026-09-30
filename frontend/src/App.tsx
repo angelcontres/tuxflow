@@ -5,26 +5,58 @@ import { FeedList } from './features/feed/components/FeedList';
 import { UserSuggestionsCard } from './features/network/components/UserSuggestionsCard';
 import { ChatWidget } from './features/chat/components/ChatWidget';
 import { fetchFeedBySocialGraph } from './features/feed/services/feedApi';
-import { fetchSugerenciasGrafo } from './features/network/services/networkApi';
+import { fetchSeguidos, fetchSugerenciasGrafo } from './features/network/services/networkApi';
 import { Post } from './features/feed/types/post.types';
-import { SugerenciaUsuario } from './features/network/types/network.types';
+import { FilaRed, SugerenciaUsuario, Usuario } from './features/network/types/network.types';
 import { UserCheck } from 'lucide-react';
+
+export function fusionarRed(seguidos: Usuario[], sugerencias: SugerenciaUsuario[]): FilaRed[] {
+  const filas: FilaRed[] = [];
+  const vistos = new Set<string>();
+  const agregar = (fila: FilaRed): void => {
+    if (typeof fila.id !== 'string' || vistos.has(fila.id)) {
+      return;
+    }
+    vistos.add(fila.id);
+    filas.push(fila);
+  };
+  if (Array.isArray(seguidos)) {
+    for (const seguido of seguidos) {
+      if (seguido && typeof seguido.id === 'string' && typeof seguido.username === 'string') {
+        agregar({ ...seguido, seguido: true });
+      }
+    }
+  }
+  if (Array.isArray(sugerencias)) {
+    for (const sugerencia of sugerencias) {
+      if (
+        sugerencia &&
+        typeof sugerencia.id === 'string' &&
+        typeof sugerencia.username === 'string'
+      ) {
+        agregar({ ...sugerencia, seguido: false });
+      }
+    }
+  }
+  return filas;
+}
 
 export const App: React.FC = () => {
   const [currentUserId, setCurrentUserId] = useState<string>('carlos-patino');
   const [currentUsername, setCurrentUsername] = useState<string>('carlos');
   const [posts, setPosts] = useState<Post[]>([]);
-  const [sugerencias, setSugerencias] = useState<SugerenciaUsuario[]>([]);
+  const [red, setRed] = useState<FilaRed[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
   const loadAllData = useCallback(async () => {
     try {
-      const [feedData, sugData] = await Promise.all([
+      const [feedData, sugData, segData] = await Promise.all([
         fetchFeedBySocialGraph(currentUserId).catch(() => []),
         fetchSugerenciasGrafo(currentUserId).catch(() => []),
+        fetchSeguidos(currentUserId).catch(() => []),
       ]);
       setPosts(feedData);
-      setSugerencias(sugData);
+      setRed(fusionarRed(segData, sugData));
     } catch (err) {
       console.error('Error al sincronizar datos:', err);
     } finally {
@@ -88,9 +120,9 @@ export const App: React.FC = () => {
               </div>
             </div>
 
-            {/* Sugerencias de Red (Neo4j 2º Grado) */}
+            {/* Tu red: sugerencias + seguidos (Neo4j) */}
             <UserSuggestionsCard
-              sugerencias={sugerencias}
+              filas={red}
               currentUserId={currentUserId}
               onNetworkUpdated={loadAllData}
             />
