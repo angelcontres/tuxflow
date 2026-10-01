@@ -1,17 +1,8 @@
-import axios from 'axios';
 import { Usuario } from '../types/user.types';
-
-const api = axios.create({
-  baseURL: '/api',
-});
+import { api } from '../../../shared/api/client';
 
 export const fetchUsuario = async (userId: string): Promise<Usuario> => {
   const response = await api.get<Usuario>(`/users/${userId}`);
-  return response.data;
-};
-
-export const fetchAllUsuarios = async (): Promise<Usuario[]> => {
-  const response = await api.get<Usuario[]>('/users');
   return response.data;
 };
 

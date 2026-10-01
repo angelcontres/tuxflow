@@ -1,9 +1,5 @@
-import axios from 'axios';
 import { Post, CreatePostPayload } from '../types/post.types';
-
-const api = axios.create({
-  baseURL: '/api',
-});
+import { api } from '../../../shared/api/client';
 
 export const fetchFeedBySocialGraph = async (userId: string): Promise<Post[]> => {
   const response = await api.get<Post[]>(`/feed/${userId}`);

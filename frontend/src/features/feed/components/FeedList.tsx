@@ -21,8 +21,7 @@ export const FeedList: React.FC<FeedListProps> = ({ posts, currentUserId, onRefr
             No hay publicaciones en tu feed
           </h4>
           <p className="text-xs text-slate-500 max-w-sm mx-auto">
-            Sigue a otros miembros de la red en la columna lateral para ver sus publicaciones en tu
-            grafo social.
+            Sigue a otros miembros de la red en la columna lateral para ver sus publicaciones aquí.
           </p>
         </div>
       ) : (

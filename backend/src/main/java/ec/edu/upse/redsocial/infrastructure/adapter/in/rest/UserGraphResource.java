@@ -2,30 +2,37 @@ package ec.edu.upse.redsocial.infrastructure.adapter.in.rest;
 
 import ec.edu.upse.redsocial.domain.model.Usuario;
 import ec.edu.upse.redsocial.domain.port.in.GestionarGrafoSocialUseCase;
+import ec.edu.upse.redsocial.infrastructure.adapter.in.rest.dto.UsuarioResponse;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.jboss.resteasy.reactive.RestForm;
 import org.jboss.resteasy.reactive.multipart.FileUpload;
+import org.jboss.logging.Logger;
 
 @Path("/api/users")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class UserGraphResource {
 
-    private static final Logger LOG = Logger.getLogger(UserGraphResource.class.getName());
+    private static final Logger LOG = Logger.getLogger(UserGraphResource.class);
 
     @Inject GestionarGrafoSocialUseCase gestionarGrafoSocialUseCase;
 
     @GET
     public Response listarUsuarios() {
-        return Response.ok(gestionarGrafoSocialUseCase.listarUsuarios()).build();
+        List<UsuarioResponse> safe =
+                gestionarGrafoSocialUseCase.listarUsuarios().stream()
+                        .map(UsuarioResponse::from)
+                        .toList();
+        return Response.ok(safe).build();
     }
 
     @GET
@@ -33,7 +40,7 @@ public class UserGraphResource {
     public Response obtenerUsuarioPorId(@PathParam("userId") String userId) {
         return gestionarGrafoSocialUseCase
                 .obtenerUsuarioPorId(userId)
-                .map(u -> Response.ok(u).build())
+                .map(u -> Response.ok(UsuarioResponse.from(u)).build())
                 .orElse(Response.status(Response.Status.NOT_FOUND).build());
     }
 
@@ -83,9 +90,13 @@ public class UserGraphResource {
                             userId, is, file.size(), contentType, extension);
             return Response.ok(Map.of("avatarUrl", avatarUrl)).build();
         } catch (Exception e) {
-            LOG.log(Level.SEVERE, "Failed to process avatar upload for user: " + userId, e);
+            // Log con la causa real: sin esto, un fallo de S3 era invisible.
+            LOG.error("Error al procesar la subida del avatar", e);
+
+            // El mensaje va al log, no al cliente: el detalle del SDK de AWS
+            // no le sirve de nada a quien está usando la app.
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                    .entity(Map.of("error", "Error interno al procesar el avatar."))
+                    .entity(Map.of("error", "No pudimos guardar la imagen. Inténtalo de nuevo."))
                     .build();
         }
     }

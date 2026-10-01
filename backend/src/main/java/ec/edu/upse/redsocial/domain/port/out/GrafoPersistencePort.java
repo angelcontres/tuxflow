@@ -30,6 +30,9 @@ public interface GrafoPersistencePort {
 
     Optional<Usuario> obtenerUsuarioPorId(String id);
 
+    // Busca por email o username incluyendo el password (uso exclusivo de autenticación)
+    Optional<Usuario> buscarUsuarioPorCredenciales(String emailOrUsername);
+
     List<Usuario> listarUsuarios();
 
     void actualizarAvatarUsuario(String userId, String avatarUrl);

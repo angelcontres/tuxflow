@@ -1,5 +1,6 @@
 package ec.edu.upse.redsocial.infrastructure.adapter.out.neo4j;
 
+import ec.edu.upse.redsocial.domain.exception.AutorNoEncontradoException;
 import ec.edu.upse.redsocial.domain.model.Post;
 import ec.edu.upse.redsocial.domain.model.SugerenciaUsuario;
 import ec.edu.upse.redsocial.domain.model.Usuario;
@@ -250,7 +251,8 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
             SET u.username = $username,
                 u.email = $email,
                 u.nombre = $nombre,
-                u.avatarUrl = $avatarUrl
+                u.avatarUrl = $avatarUrl,
+                u.password = $password
             """;
         try (var session = driver.session()) {
             session.executeWrite(
@@ -265,6 +267,10 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                                                 "avatarUrl",
                                                         u.getAvatarUrl() != null
                                                                 ? u.getAvatarUrl()
+                                                                : "",
+                                                "password",
+                                                        u.getPassword() != null
+                                                                ? u.getPassword()
                                                                 : ""))
                                 .consume();
                         return null;
@@ -309,6 +315,57 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                                     record.get("pushSubscriptionJson").isNull()
                                             ? null
                                             : record.get("pushSubscriptionJson").asString());
+                            return Optional.of(u);
+                        }
+                        return Optional.empty();
+                    });
+        }
+    }
+
+    @Override
+    public Optional<Usuario> buscarUsuarioPorCredenciales(String emailOrUsername) {
+        String cypher =
+                """
+            MATCH (u:Usuario)
+            WHERE u.email = $valor OR u.username = $valor
+            RETURN u.id AS id,
+                   u.username AS username,
+                   u.email AS email,
+                   u.nombre AS nombre,
+                   u.avatarUrl AS avatarUrl,
+                   u.pushSubscriptionJson AS pushSubscriptionJson,
+                   u.password AS password
+            LIMIT 1;
+            """;
+        try (var session = driver.session()) {
+            return session.executeRead(
+                    tx -> {
+                        var result = tx.run(cypher, Values.parameters("valor", emailOrUsername));
+                        if (result.hasNext()) {
+                            Record record = result.next();
+                            Usuario u = new Usuario();
+                            u.setId(record.get("id").asString());
+                            u.setUsername(record.get("username").asString());
+                            u.setEmail(
+                                    record.get("email").isNull()
+                                            ? null
+                                            : record.get("email").asString());
+                            u.setNombre(
+                                    record.get("nombre").isNull()
+                                            ? null
+                                            : record.get("nombre").asString());
+                            u.setAvatarUrl(
+                                    record.get("avatarUrl").isNull()
+                                            ? null
+                                            : record.get("avatarUrl").asString());
+                            u.setPushSubscriptionJson(
+                                    record.get("pushSubscriptionJson").isNull()
+                                            ? null
+                                            : record.get("pushSubscriptionJson").asString());
+                            u.setPassword(
+                                    record.get("password").isNull()
+                                            ? null
+                                            : record.get("password").asString());
                             return Optional.of(u);
                         }
                         return Optional.empty();
@@ -438,18 +495,26 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                 fechaCreacion: datetime().epochMillis
             })
             CREATE (u)-[:PUBLICA]->(p)
+            RETURN p.id AS postId
             """;
         try (var session = driver.session()) {
             session.executeWrite(
                     tx -> {
-                        tx.run(
-                                        cypher,
-                                        Values.parameters(
-                                                "autorId", autorId,
-                                                "postId", postId,
-                                                "texto", texto,
-                                                "mediaUrl", mediaUrl != null ? mediaUrl : ""))
-                                .consume();
+                        var result =
+                                tx.run(
+                                                cypher,
+                                                Values.parameters(
+                                                        "autorId", autorId,
+                                                        "postId", postId,
+                                                        "texto", texto,
+                                                        "mediaUrl",
+                                                                mediaUrl != null ? mediaUrl : ""));
+                        // Si el autor no existe, el MATCH no devuelve filas y el CREATE
+                        // se descarta en silencio. Hay que reportarlo para no responder
+                        // 201 con un post que nunca se creó.
+                        if (!result.hasNext()) {
+                            throw new AutorNoEncontradoException(autorId);
+                        }
                         return null;
                     });
         }
