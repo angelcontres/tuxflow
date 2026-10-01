@@ -34,6 +34,11 @@ public class UserGraphApplicationService implements GestionarGrafoSocialUseCase 
     }
 
     @Override
+    public Optional<Usuario> buscarUsuarioPorCredenciales(String emailOrUsername) {
+        return grafoPersistencePort.buscarUsuarioPorCredenciales(emailOrUsername);
+    }
+
+    @Override
     public String subirAvatar(
             String userId,
             InputStream inputStream,

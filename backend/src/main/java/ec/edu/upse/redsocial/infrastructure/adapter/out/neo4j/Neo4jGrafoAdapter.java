@@ -322,6 +322,57 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
     }
 
     @Override
+    public Optional<Usuario> buscarUsuarioPorCredenciales(String emailOrUsername) {
+        String cypher =
+                """
+            MATCH (u:Usuario)
+            WHERE u.email = $valor OR u.username = $valor
+            RETURN u.id AS id,
+                   u.username AS username,
+                   u.email AS email,
+                   u.nombre AS nombre,
+                   u.avatarUrl AS avatarUrl,
+                   u.pushSubscriptionJson AS pushSubscriptionJson,
+                   u.password AS password
+            LIMIT 1;
+            """;
+        try (var session = driver.session()) {
+            return session.executeRead(
+                    tx -> {
+                        var result = tx.run(cypher, Values.parameters("valor", emailOrUsername));
+                        if (result.hasNext()) {
+                            Record record = result.next();
+                            Usuario u = new Usuario();
+                            u.setId(record.get("id").asString());
+                            u.setUsername(record.get("username").asString());
+                            u.setEmail(
+                                    record.get("email").isNull()
+                                            ? null
+                                            : record.get("email").asString());
+                            u.setNombre(
+                                    record.get("nombre").isNull()
+                                            ? null
+                                            : record.get("nombre").asString());
+                            u.setAvatarUrl(
+                                    record.get("avatarUrl").isNull()
+                                            ? null
+                                            : record.get("avatarUrl").asString());
+                            u.setPushSubscriptionJson(
+                                    record.get("pushSubscriptionJson").isNull()
+                                            ? null
+                                            : record.get("pushSubscriptionJson").asString());
+                            u.setPassword(
+                                    record.get("password").isNull()
+                                            ? null
+                                            : record.get("password").asString());
+                            return Optional.of(u);
+                        }
+                        return Optional.empty();
+                    });
+        }
+    }
+
+    @Override
     public List<Usuario> listarUsuarios() {
         String cypher =
                 """

@@ -12,6 +12,8 @@ public interface GestionarGrafoSocialUseCase {
 
     Optional<Usuario> obtenerUsuarioPorId(String id);
 
+    Optional<Usuario> buscarUsuarioPorCredenciales(String emailOrUsername);
+
     List<Usuario> listarUsuarios();
 
     String subirAvatar(

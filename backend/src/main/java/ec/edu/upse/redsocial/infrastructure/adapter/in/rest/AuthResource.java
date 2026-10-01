@@ -3,6 +3,7 @@ package ec.edu.upse.redsocial.infrastructure.adapter.in.rest;
 import ec.edu.upse.redsocial.domain.model.Usuario;
 import ec.edu.upse.redsocial.domain.port.in.GestionarGrafoSocialUseCase;
 import ec.edu.upse.redsocial.infrastructure.adapter.in.rest.dto.LoginRequest;
+import ec.edu.upse.redsocial.infrastructure.adapter.in.rest.dto.UsuarioResponse;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
@@ -35,10 +36,9 @@ public class AuthResource {
                     .build();
         }
 
-        // Buscar usuario por email o username
-        Optional<Usuario> userOpt = gestionarGrafoSocialUseCase.listarUsuarios().stream()
-                .filter(u -> emailOrUsername.equals(u.getEmail()) || emailOrUsername.equals(u.getUsername()))
-                .findFirst();
+        // Buscar usuario por email o username (incluye el password)
+        Optional<Usuario> userOpt =
+                gestionarGrafoSocialUseCase.buscarUsuarioPorCredenciales(emailOrUsername);
 
         if (userOpt.isEmpty()) {
             return Response.status(Response.Status.UNAUTHORIZED)
@@ -55,10 +55,8 @@ public class AuthResource {
                     .build();
         }
 
-        // No devolver la contraseña
-        user.setPassword(null);
-
-        return Response.ok(user).build();
+        // DTO de salida: nunca incluye el password
+        return Response.ok(UsuarioResponse.from(user)).build();
     }
 
     @POST
@@ -83,9 +81,8 @@ public class AuthResource {
         usuario.setId(id);
 
         // Verificar si el usuario ya existe
-        Optional<Usuario> existing = gestionarGrafoSocialUseCase.listarUsuarios().stream()
-                .filter(u -> u.getUsername().equals(usuario.getUsername()))
-                .findFirst();
+        Optional<Usuario> existing =
+                gestionarGrafoSocialUseCase.buscarUsuarioPorCredenciales(usuario.getUsername());
 
         if (existing.isPresent()) {
             return Response.status(Response.Status.CONFLICT)
@@ -95,9 +92,8 @@ public class AuthResource {
 
         gestionarGrafoSocialUseCase.registrarUsuario(usuario);
 
-        // No devolver la contraseña
-        usuario.setPassword(null);
-
-        return Response.status(Response.Status.CREATED).entity(usuario).build();
+        return Response.status(Response.Status.CREATED)
+                .entity(UsuarioResponse.from(usuario))
+                .build();
     }
 }
