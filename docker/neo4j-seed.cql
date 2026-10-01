@@ -80,10 +80,29 @@ MATCH (beatriz:Usuario {id: 'beatriz-silva'}), (paulo:Usuario {id: 'paulo-orrala
 CREATE (beatriz)-[:SIGUE {desde: 1727202000000}]->(david)
 CREATE (paulo)-[:SIGUE {desde: 1727203000000}]->(david);
 
-// Angel sigue a Beatriz y a Paulo (Beatriz y Paulo son seguidores en común entre Carlos y Angel)
+// Angel sigue a Beatriz y a Paulo.
+// Beatriz y Paulo son SEGUIDOS en común entre Carlos y Angel: los dos los siguen.
+// Ojo con la dirección de las flechas en US-09 (GET /api/users/comunes). La consulta
+// correcta es (u1)-[:SIGUE]->(comun)<-[:SIGUE]-(u2), con las flechas hacia `comun`.
+// La forma invertida, (u1)<-[:SIGUE]-(comun)-[:SIGUE]->(u2), devuelve a QUIENES SIGUEN
+// a los dos (los seguidores comunes) y con estos datos devuelve []: el cURL del ticket
+// se vería "vacío" sin que nadie notara que la consulta estaba al revés.
 MATCH (angel:Usuario {id: 'angel-villon'}), (beatriz:Usuario {id: 'beatriz-silva'}), (paulo:Usuario {id: 'paulo-orrala'})
 CREATE (angel)-[:SIGUE {desde: 1727204000000}]->(beatriz)
 CREATE (angel)-[:SIGUE {desde: 1727205000000}]->(paulo);
+
+// followed-vs-followers: caso donde las dos direcciones de la consulta dan distinto.
+//
+// Elena sigue a Carlos y a Paulo  ->  Carlos y Paulo tienen a Elena como SEGUIDORA en
+//                                     comun. (u1)<-(comun)->(u2) devuelve [elena].
+// Carlos y Paulo no siguen a Elena ->  (u1)->(comun)<-(u2) devuelve [] para el mismo par.
+//
+// Con este par, invertir las flechas de la consulta de US-09 no se puede pasar por alto:
+// el Gherkin de US-09 (carlos-patino vs angel-villon, espera beatriz y paulo) y este caso
+// devuelven respuestas opuestas bajo cada una de las dos formas.
+MATCH (elena:Usuario {id: 'elena-vega'}), (carlos:Usuario {id: 'carlos-patino'}), (paulo:Usuario {id: 'paulo-orrala'})
+CREATE (elena)-[:SIGUE {desde: 1727205500000}]->(carlos)
+CREATE (elena)-[:SIGUE {desde: 1727205600000}]->(paulo);
 
 // Cadena de Camino Más Corto (Carlos -> Beatriz -> David -> Elena -> 3 saltos)
 MATCH (david:Usuario {id: 'david-mendoza'}), (elena:Usuario {id: 'elena-vega'})

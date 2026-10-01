@@ -11,9 +11,9 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
+import org.jboss.logging.Logger;
 import org.jboss.resteasy.reactive.RestForm;
 import org.jboss.resteasy.reactive.multipart.FileUpload;
-import org.jboss.logging.Logger;
 
 @Path("/api/users")
 @Produces(MediaType.APPLICATION_JSON)
@@ -129,9 +129,27 @@ public class UserGraphResource {
 
     @GET
     @Path("/comunes")
-    public Response obtenerSeguidoresEnComun(
+    public Response obtenerSeguidosEnComun(
             @QueryParam("userA") String userA, @QueryParam("userB") String userB) {
-        return Response.ok(gestionarGrafoSocialUseCase.obtenerSeguidoresEnComun(userA, userB))
+        // Sin esta validación, una consulta sin parámetros devolvía 200 con la lista
+        // vacía: "no tienen conexiones en común" y "no le pasaste los parámetros" son
+        // la misma respuesta y el cliente no puede distinguirlas.
+        if (userA == null || userA.isBlank() || userB == null || userB.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("error", "Los campos 'userA' y 'userB' son obligatorios"))
+                    .build();
+        }
+
+        // Comparar a alguien consigo mismo devuelve la lista completa de sus seguidos
+        // etiquetada como "conexiones en común": una respuesta correcta sobre una
+        // pregunta que nunca se hizo, y que el cliente no tiene forma de detectar.
+        if (userA.equals(userB)) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("error", "Elige dos identificadores distintos para comparar"))
+                    .build();
+        }
+
+        return Response.ok(gestionarGrafoSocialUseCase.obtenerSeguidosEnComun(userA, userB))
                 .build();
     }
 
