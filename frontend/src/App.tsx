@@ -95,11 +95,6 @@ export const App: React.FC = () => {
     loadAllData();
   }, [isAuthenticated, currentUserId, loadAllData]);
 
-  const handleUserChange = (userId: string, username: string) => {
-    setCurrentUserId(userId);
-    setCurrentUsername(username);
-  };
-
   const handleLogin = (userId: string, username: string) => {
     setCurrentUserId(userId);
     setCurrentUsername(username);
@@ -134,7 +129,6 @@ export const App: React.FC = () => {
       <Navbar
         currentUserId={currentUserId}
         currentUsername={currentUsername}
-        onUserChange={handleUserChange}
         onProfileUpdated={loadAllData}
         onLogout={handleLogout}
       />

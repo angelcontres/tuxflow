@@ -6,11 +6,6 @@ export const fetchUsuario = async (userId: string): Promise<Usuario> => {
   return response.data;
 };
 
-export const fetchAllUsuarios = async (): Promise<Usuario[]> => {
-  const response = await api.get<Usuario[]>('/users');
-  return response.data;
-};
-
 export const registerOrUpdateUsuario = async (usuario: Usuario): Promise<Usuario> => {
   const response = await api.post<Usuario>('/users', usuario);
   return response.data;

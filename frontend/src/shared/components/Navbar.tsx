@@ -1,18 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { User, Edit3, Upload, Check, AlertCircle, X, Users, Share2, LogOut } from 'lucide-react';
+import { User, Edit3, Upload, Check, AlertCircle, X, Share2, LogOut } from 'lucide-react';
 import { Usuario } from '../../features/user/types/user.types';
-import {
-  fetchUsuario,
-  fetchAllUsuarios,
-  registerOrUpdateUsuario,
-  uploadAvatar,
-} from '../../features/user/services/userApi';
+import { fetchUsuario, registerOrUpdateUsuario, uploadAvatar } from '../../features/user/services/userApi';
 import { getUserFacingError } from '../utils/errorMessage';
 
 interface NavbarProps {
   currentUserId: string;
   currentUsername: string;
-  onUserChange?: (userId: string, username: string) => void;
   onProfileUpdated?: () => void;
   onLogout?: () => void;
 }
@@ -20,14 +14,12 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({
   currentUserId,
   currentUsername,
-  onUserChange,
   onProfileUpdated,
   onLogout,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'view' | 'edit'>('view');
   const [currentUserProfile, setCurrentUserProfile] = useState<Usuario | null>(null);
-  const [availableUsers, setAvailableUsers] = useState<Usuario[]>([]);
 
   // Edit form state
   const [editNombre, setEditNombre] = useState('');
@@ -63,18 +55,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
   }, [currentUserId, currentUsername]);
 
-  // Load all users for session switcher
-  const loadAvailableUsers = useCallback(async () => {
-    try {
-      const users = await fetchAllUsuarios();
-      if (users && users.length > 0) {
-        setAvailableUsers(users);
-      }
-    } catch {
-      // Fallback
-    }
-  }, []);
-
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
@@ -82,10 +62,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   useEffect(() => {
     if (isModalOpen) {
       loadProfile();
-      loadAvailableUsers();
       setFeedback(null);
     }
-  }, [isModalOpen, loadProfile, loadAvailableUsers]);
+  }, [isModalOpen, loadProfile]);
 
   // Handle avatar upload for edit
   const handleEditAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -145,11 +124,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleSelectUser = (u: Usuario) => {
-    onUserChange?.(u.id, u.username);
-    setIsModalOpen(false);
   };
 
   const avatarSrc = currentUserProfile?.avatarUrl || '';
@@ -338,57 +312,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <Edit3 className="w-3.5 h-3.5" />
                       Editar Perfil
                     </button>
-                  </div>
-
-                  {/* Cambiar de Sesión */}
-                  <div className="pt-4 border-t border-slate-200">
-                    <div className="flex items-center justify-between mb-2.5">
-                      <p className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                        <Users className="w-4 h-4 text-slate-500" />
-                        Cambiar de Sesión Activa
-                      </p>
-                      <span className="text-[11px] text-slate-400 font-medium">
-                        {availableUsers.length} en la base
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
-                      {availableUsers.map((u) => {
-                        const isCurrent = u.id === currentUserId;
-                        return (
-                          <button
-                            key={u.id}
-                            onClick={() => handleSelectUser(u)}
-                            className={`p-2 rounded-lg text-left flex items-center gap-2 transition-all border cursor-pointer ${
-                              isCurrent
-                                ? 'bg-blue-50 border-blue-300 text-blue-900 font-semibold'
-                                : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
-                            }`}
-                          >
-                            <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden">
-                              {u.avatarUrl ? (
-                                <img
-                                  src={u.avatarUrl}
-                                  alt={u.username}
-                                  className="w-full h-full object-cover"
-                                  onError={(e) => {
-                                    (e.target as HTMLElement).style.display = 'none';
-                                  }}
-                                />
-                              ) : (
-                                u.username.charAt(0).toUpperCase()
-                              )}
-                            </div>
-                            <div className="truncate">
-                              <p className="text-xs truncate leading-tight">
-                                {u.nombre || u.username}
-                              </p>
-                              <p className="text-[10px] text-slate-500 truncate">@{u.username}</p>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
                   </div>
                 </div>
               )}
