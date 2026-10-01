@@ -1,10 +1,12 @@
 package ec.edu.upse.redsocial.infrastructure.adapter.in.rest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import ec.edu.upse.redsocial.domain.model.Usuario;
@@ -61,6 +63,66 @@ class UserGraphResourceTest {
     }
 
     @Test
+    @DisplayName("GET /comunes responde 200 con la intersección que devuelve el caso de uso")
+    void obtenerSeguidosEnComunResponde200ConLaInterseccion() {
+        List<Usuario> comunes =
+                List.of(
+                        new Usuario("beatriz-silva", "beatriz", null, "Beatriz Silva", null),
+                        new Usuario("paulo-orrala", "paulo", null, "Paulo Orrala", null));
+        when(gestionarGrafoSocialUseCase.obtenerSeguidosEnComun("carlos-patino", "angel-villon"))
+                .thenReturn(comunes);
+
+        Response respuesta = resource.obtenerSeguidosEnComun("carlos-patino", "angel-villon");
+
+        assertEquals(200, respuesta.getStatus());
+        assertEquals(comunes, respuesta.getEntity());
+    }
+
+    @Test
+    @DisplayName("GET /comunes sin userA responde 400 en vez de una lista vacía indistinguible")
+    void obtenerSeguidosEnComunSinUserAResponde400() {
+        Response respuesta = resource.obtenerSeguidosEnComun(null, "angel-villon");
+
+        assertEquals(400, respuesta.getStatus());
+        assertFalse(respuesta.getEntity() instanceof List<?>);
+    }
+
+    @Test
+    @DisplayName("GET /comunes sin userB responde 400")
+    void obtenerSeguidosEnComunSinUserBResponde400() {
+        Response respuesta = resource.obtenerSeguidosEnComun("carlos-patino", null);
+
+        assertEquals(400, respuesta.getStatus());
+    }
+
+    @Test
+    @DisplayName("GET /comunes con un identificador de solo espacios responde 400")
+    void obtenerSeguidosEnComunConIdentificadorEnBlancoResponde400() {
+        Response respuesta = resource.obtenerSeguidosEnComun("   ", "angel-villon");
+
+        assertEquals(400, respuesta.getStatus());
+    }
+
+    @Test
+    @DisplayName(
+            "GET /comunes con userA igual a userB responde 400 y no devuelve la lista de seguidos")
+    void obtenerSeguidosEnComunConsigoMismoResponde400() {
+        Response respuesta = resource.obtenerSeguidosEnComun("carlos-patino", "carlos-patino");
+
+        assertEquals(400, respuesta.getStatus());
+        assertFalse(respuesta.getEntity() instanceof List<?>);
+    }
+
+    @Test
+    @DisplayName("GET /comunes no consulta el grafo cuando la consulta es inválida")
+    void obtenerSeguidosEnComunInvalidaNoConsultaElGrafo() {
+        resource.obtenerSeguidosEnComun("carlos-patino", "  ");
+        resource.obtenerSeguidosEnComun("angel-villon", "angel-villon");
+
+        verifyNoInteractions(gestionarGrafoSocialUseCase);
+    }
+
+    @Test
     @DisplayName("POST /avatar sin archivo responde 400 con mensaje para el usuario")
     void subirAvatarSinArchivoResponde400() {
         Response respuesta = resource.subirAvatarSinUsuario(null);
@@ -72,7 +134,8 @@ class UserGraphResourceTest {
     }
 
     @Test
-    @DisplayName("POST /{userId}/avatar propaga el fallo del almacenamiento como 500 con mensaje, no una excepcion")
+    @DisplayName(
+            "POST /{userId}/avatar propaga el fallo del almacenamiento como 500 con mensaje, no una excepcion")
     void subirAvatarConErrorDeAlmacenamientoResponde500() throws Exception {
         when(gestionarGrafoSocialUseCase.subirAvatar(any(), any(), anyLong(), any(), any()))
                 .thenThrow(
@@ -95,7 +158,8 @@ class UserGraphResourceTest {
         Map<String, String> entity = (Map<String, String>) respuesta.getEntity();
         // El detalle va al log; al usuario solo le llega algo accionable.
         assertEquals("No pudimos guardar la imagen. Inténtalo de nuevo.", entity.get("error"));
-        assertTrue(entity.get("error").toLowerCase().contains("intentalo")
-                || entity.get("error").toLowerCase().contains("inténtalo"));
+        assertTrue(
+                entity.get("error").toLowerCase().contains("intentalo")
+                        || entity.get("error").toLowerCase().contains("inténtalo"));
     }
 }

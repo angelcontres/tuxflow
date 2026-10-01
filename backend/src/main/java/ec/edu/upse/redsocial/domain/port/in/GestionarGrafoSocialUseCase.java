@@ -29,7 +29,8 @@ public interface GestionarGrafoSocialUseCase {
 
     List<SugerenciaUsuario> obtenerSugerencias(String userId);
 
-    List<Usuario> obtenerSeguidoresEnComun(String userA, String userB);
+    // Las personas que ambos usuarios siguen, no quienes los siguen a ambos
+    List<Usuario> obtenerSeguidosEnComun(String userA, String userB);
 
     List<Usuario> obtenerSeguidos(String userId);
 

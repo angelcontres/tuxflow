@@ -3,6 +3,7 @@ import { Navbar } from './shared/components/Navbar';
 import { CreatePostForm } from './features/feed/components/CreatePostForm';
 import { FeedList } from './features/feed/components/FeedList';
 import { UserSuggestionsCard } from './features/network/components/UserSuggestionsCard';
+import { ConexionesComunesPanel } from './features/network/components/ConexionesComunesPanel';
 import { ChatWidget } from './features/chat/components/ChatWidget';
 import { LoginScreen } from './features/auth/components/LoginScreen';
 import { clearToken, restoreSession } from './features/auth/services/authApi';
@@ -161,6 +162,12 @@ export const App: React.FC = () => {
               filas={red}
               currentUserId={currentUserId}
               onNetworkUpdated={loadAllData}
+            />
+
+            {/* Conexiones en común con otra persona */}
+            <ConexionesComunesPanel
+              currentUserId={currentUserId}
+              currentUsername={currentUsername}
             />
 
             {/* Chat en Vivo por WebSocket */}

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { fetchSeguidos } from './networkApi';
-import type { Usuario } from '../types/network.types';
+import { fetchConexionesComunes, fetchSeguidos } from './networkApi';
+import type { ConexionComun, Usuario } from '../types/network.types';
 
 const { getMock } = vi.hoisted(() => ({ getMock: vi.fn() }));
 
@@ -28,6 +28,16 @@ const usuario = (overrides: Partial<Usuario> = {}): Usuario => ({
   ...overrides,
 });
 
+// El Cypher #3 proyecta avatarUrl con el alias `avatar`, no con su nombre de
+// propiedad, así que la conexión en común no comparte forma con Usuario.
+const conexion = (overrides: Partial<ConexionComun> = {}): ConexionComun => ({
+  id: 'beatriz-silva',
+  username: 'beatriz',
+  nombre: 'Beatriz Silva',
+  avatar: 'https://cdn.example.com/beatriz.png',
+  ...overrides,
+});
+
 describe('fetchSeguidos', () => {
   beforeEach(() => {
     getMock.mockReset();
@@ -51,5 +61,40 @@ describe('fetchSeguidos', () => {
 
     expect(getMock).toHaveBeenCalledWith('/users/carlos-patino/follows');
     expect(result).toEqual([]);
+  });
+});
+
+describe('fetchConexionesComunes', () => {
+  beforeEach(() => {
+    getMock.mockReset();
+  });
+
+  it('pide GET /users/comunes con los dos identificadores y devuelve la intersección', async () => {
+    const comunes = [conexion(), conexion({ id: 'paulo-orrala', username: 'paulo' })];
+    getMock.mockResolvedValue({ data: comunes });
+
+    const result = await fetchConexionesComunes('carlos-patino', 'angel-villon');
+
+    expect(getMock).toHaveBeenCalledTimes(1);
+    expect(getMock).toHaveBeenCalledWith('/users/comunes', {
+      params: { userA: 'carlos-patino', userB: 'angel-villon' },
+    });
+    expect(result).toEqual(comunes);
+  });
+
+  it('devuelve una lista vacía cuando los dos perfiles no comparten seguidos', async () => {
+    getMock.mockResolvedValue({ data: [] });
+
+    const result = await fetchConexionesComunes('carlos-patino', 'angel-villon');
+
+    expect(result).toEqual([]);
+  });
+
+  it('propaga el error para que sea el componente quien decida cómo mostrarlo', async () => {
+    getMock.mockRejectedValue(new Error('Request failed with status code 400'));
+
+    await expect(fetchConexionesComunes('carlos-patino', 'angel-villon')).rejects.toThrow(
+      /status code 400/,
+    );
   });
 });
