@@ -129,7 +129,7 @@ public class UserGraphResource {
 
     @GET
     @Path("/comunes")
-    public Response obtenerSeguidoresEnComun(
+    public Response obtenerSeguidosEnComun(
             @QueryParam("userA") String userA, @QueryParam("userB") String userB) {
         // Sin esta validación, una consulta sin parámetros devolvía 200 con la lista
         // vacía: "no tienen conexiones en común" y "no le pasaste los parámetros" son
@@ -149,7 +149,7 @@ public class UserGraphResource {
                     .build();
         }
 
-        return Response.ok(gestionarGrafoSocialUseCase.obtenerSeguidoresEnComun(userA, userB))
+        return Response.ok(gestionarGrafoSocialUseCase.obtenerSeguidosEnComun(userA, userB))
                 .build();
     }
 

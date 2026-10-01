@@ -109,9 +109,9 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
         }
     }
 
-    // --- 3. Seguidores y Conexiones en Común entre Dos Perfiles ---
+    // --- 3. Seguidos en Común entre Dos Perfiles ---
     @Override
-    public List<Usuario> obtenerSeguidoresEnComun(String userA, String userB) {
+    public List<Usuario> obtenerSeguidosEnComun(String userA, String userB) {
         // u1 -> comun <- u2, es decir las personas que AMBOS usuarios siguen.
         //
         // El Cypher del ticket original era (u1)<-[:SIGUE]-(comun)-[:SIGUE]->(u2), que

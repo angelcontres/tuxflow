@@ -64,15 +64,15 @@ class UserGraphResourceTest {
 
     @Test
     @DisplayName("GET /comunes responde 200 con la intersección que devuelve el caso de uso")
-    void obtenerSeguidoresEnComunResponde200ConLaInterseccion() {
+    void obtenerSeguidosEnComunResponde200ConLaInterseccion() {
         List<Usuario> comunes =
                 List.of(
                         new Usuario("beatriz-silva", "beatriz", null, "Beatriz Silva", null),
                         new Usuario("paulo-orrala", "paulo", null, "Paulo Orrala", null));
-        when(gestionarGrafoSocialUseCase.obtenerSeguidoresEnComun("carlos-patino", "angel-villon"))
+        when(gestionarGrafoSocialUseCase.obtenerSeguidosEnComun("carlos-patino", "angel-villon"))
                 .thenReturn(comunes);
 
-        Response respuesta = resource.obtenerSeguidoresEnComun("carlos-patino", "angel-villon");
+        Response respuesta = resource.obtenerSeguidosEnComun("carlos-patino", "angel-villon");
 
         assertEquals(200, respuesta.getStatus());
         assertEquals(comunes, respuesta.getEntity());
@@ -80,8 +80,8 @@ class UserGraphResourceTest {
 
     @Test
     @DisplayName("GET /comunes sin userA responde 400 en vez de una lista vacía indistinguible")
-    void obtenerSeguidoresEnComunSinUserAResponde400() {
-        Response respuesta = resource.obtenerSeguidoresEnComun(null, "angel-villon");
+    void obtenerSeguidosEnComunSinUserAResponde400() {
+        Response respuesta = resource.obtenerSeguidosEnComun(null, "angel-villon");
 
         assertEquals(400, respuesta.getStatus());
         assertFalse(respuesta.getEntity() instanceof List<?>);
@@ -89,16 +89,16 @@ class UserGraphResourceTest {
 
     @Test
     @DisplayName("GET /comunes sin userB responde 400")
-    void obtenerSeguidoresEnComunSinUserBResponde400() {
-        Response respuesta = resource.obtenerSeguidoresEnComun("carlos-patino", null);
+    void obtenerSeguidosEnComunSinUserBResponde400() {
+        Response respuesta = resource.obtenerSeguidosEnComun("carlos-patino", null);
 
         assertEquals(400, respuesta.getStatus());
     }
 
     @Test
     @DisplayName("GET /comunes con un identificador de solo espacios responde 400")
-    void obtenerSeguidoresEnComunConIdentificadorEnBlancoResponde400() {
-        Response respuesta = resource.obtenerSeguidoresEnComun("   ", "angel-villon");
+    void obtenerSeguidosEnComunConIdentificadorEnBlancoResponde400() {
+        Response respuesta = resource.obtenerSeguidosEnComun("   ", "angel-villon");
 
         assertEquals(400, respuesta.getStatus());
     }
@@ -106,8 +106,8 @@ class UserGraphResourceTest {
     @Test
     @DisplayName(
             "GET /comunes con userA igual a userB responde 400 y no devuelve la lista de seguidos")
-    void obtenerSeguidoresEnComunConsigoMismoResponde400() {
-        Response respuesta = resource.obtenerSeguidoresEnComun("carlos-patino", "carlos-patino");
+    void obtenerSeguidosEnComunConsigoMismoResponde400() {
+        Response respuesta = resource.obtenerSeguidosEnComun("carlos-patino", "carlos-patino");
 
         assertEquals(400, respuesta.getStatus());
         assertFalse(respuesta.getEntity() instanceof List<?>);
@@ -115,9 +115,9 @@ class UserGraphResourceTest {
 
     @Test
     @DisplayName("GET /comunes no consulta el grafo cuando la consulta es inválida")
-    void obtenerSeguidoresEnComunInvalidaNoConsultaElGrafo() {
-        resource.obtenerSeguidoresEnComun("carlos-patino", "  ");
-        resource.obtenerSeguidoresEnComun("angel-villon", "angel-villon");
+    void obtenerSeguidosEnComunInvalidaNoConsultaElGrafo() {
+        resource.obtenerSeguidosEnComun("carlos-patino", "  ");
+        resource.obtenerSeguidosEnComun("angel-villon", "angel-villon");
 
         verifyNoInteractions(gestionarGrafoSocialUseCase);
     }

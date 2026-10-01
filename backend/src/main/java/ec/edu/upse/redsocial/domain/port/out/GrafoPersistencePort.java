@@ -16,8 +16,8 @@ public interface GrafoPersistencePort {
 
     List<Usuario> obtenerSeguidos(String userId);
 
-    // 3. Seguidores y Conexiones en Común entre Dos Perfiles
-    List<Usuario> obtenerSeguidoresEnComun(String userA, String userB);
+    // 3. Seguidos en común entre dos perfiles: las personas que ambos siguen
+    List<Usuario> obtenerSeguidosEnComun(String userA, String userB);
 
     // 4. Grado de Separación y Camino Más Corto (Shortest Path)
     Map<String, Object> obtenerCaminoMasCorto(String origenId, String destinoId);

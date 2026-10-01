@@ -8,8 +8,10 @@
 
 | Unidad | Archivo | Estado |
 |---|---|---|
-| 1 — Guarda de null en `nombre` (D1) | `Neo4jGrafoAdapter.java:135` | Completa |
-| 2 — Validación de `userA` y `userB` (D2) | `UserGraphResource.java:129` | Completa |
+| 1 — Guarda de null en `nombre` (D1) | `Neo4jGrafoAdapter.java` | Completa |
+| 2 — Validación de `userA` y `userB` (D2) | `UserGraphResource.java` | Completa |
+| Cypher #3 invertido | `Neo4jGrafoAdapter.java` | **Corregido** (ver abajo) |
+| Renombre a `obtenerSeguidosEnComun` | 5 archivos | Completo |
 | 3 — Tipo y función de API | `network.types.ts`, `networkApi.ts` | Completa |
 | 4 — Panel de conexiones mutuas (D3, D4) | `ConexionesComunesPanel.tsx`, montado en `App.tsx:180` | Completa |
 
@@ -59,8 +61,16 @@ contra datos reales.
 
 ### Corrección aplicada
 
-- `Neo4jGrafoAdapter.obtenerSeguidoresEnComun()`: flechas hacia `comun`, con comentario que explica
+- `Neo4jGrafoAdapter.obtenerSeguidosEnComun()`: flechas hacia `comun`, con comentario que explica
   por qué y cuál era la forma anterior.
+- **Renombre de `obtenerSeguidoresEnComun` a `obtenerSeguidosEnComun`** en los cinco puntos de la
+  cadena: `GrafoPersistencePort`, `GestionarGrafoSocialUseCase`, `UserGraphApplicationService`,
+  `Neo4jGrafoAdapter` y `UserGraphResource`. El nombre anterior decía "seguidores" para un método que
+  devuelve "seguidos", y esa contradicción fue la que hizo que la semilla, el backlog y el `design.md`
+  describieran la historia al revés y que el Cypher terminara invertido. Confirmado con el
+  solicitante: la respuesta esperada son los **seguidos** en común. Los documentos de
+  planificación conservan el nombre viejo porque son contrato del arquitecto; el del change sí se
+  actualiza acá.
 - La prueba del adaptador ahora **falla si aparecen las flechas invertidas**, con un `assertFalse`
   explícito sobre la forma antigua, para que no se pueda reintroducir en silencio.
 - `docker/neo4j-seed.cql`: se corrige el comentario engañoso y se agrega el par carlos-vs-pulo con

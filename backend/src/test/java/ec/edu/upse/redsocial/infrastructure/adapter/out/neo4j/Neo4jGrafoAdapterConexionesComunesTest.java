@@ -79,13 +79,13 @@ class Neo4jGrafoAdapterConexionesComunesTest {
     }
 
     @Test
-    @DisplayName("obtenerSeguidoresEnComun devuelve las personas que ambos perfiles siguen")
+    @DisplayName("obtenerSeguidosEnComun devuelve las personas que ambos perfiles siguen")
     void devuelveLaInterseccionDeSeguidos() {
         filasDevueltas(
                 fila("beatriz-silva", "beatriz", "Beatriz Silva", "https://cdn/beatriz.png"),
                 fila("paulo-orrala", "paulo", "Paulo Orrala", null));
 
-        List<Usuario> resultado = adapter.obtenerSeguidoresEnComun("carlos-patino", "angel-villon");
+        List<Usuario> resultado = adapter.obtenerSeguidosEnComun("carlos-patino", "angel-villon");
 
         assertEquals(2, resultado.size());
         assertEquals("beatriz-silva", resultado.get(0).getId());
@@ -106,7 +106,7 @@ class Neo4jGrafoAdapterConexionesComunesTest {
                 fila("beatriz-silva", "beatriz", null, null),
                 fila("paulo-orrala", "paulo", "Paulo Orrala", null));
 
-        List<Usuario> resultado = adapter.obtenerSeguidoresEnComun("carlos-patino", "angel-villon");
+        List<Usuario> resultado = adapter.obtenerSeguidosEnComun("carlos-patino", "angel-villon");
 
         assertEquals(2, resultado.size());
         assertNull(resultado.get(0).getNombre());
@@ -122,7 +122,7 @@ class Neo4jGrafoAdapterConexionesComunesTest {
                 fila("paulo-orrala", "paulo", "Paulo Orrala", null),
                 fila("david-mendoza", "david", "David Mendoza", null));
 
-        List<Usuario> resultado = adapter.obtenerSeguidoresEnComun("carlos-patino", "angel-villon");
+        List<Usuario> resultado = adapter.obtenerSeguidosEnComun("carlos-patino", "angel-villon");
 
         assertNull(resultado.get(0).getAvatarUrl());
         assertEquals("David Mendoza", resultado.get(1).getNombre());
@@ -135,7 +135,7 @@ class Neo4jGrafoAdapterConexionesComunesTest {
                 fila("beatriz-silva", "beatriz", "Beatriz Silva", null),
                 fila("paulo-orrala", "paulo", "Paulo Orrala", null));
 
-        adapter.obtenerSeguidoresEnComun("carlos-patino", "angel-villon");
+        adapter.obtenerSeguidosEnComun("carlos-patino", "angel-villon");
 
         ArgumentCaptor<String> cypher = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<Value> params = ArgumentCaptor.forClass(Value.class);
