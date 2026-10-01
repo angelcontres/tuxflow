@@ -1,4 +1,4 @@
-import { SugerenciaUsuario, Usuario } from '../types/network.types';
+import { ConexionComun, SugerenciaUsuario, Usuario } from '../types/network.types';
 import { api } from '../../../shared/api/client';
 
 export const fetchSugerenciasGrafo = async (userId: string): Promise<SugerenciaUsuario[]> => {
@@ -17,4 +17,20 @@ export const followUserInGraph = async (seguidorId: string, seguidoId: string): 
 
 export const unfollowUserInGraph = async (seguidorId: string, seguidoId: string): Promise<void> => {
   await api.delete(`/users/${seguidorId}/follow/${seguidoId}`);
+};
+
+/**
+ * Intersección de los seguidos de dos perfiles (Cypher #3 obligatoria).
+ *
+ * El error se deja propagar a propósito: el componente que llama es quien sabe
+ * cómo mostrarlo al usuario.
+ */
+export const fetchConexionesComunes = async (
+  userA: string,
+  userB: string,
+): Promise<ConexionComun[]> => {
+  const response = await api.get<ConexionComun[]>('/users/comunes', {
+    params: { userA, userB },
+  });
+  return response.data;
 };

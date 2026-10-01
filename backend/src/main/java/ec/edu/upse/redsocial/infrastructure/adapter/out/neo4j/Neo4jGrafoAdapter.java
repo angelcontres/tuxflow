@@ -132,7 +132,18 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                             Usuario u = new Usuario();
                             u.setId(record.get("id").asString());
                             u.setUsername(record.get("username").asString());
-                            u.setNombre(record.get("nombre").asString());
+                            // Guarda de null, con el mismo criterio que el avatar de la
+                            // línea siguiente. No es una exquisitez: guardarUsuario hace
+                            // SET u.nombre = $nombre, y en Neo4j asignar null a una
+                            // propiedad la elimina, así que un usuario sin nombre llega
+                            // aquí como NullValue. El driver no falla al coercionar --
+                            // NullValue.asString() devuelve el texto literal "null" --
+                            // así que sin esta guarda la API responde 200 con un nombre
+                            // inventado, que es peor que un 500 porque no se nota.
+                            u.setNombre(
+                                    record.get("nombre").isNull()
+                                            ? null
+                                            : record.get("nombre").asString());
                             u.setAvatarUrl(
                                     record.get("avatar").isNull()
                                             ? null
@@ -502,13 +513,12 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                     tx -> {
                         var result =
                                 tx.run(
-                                                cypher,
-                                                Values.parameters(
-                                                        "autorId", autorId,
-                                                        "postId", postId,
-                                                        "texto", texto,
-                                                        "mediaUrl",
-                                                                mediaUrl != null ? mediaUrl : ""));
+                                        cypher,
+                                        Values.parameters(
+                                                "autorId", autorId,
+                                                "postId", postId,
+                                                "texto", texto,
+                                                "mediaUrl", mediaUrl != null ? mediaUrl : ""));
                         // Si el autor no existe, el MATCH no devuelve filas y el CREATE
                         // se descarta en silencio. Hay que reportarlo para no responder
                         // 201 con un post que nunca se creó.
