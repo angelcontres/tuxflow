@@ -250,7 +250,8 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
             SET u.username = $username,
                 u.email = $email,
                 u.nombre = $nombre,
-                u.avatarUrl = $avatarUrl
+                u.avatarUrl = $avatarUrl,
+                u.password = $password
             """;
         try (var session = driver.session()) {
             session.executeWrite(
@@ -265,6 +266,10 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                                                 "avatarUrl",
                                                         u.getAvatarUrl() != null
                                                                 ? u.getAvatarUrl()
+                                                                : "",
+                                                "password",
+                                                        u.getPassword() != null
+                                                                ? u.getPassword()
                                                                 : ""))
                                 .consume();
                         return null;
