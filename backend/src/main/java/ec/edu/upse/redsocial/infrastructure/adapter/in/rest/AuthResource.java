@@ -64,20 +64,26 @@ public class AuthResource {
     @Path("/register")
     public Response register(Usuario usuario) {
         if (usuario == null
-                || usuario.getId() == null
-                || usuario.getId().isBlank()
+                || usuario.getNombre() == null
+                || usuario.getNombre().isBlank()
                 || usuario.getUsername() == null
                 || usuario.getUsername().isBlank()
                 || usuario.getPassword() == null
                 || usuario.getPassword().isBlank()) {
             return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(Map.of("error", "Los campos id, username y password son obligatorios"))
+                    .entity(Map.of("error", "Los campos nombre, username y password son obligatorios"))
                     .build();
         }
 
+        // Generar ID automáticamente desde el username
+        String id = usuario.getUsername().toLowerCase()
+                .replaceAll("[^a-z0-9_]", "-")
+                + "-" + java.util.UUID.randomUUID().toString().substring(0, 8);
+        usuario.setId(id);
+
         // Verificar si el usuario ya existe
         Optional<Usuario> existing = gestionarGrafoSocialUseCase.listarUsuarios().stream()
-                .filter(u -> usuario.getId().equals(u.getId()) || usuario.getUsername().equals(u.getUsername()))
+                .filter(u -> u.getUsername().equals(usuario.getUsername()))
                 .findFirst();
 
         if (existing.isPresent()) {

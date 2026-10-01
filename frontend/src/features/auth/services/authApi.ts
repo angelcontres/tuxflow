@@ -13,10 +13,8 @@ export interface LoginResponse {
 }
 
 export interface RegisterPayload {
-  id: string;
-  username: string;
   nombre: string;
-  email: string;
+  username: string;
   password: string;
 }
 
