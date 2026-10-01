@@ -51,7 +51,10 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                                     record.get("mediaUrl").isNull()
                                             ? null
                                             : record.get("mediaUrl").asString());
-                            p.setFechaCreacion(record.get("fecha").asString());
+                            p.setFechaCreacion(
+                                    record.get("fecha").isNull()
+                                            ? null
+                                            : record.get("fecha").asLong());
                             p.setAutorId(record.get("autorId").asString());
                             p.setAutorUsername(record.get("autorUsername").asString());
                             p.setAutorAvatar(

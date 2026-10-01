@@ -2,7 +2,7 @@ export interface Post {
   id: string;
   texto: string;
   mediaUrl?: string;
-  fechaCreacion: string;
+  fechaCreacion: number;
   autorId: string;
   autorUsername: string;
   autorAvatar?: string;
