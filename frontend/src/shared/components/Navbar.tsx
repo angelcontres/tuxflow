@@ -574,7 +574,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           className="w-full py-2 px-3 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium text-slate-700 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
                         >
                           <Upload className="w-3.5 h-3.5 text-blue-600" />
-                          {isUploadingEditAvatar ? 'Subiendo...' : 'Seleccionar archivo local'}
+                          {isUploadingEditAvatar ? 'Subiendo...' : 'Elegir imagen'}
                         </button>
                       </div>
                     </div>
@@ -584,7 +584,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         type="url"
                         value={editAvatarUrl}
                         onChange={(e) => setEditAvatarUrl(e.target.value)}
-                        placeholder="O ingresa URL directa de imagen"
+                        placeholder="O pega el enlace de una imagen"
                         className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 font-mono"
                       />
                     </div>
@@ -710,7 +710,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           className="w-full py-2 px-3 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium text-slate-700 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
                         >
                           <Upload className="w-3.5 h-3.5 text-blue-600" />
-                          {isUploadingRegAvatar ? 'Subiendo...' : 'Seleccionar archivo local'}
+                          {isUploadingRegAvatar ? 'Subiendo...' : 'Elegir imagen'}
                         </button>
                       </div>
                     </div>
