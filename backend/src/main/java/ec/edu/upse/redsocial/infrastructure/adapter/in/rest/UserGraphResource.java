@@ -13,11 +13,14 @@ import java.util.List;
 import java.util.Map;
 import org.jboss.resteasy.reactive.RestForm;
 import org.jboss.resteasy.reactive.multipart.FileUpload;
+import org.jboss.logging.Logger;
 
 @Path("/api/users")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class UserGraphResource {
+
+    private static final Logger LOG = Logger.getLogger(UserGraphResource.class);
 
     @Inject GestionarGrafoSocialUseCase gestionarGrafoSocialUseCase;
 
@@ -85,8 +88,13 @@ public class UserGraphResource {
                             userId, is, file.size(), contentType, extension);
             return Response.ok(Map.of("avatarUrl", avatarUrl)).build();
         } catch (Exception e) {
+            // Log con la causa real: sin esto, un fallo de S3 era invisible.
+            LOG.error("Error al procesar la subida del avatar", e);
+
+            // El mensaje va al log, no al cliente: el detalle del SDK de AWS
+            // no le sirve de nada a quien está usando la app.
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                    .entity(Map.of("error", "Error al procesar avatar: " + e.getMessage()))
+                    .entity(Map.of("error", "No pudimos guardar la imagen. Inténtalo de nuevo."))
                     .build();
         }
     }

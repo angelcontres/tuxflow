@@ -8,6 +8,7 @@ import java.util.UUID;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.NoSuchBucketException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 @ApplicationScoped
@@ -36,7 +37,22 @@ public class MinioS3StorageAdapter implements StorageMultimediaPort {
                         .contentType(contentType)
                         .build();
 
-        s3Client.putObject(putRequest, RequestBody.fromInputStream(inputStream, contentLength));
+        try {
+            s3Client.putObject(putRequest, RequestBody.fromInputStream(inputStream, contentLength));
+        } catch (NoSuchBucketException e) {
+            // Es el fallo mas comun en desarrollo: MinIO arranca sin el bucket
+            // porque el servicio minio-init no se ejecutó. Sin este mensaje,
+            // el frontend solo ve un error generico sin pista de la causa.
+            throw new IllegalStateException(
+                    "El bucket de almacenamiento '"
+                            + bucketName
+                            + "' no existe en "
+                            + endpoint
+                            + ". Crearlo con: mc mb <endpoint>/"
+                            + bucketName
+                            + " (docker-compose lo hace en el servicio minio-init).",
+                    e);
+        }
 
         return endpoint + "/" + bucketName + "/" + key;
     }
