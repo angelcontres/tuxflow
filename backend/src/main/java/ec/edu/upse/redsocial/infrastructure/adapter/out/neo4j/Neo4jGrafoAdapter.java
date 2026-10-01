@@ -22,15 +22,17 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
     public List<Post> obtenerFeedCronologico(String userId) {
         String cypher =
                 """
-            MATCH (u:Usuario {id: $userId})-[:SIGUE]->(amigo:Usuario)-[:PUBLICA]->(p:Post)
+            MATCH (u:Usuario {id: $userId})
+            MATCH (autor:Usuario)-[:PUBLICA]->(p:Post)
+            WHERE autor = u OR (u)-[:SIGUE]->(autor)
             OPTIONAL MATCH (p)<-[r:REACCIONA]-(:Usuario)
             RETURN p.id AS id,
                    p.texto AS texto,
                    p.mediaUrl AS mediaUrl,
                    p.fechaCreacion AS fecha,
-                   amigo.id AS autorId,
-                   amigo.username AS autorUsername,
-                   amigo.avatarUrl AS autorAvatar,
+                   autor.id AS autorId,
+                   autor.username AS autorUsername,
+                   autor.avatarUrl AS autorAvatar,
                    count(r) AS totalLikes,
                    EXISTS((u)-[:REACCIONA]->(p)) AS likedByMe
             ORDER BY p.fechaCreacion DESC

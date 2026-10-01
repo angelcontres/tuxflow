@@ -132,14 +132,26 @@ deploy_all() {
 
 seed_database() {
     echo "[4/4] Inyectando dataset semilla en Neo4j (usuarios, relaciones y posts)..."
-    if [ -f "docker/neo4j-seed.cql" ]; then
-        if cat "docker/neo4j-seed.cql" | docker exec -i redsocial-neo4j cypher-shell -u neo4j -p password123 >/dev/null 2>&1; then
-            echo "[OK] Datos semilla inyectados exitosamente en el grafo."
-        else
-            echo "[ADVERTENCIA] No se pudo cargar el archivo cql automaticamente."
-        fi
-    else
+    # Se delega en docker/seed.sh y no se carga el .cql aca a mano. Motivo: la
+    # imagen de neo4j corre con LC_CTYPE=POSIX, y al mandar el .cql por stdin sin
+    # forzar locale cada byte de un caracter multibyte se convierte en un U+FFFD,
+    # dejando "¡" como "��" y el emoji del post de Paulo como "���".
+    # Tambien centraliza el aviso de borrado: el seed arranca con DETACH DELETE.
+    if [ ! -f "docker/neo4j-seed.cql" ]; then
         echo "[ADVERTENCIA] No se encontro el archivo docker/neo4j-seed.cql."
+        echo ""
+        return
+    fi
+
+    if [ ! -x "docker/seed.sh" ]; then
+        chmod +x "docker/seed.sh" 2>/dev/null || true
+    fi
+
+    if docker/seed.sh --wipe docker/neo4j-seed.cql >/dev/null 2>&1; then
+        echo "[OK] Datos semilla inyectados exitosamente en el grafo."
+    else
+        echo "[ADVERTENCIA] No se pudo cargar el archivo cql automaticamente."
+        echo "               Para reintentar: docker/seed.sh --wipe docker/neo4j-seed.cql"
     fi
     echo ""
 }
