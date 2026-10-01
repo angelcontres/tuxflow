@@ -1,9 +1,5 @@
-import axios from 'axios';
 import { SugerenciaUsuario, Usuario } from '../types/network.types';
-
-const api = axios.create({
-  baseURL: '/api',
-});
+import { api } from '../../../shared/api/client';
 
 export const fetchSugerenciasGrafo = async (userId: string): Promise<SugerenciaUsuario[]> => {
   const response = await api.get<SugerenciaUsuario[]>(`/users/${userId}/sugerencias`);

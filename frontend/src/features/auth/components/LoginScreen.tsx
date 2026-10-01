@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { LogIn, UserPlus, AlertCircle, Check, Eye, EyeOff, Mail, Lock, User } from 'lucide-react';
+import { LogIn, UserPlus, AlertCircle, Eye, EyeOff, Mail, Lock, User } from 'lucide-react';
 import { loginUser, registerUser } from '../services/authApi';
+import { getUserFacingError } from '../../../shared/utils/errorMessage';
 
 interface LoginScreenProps {
   onLogin: (userId: string, username: string) => void;
@@ -9,7 +10,6 @@ interface LoginScreenProps {
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [view, setView] = useState<'login' | 'register'>('login');
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   // Login form
@@ -37,7 +37,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       const user = await loginUser(loginEmail.trim(), loginPassword);
       onLogin(user.id, user.username);
     } catch (err) {
-      setError('Credenciales inválidas. Verifica tu email/usuario y contraseña.');
+      setError(
+        getUserFacingError(err, 'Credenciales inválidas. Verifica tu usuario y contraseña.'),
+      );
     } finally {
       setIsLoading(false);
     }
@@ -52,29 +54,19 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
     setIsLoading(true);
     setError(null);
-    setSuccess(null);
 
     try {
-      await registerUser({
+      const user = await registerUser({
         nombre: regNombre.trim(),
         username: regUsername.trim().toLowerCase().replace(/\s+/g, '_'),
         password: regPassword,
       });
 
-      setSuccess('Cuenta creada exitosamente. Ahora puedes iniciar sesión.');
-
-      // Limpiar formulario
-      setRegNombre('');
-      setRegUsername('');
-      setRegPassword('');
-
-      // Cambiar a login después de 2 segundos
-      setTimeout(() => {
-        setView('login');
-        setSuccess(null);
-      }, 2000);
+      // El registro ya devuelve un token, así que se entra directo sin
+      // obligar a escribir la contraseña otra vez.
+      onLogin(user.id, user.username);
     } catch (err) {
-      setError('Error al crear la cuenta. El usuario ya existe o hay un problema de conexión.');
+      setError(getUserFacingError(err, 'No pudimos crear la cuenta. Inténtalo de nuevo.'));
     } finally {
       setIsLoading(false);
     }
@@ -83,7 +75,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const switchView = (newView: 'login' | 'register') => {
     setView(newView);
     setError(null);
-    setSuccess(null);
   };
 
   return (
@@ -191,13 +182,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                     <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 flex items-center gap-2.5 text-xs font-medium text-rose-800">
                       <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
                       <span>{error}</span>
-                    </div>
-                  )}
-
-                  {success && (
-                    <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center gap-2.5 text-xs font-medium text-emerald-800">
-                      <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>{success}</span>
                     </div>
                   )}
 

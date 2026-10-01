@@ -2,21 +2,32 @@ package ec.edu.upse.redsocial.infrastructure.adapter.in.rest;
 
 import ec.edu.upse.redsocial.domain.model.Usuario;
 import ec.edu.upse.redsocial.domain.port.in.GestionarGrafoSocialUseCase;
+import ec.edu.upse.redsocial.domain.port.out.TokenService;
 import ec.edu.upse.redsocial.infrastructure.adapter.in.rest.dto.LoginRequest;
+import ec.edu.upse.redsocial.infrastructure.adapter.in.rest.dto.LoginResponse;
 import ec.edu.upse.redsocial.infrastructure.adapter.in.rest.dto.UsuarioResponse;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.Map;
 import java.util.Optional;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 @Path("/api/auth")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class AuthResource {
 
+    private static final String BEARER = "Bearer ";
+
     @Inject GestionarGrafoSocialUseCase gestionarGrafoSocialUseCase;
+
+    @Inject TokenService tokenService;
+
+    @ConfigProperty(name = "redsocial.jwt.expiration-hours")
+    long expirationHours;
 
     @POST
     @Path("/login")
@@ -55,8 +66,43 @@ public class AuthResource {
                     .build();
         }
 
-        // DTO de salida: nunca incluye el password
-        return Response.ok(UsuarioResponse.from(user)).build();
+        // Token firmado con expiración: el frontend lo reenvía en cada
+        // petición y así sobrevive a un refresh del navegador.
+        String token = tokenService.emitirToken(user.getId(), user.getUsername(), expirationHours);
+
+        return Response.ok(LoginResponse.of(token, user)).build();
+    }
+
+    /**
+     * Devuelve el usuario del token presentado. Es lo que permite al frontend
+     * restaurar la sesión tras recargar la página sin volver a pedir la
+     * contraseña.
+     */
+    @GET
+    @Path("/me")
+    public Response miPerfil(@HeaderParam(HttpHeaders.AUTHORIZATION) String authorization) {
+        String userId = usuarioDelToken(authorization);
+        if (userId == null) {
+            return Response.status(Response.Status.UNAUTHORIZED)
+                    .entity(Map.of("error", "Sesión no válida o expirada"))
+                    .build();
+        }
+
+        return gestionarGrafoSocialUseCase
+                .obtenerUsuarioPorId(userId)
+                .map(u -> Response.ok(UsuarioResponse.from(u)).build())
+                .orElse(
+                        Response.status(Response.Status.UNAUTHORIZED)
+                                .entity(Map.of("error", "El usuario de la sesión ya no existe"))
+                                .build());
+    }
+
+    /** Extrae y valida el id del usuario de un header Authorization: Bearer x. */
+    private String usuarioDelToken(String authorization) {
+        if (authorization == null || !authorization.startsWith(BEARER)) {
+            return null;
+        }
+        return tokenService.validarToken(authorization.substring(BEARER.length())).orElse(null);
     }
 
     @POST
@@ -92,8 +138,13 @@ public class AuthResource {
 
         gestionarGrafoSocialUseCase.registrarUsuario(usuario);
 
+        // Se emite token en el registro para que el usuario entre sin pasar
+        // por el login inmediatamente.
+        String token =
+                tokenService.emitirToken(usuario.getId(), usuario.getUsername(), expirationHours);
+
         return Response.status(Response.Status.CREATED)
-                .entity(UsuarioResponse.from(usuario))
+                .entity(LoginResponse.of(token, usuario))
                 .build();
     }
 }

@@ -5,6 +5,7 @@ import { FeedList } from './features/feed/components/FeedList';
 import { UserSuggestionsCard } from './features/network/components/UserSuggestionsCard';
 import { ChatWidget } from './features/chat/components/ChatWidget';
 import { LoginScreen } from './features/auth/components/LoginScreen';
+import { clearToken, restoreSession } from './features/auth/services/authApi';
 import { fetchFeedBySocialGraph } from './features/feed/services/feedApi';
 import { fetchSeguidos, fetchSugerenciasGrafo } from './features/network/services/networkApi';
 import { Post } from './features/feed/types/post.types';
@@ -49,6 +50,26 @@ export const App: React.FC = () => {
   const [posts, setPosts] = useState<Post[]>([]);
   const [red, setRed] = useState<FilaRed[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [restoringSession, setRestoringSession] = useState<boolean>(true);
+
+  // Restaura la sesión con el token guardado. Sin esto, un refresh del
+  // navegador (F5 o Ctrl+Shift+R) devolvía al usuario al login.
+  useEffect(() => {
+    let cancelado = false;
+    restoreSession()
+      .then((usuario) => {
+        if (cancelado || !usuario) return;
+        setCurrentUserId(usuario.id);
+        setCurrentUsername(usuario.username);
+        setIsAuthenticated(true);
+      })
+      .finally(() => {
+        if (!cancelado) setRestoringSession(false);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, []);
 
   const loadAllData = useCallback(async () => {
     try {
@@ -67,8 +88,12 @@ export const App: React.FC = () => {
   }, [currentUserId]);
 
   useEffect(() => {
+    if (!isAuthenticated || !currentUserId) {
+      setLoading(false);
+      return;
+    }
     loadAllData();
-  }, [loadAllData]);
+  }, [isAuthenticated, currentUserId, loadAllData]);
 
   const handleUserChange = (userId: string, username: string) => {
     setCurrentUserId(userId);
@@ -82,12 +107,23 @@ export const App: React.FC = () => {
   };
 
   const handleLogout = () => {
+    clearToken();
     setIsAuthenticated(false);
     setCurrentUserId('');
     setCurrentUsername('');
     setPosts([]);
     setRed([]);
   };
+
+  // Mientras se valida el token guardado no se muestra ni el login ni la app:
+  // aparecería el login un instante y luego saltaría a la app.
+  if (restoringSession) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center">
+        <div className="animate-spin w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full" />
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <LoginScreen onLogin={handleLogin} />;
