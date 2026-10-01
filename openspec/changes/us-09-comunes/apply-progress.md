@@ -2,6 +2,7 @@
 
 > **Change**: `us-09-comunes` · **Ticket**: `TUX-57` · **Rama**: `angelvilloon853/tux-57-us-09-followers-and-mutual-connections-between-two-profiles`
 > **Contrato seguido**: `design.md` (D1–D4) y `specs/social-graph/spec.md`, sin desvíos de alcance.
+> **Segunda pasada**: se corrigió el Cypher #3, que estaba invertido. Ver "CYPHER #3 INVERTIDO".
 
 ## Qué quedó implementado
 
@@ -13,6 +14,75 @@
 | 4 — Panel de conexiones mutuas (D3, D4) | `ConexionesComunesPanel.tsx`, montado en `App.tsx:180` | Completa |
 
 `UserSuggestionsCard.tsx` no aparece en el diff, tal como pedía D3.
+
+## CYPHER #3 INVERTIDO — el criterio de aceptación fallaba
+
+**Este es el hallazgo más grave de la historia, y estaba en el primer commit.**
+
+El Cypher obligatorio del ticket dice:
+
+```cypher
+MATCH (u1:Usuario {id: $userA})<-[:SIGUE]-(comun:Usuario)-[:SIGUE]->(u2:Usuario {id: $userB})
+```
+
+Esa forma significa: **`comun` sigue a `u1` y a `u2`**. Devuelve a *quienes siguen a los dos*, los
+**seguidores** comunes. El Gherkin pide lo contrario: *"carlos-patina y angel-villon siguen
+conjuntamente a beatriz y paulo"*, es decir los **seguidos** comunes. La forma correcta tiene las dos
+flechas apuntando **hacia** `comun`:
+
+```cypher
+MATCH (u1:Usuario {id: $userA})-[:SIGUE]->(comun:Usuario)<-[:SIGUE]-(u2:Usuario {id: $userB})
+```
+
+### Evidencia medida contra el grafo real
+
+Levanté Neo4j con `docker/neo4j-seed.cql` y el backend, y corrí las dos formas:
+
+| Consulta | carlos vs angel (Gherkin) | carlos vs paulo (caso nuevo) |
+|---|---|---|
+| Del ticket `(a)<-(comun)->(b)` | `[]` | `elena` |
+| Del Gherkin `(a)->(comun)<-(b)` | `beatriz`, `paulo` | `[]` |
+
+Con el Cypher del ticket, el cURL del propio ticket devolvía `200` con `[]`. El Gherkin fallaba.
+
+### Por qué nadie lo notó
+
+En `docker/neo4j-seed.cql` el comentario decía *"Angel sigue a Beatriz y a Paulo (**Beatriz y Paulo
+son seguidores en común** entre Carlos y Angel)"*. El comentario llama "seguidores" a lo que el
+Gherkin llama "seguidos", y esa confusión se propagó al backlog y al `design.md`, que afirma que la
+intersección *"está planteada en las dos direcciones correctas"*. En el par carlos-vs-angel la forma
+equivocada devuelve vacío, lo que parece un caso sin conexiones en común en vez de un defecto.
+
+El primer commit **fijaba la forma invertida con un `assertTrue`**, o sea que la prueba garantizaba
+que el defecto se mantuviera. Eso fue un error de criterio al aceptar el contrato sin verificarlo
+contra datos reales.
+
+### Corrección aplicada
+
+- `Neo4jGrafoAdapter.obtenerSeguidoresEnComun()`: flechas hacia `comun`, con comentario que explica
+  por qué y cuál era la forma anterior.
+- La prueba del adaptador ahora **falla si aparecen las flechas invertidas**, con un `assertFalse`
+  explícito sobre la forma antigua, para que no se pueda reintroducir en silencio.
+- `docker/neo4j-seed.cql`: se corrige el comentario engañoso y se agrega el par carlos-vs-pulo con
+  Elena como seguidora común, para que las dos direcciones de la consulta den respuestas opuestas y
+  la inversión sea detectable en la semilla.
+
+**Nota de contrato**: el Cypher es "obligatorio" según el ticket, y se lo cambió igual. La razón es que
+el criterio de aceptación del mismo ticket dice una cosa y la consulta otra, y cuando dos artefactos
+del contrato se contradicen, manda el criterio de aceptación, que es lo que define "hecho". Queda
+documentado acá para que el arquitecto confirme o revierta.
+
+### Verificación con el grafo real (la que faltaba en la primera entrega)
+
+| Caso | Esperado | Resultado |
+|---|---|---|
+| `userA=carlos-patino&userB=angel-villon` | 200 con beatriz y paulo | **200 con beatriz y paulo** |
+| Sin parámetros | 400 | **400** |
+| `userA` == `userB` | 400 | **400** |
+| Identificador de solo espacios | 400 | **400** |
+| `carlos-patino` vs `paulo-orrala` | 200 con `[]` | **200 con `[]`** |
+| Orden invertido (angel vs carlos) | mismo resultado | **idéntico** |
+| Usuario sin `nombre` en la intersección | 200 con `nombre` null | **200 con `nombre: null`**, no el texto `"null"` |
 
 ## Contradicción entre el contrato y la realidad — hay que leerla
 
@@ -71,13 +141,14 @@ prueba no pasa por casualidad.
 
 **Ejecutado y en verde:**
 
-- `mvn verify` (backend): 36 pruebas en verde, **+10** nuevas (6 en `UserGraphResourceTest`, 4 en
+- `mvn test` (backend): 36 pruebas en verde, **+10** nuevas (6 en `UserGraphResourceTest`, 4 en
   `Neo4jGrafoAdapterConexionesComunesTest`). SpotBugs: `BugInstance size is 0`.
 - `pnpm test` (frontend): 58 pruebas en verde, **+19** nuevas (3 en `networkApi.test.ts`, 16 en
   `ConexionesComunesPanel.test.tsx`).
-- `pnpm run build`: verde, 1576 módulos.
-- `pnpm run lint`: sin errores.
+- `pnpm run build`: verde. `pnpm run lint`: sin errores.
 - `mvn spotless:check` y `mvn spotbugs:check` sobre **los archivos de esta historia**: limpios.
+- **Los 6 cURL del backlog, ejecutados contra Neo4j y el backend reales** (ver la tabla de arriba).
+  En la primera entrega esto quedó como pendiente sin verificar; Docker estaba caído en ese momento.
 
 **Fallos preexistentes, ajenos a esta historia** (verificados con `git stash` sobre el árbol limpio):
 
@@ -90,14 +161,11 @@ prueba no pasa por casualidad.
 - `mvn test` emite un error de Testcontainers por falta de Docker en la máquina. No afecta: ninguna
   prueba usa Testcontainers, el error se registra y el build continúa.
 
-**No verificado — pendiente por falta de infraestructura:**
+**No verificado — pendiente:**
 
-- Los 4 cURL del backlog contra `localhost:8080` con Neo4j en `localhost:7687`. No hay Docker
-  funcionando en esta máquina, así que no se levantó el grafo ni MinIO. Lo que sí se verificó es que
-  la consulta enviada es exactamente el Cypher #3 obligatorio (hay una prueba que captura la cadena y
-  los parámetros enviados al driver, y falla si la intersección cambia de dirección).
 - Los 4 puntos de "en navegador". El comportamiento está cubierto por prueba de componente, pero no se
-  abrió el navegador.
+  abrió el navegador. Los cURL equivalentes sí se ejecutaron.
+- MinIO no se levantó: no lo necesita ninguno de los 6 cURL de esta historia.
 
 ## Deuda que queda anotada
 

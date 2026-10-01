@@ -112,9 +112,17 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
     // --- 3. Seguidores y Conexiones en Común entre Dos Perfiles ---
     @Override
     public List<Usuario> obtenerSeguidoresEnComun(String userA, String userB) {
+        // u1 -> comun <- u2, es decir las personas que AMBOS usuarios siguen.
+        //
+        // El Cypher del ticket original era (u1)<-[:SIGUE]-(comun)-[:SIGUE]->(u2), que
+        // invierte las flechas y devuelve a QUIENES SIGUEN a los dos: los seguidores
+        // comunes, no los seguidos comunes. Con la semilla de docker/neo4j-seed.cql eso
+        // hace que el cURL del propio ticket devuelva [] en vez de beatriz y paulo.
+        // La flecha va hacia el nodo comun porque el criterio de aceptación dice
+        // "siguen conjuntamente a beatriz y paulo".
         String cypher =
                 """
-            MATCH (u1:Usuario {id: $userA})<-[:SIGUE]-(comun:Usuario)-[:SIGUE]->(u2:Usuario {id: $userB})
+            MATCH (u1:Usuario {id: $userA})-[:SIGUE]->(comun:Usuario)<-[:SIGUE]-(u2:Usuario {id: $userB})
             RETURN comun.id AS id,
                    comun.username AS username,
                    comun.nombre AS nombre,

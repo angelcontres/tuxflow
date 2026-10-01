@@ -1,6 +1,7 @@
 package ec.edu.upse.redsocial.infrastructure.adapter.out.neo4j;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -78,7 +79,7 @@ class Neo4jGrafoAdapterConexionesComunesTest {
     }
 
     @Test
-    @DisplayName("obtenerSeguidoresEnComun devuelve la intersección de ambos perfiles")
+    @DisplayName("obtenerSeguidoresEnComun devuelve las personas que ambos perfiles siguen")
     void devuelveLaInterseccionDeSeguidos() {
         filasDevueltas(
                 fila("beatriz-silva", "beatriz", "Beatriz Silva", "https://cdn/beatriz.png"),
@@ -128,8 +129,8 @@ class Neo4jGrafoAdapterConexionesComunesTest {
     }
 
     @Test
-    @DisplayName("la consulta enviada es el Cypher #3 de intersección de seguidores")
-    void ejecutaElCypherDeInterseccionDeSeguidores() {
+    @DisplayName("la consulta enviada es el Cypher #3 de intersección de seguidas")
+    void ejecutaElCypherDeInterseccionDeSeguidos() {
         filasDevueltas(
                 fila("beatriz-silva", "beatriz", "Beatriz Silva", null),
                 fila("paulo-orrala", "paulo", "Paulo Orrala", null));
@@ -140,14 +141,19 @@ class Neo4jGrafoAdapterConexionesComunesTest {
         ArgumentCaptor<Value> params = ArgumentCaptor.forClass(Value.class);
         verify(tx).run(cypher.capture(), params.capture());
 
-        // La intersección tiene que ir en las dos direcciones: u1 sigue a comun, y
-        // comun sigue a u2. Al revés devolvería los seguidores comunes, no las
-        // personas que ambos siguen.
+        // Las dos flechas apuntan HACIA comun: u1 sigue a comun y u2 sigue a comun.
+        // Es lo que dice el criterio de aceptación ("siguen conjuntamente a beatriz y
+        // paulo"). La forma invertida, (u1)<-[:SIGUE]-(comun)-[:SIGUE]->(u2), devuelve
+        // a quienes siguen a los dos, que es otra pregunta, y con la semilla del
+        // proyecto hace que el cURL del ticket devuelva [].
         String consulta = cypher.getValue().replaceAll("\\s+", " ").trim();
         assertTrue(
                 consulta.contains(
-                        "MATCH (u1:Usuario {id: $userA})<-[:SIGUE]-(comun:Usuario)-[:SIGUE]->(u2:Usuario {id: $userB})"),
-                "La consulta no es la intersección de seguidores: " + consulta);
+                        "MATCH (u1:Usuario {id: $userA})-[:SIGUE]->(comun:Usuario)<-[:SIGUE]-(u2:Usuario {id: $userB})"),
+                "La consulta no es la intersección de seguidas: " + consulta);
+        assertFalse(
+                consulta.contains("u1:Usuario {id: $userA})<-[:SIGUE]-(comun"),
+                "Las flechas están invertidas: devolvería los seguidores comunes: " + consulta);
         assertTrue(consulta.contains("comun.username AS username"), consulta);
         assertTrue(consulta.contains("comun.avatarUrl AS avatar"), consulta);
 

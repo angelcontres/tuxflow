@@ -132,12 +132,17 @@ de los 4 cURL pendientes por falta de un Neo4j local.
 - [x] `pnpm test` en verde: 58 pruebas, 19 de ellas nuevas para esta historia
 - [x] `pnpm run build` termina en verde
 - [x] `pnpm run lint` sin errores nuevos
-- [ ] El cURL del backlog devuelve `200` con "beatriz" y "paulo" — **pendiente**: sin Neo4j local
-- [ ] El cURL sin parámetros devuelve `400`, no `200` con lista vacía — cubierto por prueba unitaria
-- [ ] El cURL con `userA` igual a `userB` devuelve `400` — cubierto por prueba unitaria
-- [ ] El cURL con un usuario registrado sin `nombre` devuelve `200`, no `500` — cubierto por prueba unitaria
-- [ ] En navegador: el panel lista las conexiones con avatar o inicial
-- [ ] En navegador: un usuario sin nombre muestra su identificador
-- [ ] En navegador: una lista vacía muestra el estado vacío, no un error
-- [ ] En navegador: un fallo de red muestra un mensaje, no una lista vacía
+- [x] El cURL del backlog devuelve `200` con "beatriz" y "paulo" — **ejecutado**; el Cypher #3 del
+      ticket estaba invertido y devolvía `[]`. Corregido, ver `apply-progress.md`
+- [x] El cURL sin parámetros devuelve `400`, no `200` con lista vacía — ejecutado
+- [x] El cURL con `userA` igual a `userB` devuelve `400` — ejecutado
+- [x] El cURL con un usuario registrado sin `nombre` devuelve `200`, con `nombre` null y no el texto
+      `"null"` — ejecutado
+- [ ] En navegador: el panel lista las conexiones con avatar o inicial — cubierto por prueba de
+      componente; no se abrió el navegador
+- [ ] En navegador: un usuario sin nombre muestra su identificador — cubierto por prueba de componente
+- [ ] En navegador: una lista vacía muestra el estado vacío, no un error — cubierto por prueba de
+      componente
+- [ ] En navegador: un fallo de red muestra un mensaje, no una lista vacía — cubierto por prueba de
+      componente
 - [x] `UserSuggestionsCard.tsx` no aparece en el diff
