@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { LogIn, UserPlus, AlertCircle, Check, Eye, EyeOff, Mail, Lock, User, ArrowRight } from 'lucide-react';
-import { fetchAllUsuarios, registerOrUpdateUsuario } from '../../user/services/userApi';
-import { Usuario } from '../../user/types/user.types';
+import React, { useState } from 'react';
+import { LogIn, UserPlus, AlertCircle, Check, Eye, EyeOff, Mail, Lock, User } from 'lucide-react';
+import { loginUser, registerUser } from '../services/authApi';
 
 interface LoginScreenProps {
   onLogin: (userId: string, username: string) => void;
@@ -9,16 +8,14 @@ interface LoginScreenProps {
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [view, setView] = useState<'login' | 'register'>('login');
-  const [users, setUsers] = useState<Usuario[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Login form
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Register form
   const [regId, setRegId] = useState('');
@@ -26,24 +23,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [regNombre, setRegNombre] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
-  const [isRegistering, setIsRegistering] = useState(false);
-
-  useEffect(() => {
-    loadUsers();
-  }, []);
-
-  const loadUsers = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await fetchAllUsuarios();
-      setUsers(data);
-    } catch (err) {
-      setError('No se pudieron cargar los usuarios. ¿Está el backend corriendo?');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [showRegPassword, setShowRegPassword] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,52 +32,40 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       return;
     }
 
-    setIsLoggingIn(true);
+    setIsLoading(true);
     setError(null);
 
     try {
-      // Buscar usuario por email o username
-      const user = users.find(
-        (u) => u.email === loginEmail.trim() || u.username === loginEmail.trim()
-      );
-
-      if (!user) {
-        setError('Usuario no encontrado. Verifica tus credenciales.');
-        return;
-      }
-
-      // Simular verificación de contraseña (en producción sería real)
-      // Por ahora, cualquier contraseña funciona para el usuario existente
+      const user = await loginUser(loginEmail.trim(), loginPassword);
       onLogin(user.id, user.username);
     } catch (err) {
-      setError('Error al iniciar sesión. Intenta de nuevo.');
+      setError('Credenciales inválidas. Verifica tu email/usuario y contraseña.');
     } finally {
-      setIsLoggingIn(false);
+      setIsLoading(false);
     }
   };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!regId.trim() || !regUsername.trim() || !regNombre.trim() || !regEmail.trim()) {
-      setError('Por favor, completa todos los campos obligatorios');
+    if (!regId.trim() || !regUsername.trim() || !regNombre.trim() || !regEmail.trim() || !regPassword.trim()) {
+      setError('Por favor, completa todos los campos');
       return;
     }
 
-    setIsRegistering(true);
+    setIsLoading(true);
     setError(null);
     setSuccess(null);
 
     try {
-      const payload: Usuario = {
+      await registerUser({
         id: regId.trim().toLowerCase().replace(/\s+/g, '-'),
         username: regUsername.trim().toLowerCase().replace(/\s+/g, '_'),
         nombre: regNombre.trim(),
         email: regEmail.trim(),
-        avatarUrl: '',
-      };
+        password: regPassword,
+      });
 
-      await registerOrUpdateUsuario(payload);
-      setSuccess(`Usuario @${payload.username} registrado exitosamente`);
+      setSuccess('Cuenta creada exitosamente. Ahora puedes iniciar sesión.');
 
       // Limpiar formulario
       setRegId('');
@@ -112,9 +80,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         setSuccess(null);
       }, 2000);
     } catch (err) {
-      setError('Error al registrar usuario. Intenta de nuevo.');
+      setError('Error al crear la cuenta. El usuario ya existe o hay un problema de conexión.');
     } finally {
-      setIsRegistering(false);
+      setIsLoading(false);
     }
   };
 
@@ -123,17 +91,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     setError(null);
     setSuccess(null);
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 w-full max-w-md text-center">
-          <div className="animate-spin w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4" />
-          <p className="text-sm text-slate-600 font-medium">Cargando...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center p-4">
@@ -192,10 +149,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
                     <button
                       type="submit"
-                      disabled={isLoggingIn}
+                      disabled={isLoading}
                       className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer"
                     >
-                      {isLoggingIn ? (
+                      {isLoading ? (
                         <>
                           <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
                           Iniciando sesión...
@@ -299,20 +256,27 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                       <input
-                        type="password"
+                        type={showRegPassword ? 'text' : 'password'}
                         value={regPassword}
                         onChange={(e) => setRegPassword(e.target.value)}
                         placeholder="Contraseña"
-                        className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                        className="w-full pl-9 pr-9 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
                       />
+                      <button
+                        type="button"
+                        onClick={() => setShowRegPassword(!showRegPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      >
+                        {showRegPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
                     </div>
 
                     <button
                       type="submit"
-                      disabled={isRegistering}
+                      disabled={isLoading}
                       className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer"
                     >
-                      {isRegistering ? (
+                      {isLoading ? (
                         <>
                           <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
                           Registrando...
@@ -339,7 +303,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                     onClick={() => switchView('login')}
                     className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <ArrowRight className="w-4 h-4 rotate-180" />
+                    <LogIn className="w-4 h-4" />
                     Ya tengo cuenta
                   </button>
                 </div>

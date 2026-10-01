@@ -7,6 +7,7 @@ public class Usuario {
     private String nombre;
     private String avatarUrl;
     private String pushSubscriptionJson;
+    private String password;
 
     public Usuario() {}
 
@@ -16,6 +17,15 @@ public class Usuario {
         this.email = email;
         this.nombre = nombre;
         this.avatarUrl = avatarUrl;
+    }
+
+    public Usuario(String id, String username, String email, String nombre, String avatarUrl, String password) {
+        this.id = id;
+        this.username = username;
+        this.email = email;
+        this.nombre = nombre;
+        this.avatarUrl = avatarUrl;
+        this.password = password;
     }
 
     public String getId() {
@@ -64,5 +74,13 @@ public class Usuario {
 
     public void setPushSubscriptionJson(String pushSubscriptionJson) {
         this.pushSubscriptionJson = pushSubscriptionJson;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
     }
 }
