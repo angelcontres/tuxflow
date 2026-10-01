@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { User, Edit3, UserPlus, Upload, Check, AlertCircle, X, Users, Share2, LogOut } from 'lucide-react';
+import { User, Edit3, Upload, Check, AlertCircle, X, Users, Share2, LogOut } from 'lucide-react';
 import { Usuario } from '../../features/user/types/user.types';
 import {
   fetchUsuario,
@@ -25,7 +25,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLogout,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'view' | 'edit' | 'register'>('view');
+  const [activeTab, setActiveTab] = useState<'view' | 'edit'>('view');
   const [currentUserProfile, setCurrentUserProfile] = useState<Usuario | null>(null);
   const [availableUsers, setAvailableUsers] = useState<Usuario[]>([]);
 
@@ -35,14 +35,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [editAvatarUrl, setEditAvatarUrl] = useState('');
   const [isUploadingEditAvatar, setIsUploadingEditAvatar] = useState(false);
 
-  // Register form state
-  const [regId, setRegId] = useState('');
-  const [regUsername, setRegUsername] = useState('');
-  const [regNombre, setRegNombre] = useState('');
-  const [regEmail, setRegEmail] = useState('');
-  const [regAvatarUrl, setRegAvatarUrl] = useState('');
-  const [isUploadingRegAvatar, setIsUploadingRegAvatar] = useState(false);
-
   // Feedback state
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(
     null,
@@ -50,7 +42,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const editFileInputRef = useRef<HTMLInputElement>(null);
-  const regFileInputRef = useRef<HTMLInputElement>(null);
 
   // Load current user profile
   const loadProfile = useCallback(async () => {
@@ -120,30 +111,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
   };
 
-  // Handle avatar upload for register
-  const handleRegAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsUploadingRegAvatar(true);
-    setFeedback(null);
-    try {
-      const res = await uploadAvatar(file);
-      setRegAvatarUrl(res.avatarUrl);
-      setFeedback({
-        type: 'success',
-        message: 'Foto de perfil cargada correctamente.',
-      });
-    } catch (err: unknown) {
-      setFeedback({
-        type: 'error',
-        message: getUserFacingError(err, 'No pudimos subir la foto. Inténtalo de nuevo.'),
-      });
-    } finally {
-      setIsUploadingRegAvatar(false);
-    }
-  };
-
   // Handle profile update
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -180,50 +147,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
   };
 
-  // Handle new user registration (US-01)
-  const handleRegisterUser = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!regId.trim() || !regUsername.trim() || !regNombre.trim()) {
-      setFeedback({
-        type: 'error',
-        message: 'Los campos ID, Nombre de Usuario y Nombre Completo son requeridos.',
-      });
-      return;
-    }
-
-    setIsSubmitting(true);
-    setFeedback(null);
-    try {
-      const payload: Usuario = {
-        id: regId.trim().toLowerCase().replace(/\s+/g, '-'),
-        username: regUsername.trim().toLowerCase().replace(/\s+/g, '_'),
-        nombre: regNombre.trim(),
-        email: regEmail.trim(),
-        avatarUrl: regAvatarUrl.trim(),
-      };
-      await registerOrUpdateUsuario(payload);
-      setFeedback({
-        type: 'success',
-        message: `Usuario @${payload.username} registrado correctamente.`,
-      });
-
-      onUserChange?.(payload.id, payload.username);
-      setRegId('');
-      setRegUsername('');
-      setRegNombre('');
-      setRegEmail('');
-      setRegAvatarUrl('');
-      setIsModalOpen(false);
-    } catch (err: unknown) {
-      setFeedback({
-        type: 'error',
-        message: getUserFacingError(err, 'No pudimos registrar el usuario. Inténtalo de nuevo.'),
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   const handleSelectUser = (u: Usuario) => {
     onUserChange?.(u.id, u.username);
     setIsModalOpen(false);
@@ -251,17 +174,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Acciones de Usuario */}
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => {
-                setActiveTab('register');
-                setIsModalOpen(true);
-              }}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium text-xs transition-colors cursor-pointer"
-            >
-              <UserPlus className="w-4 h-4 text-blue-600" />
-              <span>Nuevo Usuario</span>
-            </button>
-
             {/* Perfil del Usuario Activo */}
             <button
               onClick={() => {
@@ -359,20 +271,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <Edit3 className="w-3.5 h-3.5" />
                   Editar
                 </button>
-                <button
-                  onClick={() => {
-                    setActiveTab('register');
-                    setFeedback(null);
-                  }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
-                    activeTab === 'register'
-                      ? 'bg-blue-600 text-white'
-                      : 'text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  <UserPlus className="w-3.5 h-3.5" />
-                  Registrar
-                </button>
               </div>
             </div>
 
@@ -439,13 +337,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                     >
                       <Edit3 className="w-3.5 h-3.5" />
                       Editar Perfil
-                    </button>
-                    <button
-                      onClick={() => setActiveTab('register')}
-                      className="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <UserPlus className="w-3.5 h-3.5" />
-                      Nuevo Usuario
                     </button>
                   </div>
 
@@ -605,140 +496,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                     >
                       <Check className="w-3.5 h-3.5" />
                       {isSubmitting ? 'Guardando...' : 'Guardar Cambios'}
-                    </button>
-                  </div>
-                </form>
-              )}
-
-              {/* TAB 3: REGISTRO DE NUEVO USUARIO (TUX-52 / US-01) */}
-              {activeTab === 'register' && (
-                <form onSubmit={handleRegisterUser} className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">
-                        ID Único <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={regId}
-                        onChange={(e) => setRegId(e.target.value)}
-                        placeholder="nuevo-programador"
-                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-slate-900"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">
-                        Username <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={regUsername}
-                        onChange={(e) => setRegUsername(e.target.value)}
-                        placeholder="dev_upse"
-                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-slate-900"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">
-                      Nombre Completo <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={regNombre}
-                      onChange={(e) => setRegNombre(e.target.value)}
-                      placeholder="Programador Insano"
-                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">
-                      Correo Institucional
-                    </label>
-                    <input
-                      type="email"
-                      value={regEmail}
-                      onChange={(e) => setRegEmail(e.target.value)}
-                      placeholder="dev@upse.edu.ec"
-                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
-                    />
-                  </div>
-
-                  {/* Foto de perfil */}
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
-                    <label className="text-xs font-medium text-slate-700 flex items-center justify-between">
-                      <span className="flex items-center gap-1.5">
-                        <Upload className="w-3.5 h-3.5 text-blue-600" />
-                        Foto de perfil
-                      </span>
-                      {regAvatarUrl && (
-                        <span className="text-[10px] text-emerald-600 font-semibold">Listo</span>
-                      )}
-                    </label>
-
-                    <div className="flex items-center gap-3">
-                      {regAvatarUrl ? (
-                        <img
-                          src={regAvatarUrl}
-                          alt="Preview"
-                          className="w-12 h-12 rounded-full object-cover ring-2 ring-blue-500 shrink-0"
-                        />
-                      ) : (
-                        <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center text-slate-400 font-bold shrink-0">
-                          +
-                        </div>
-                      )}
-
-                      <div className="flex-1">
-                        <input
-                          type="file"
-                          ref={regFileInputRef}
-                          onChange={handleRegAvatarFileChange}
-                          accept="image/*"
-                          className="hidden"
-                        />
-                        <button
-                          type="button"
-                          disabled={isUploadingRegAvatar}
-                          onClick={() => regFileInputRef.current?.click()}
-                          className="w-full py-2 px-3 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium text-slate-700 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
-                        >
-                          <Upload className="w-3.5 h-3.5 text-blue-600" />
-                          {isUploadingRegAvatar ? 'Subiendo...' : 'Elegir imagen'}
-                        </button>
-                      </div>
-                    </div>
-
-                    <input
-                      type="url"
-                      value={regAvatarUrl}
-                      onChange={(e) => setRegAvatarUrl(e.target.value)}
-                      placeholder="O ingresa URL: https://images.unsplash.com/..."
-                      className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-slate-700"
-                    />
-                  </div>
-
-                  <div className="flex justify-end gap-2 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('view')}
-                      className="px-3.5 py-2 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isSubmitting}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
-                    >
-                      <UserPlus className="w-3.5 h-3.5" />
-                      {isSubmitting ? 'Registrando...' : 'Registrar usuario'}
                     </button>
                   </div>
                 </form>
