@@ -80,6 +80,12 @@
             <artifactId>quarkus-smallrye-jwt</artifactId>
         </dependency>
 
+        <!-- Extensión de build: permite firmar JWT ( issuers/keys ) desde código -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-smallrye-jwt-build</artifactId>
+        </dependency>
+
         <!-- Quarkus Arc Dependency Injection & SmallRye OpenAPI -->
         <dependency>
             <groupId>io.quarkus</groupId>

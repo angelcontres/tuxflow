@@ -1,31 +1,28 @@
-package ec.edu.upse.redsocial.domain.model;
+package ec.edu.upse.redsocial.infrastructure.adapter.in.rest.dto;
 
-public class Usuario {
+import ec.edu.upse.redsocial.domain.model.Usuario;
+
+/** DTO de salida: nunca expone el password del usuario. */
+public class UsuarioResponse {
+
     private String id;
     private String username;
     private String email;
     private String nombre;
     private String avatarUrl;
     private String pushSubscriptionJson;
-    private String password;
 
-    public Usuario() {}
+    public UsuarioResponse() {}
 
-    public Usuario(String id, String username, String email, String nombre, String avatarUrl) {
-        this.id = id;
-        this.username = username;
-        this.email = email;
-        this.nombre = nombre;
-        this.avatarUrl = avatarUrl;
-    }
-
-    public Usuario(String id, String username, String email, String nombre, String avatarUrl, String password) {
-        this.id = id;
-        this.username = username;
-        this.email = email;
-        this.nombre = nombre;
-        this.avatarUrl = avatarUrl;
-        this.password = password;
+    public static UsuarioResponse from(Usuario u) {
+        UsuarioResponse dto = new UsuarioResponse();
+        dto.id = u.getId();
+        dto.username = u.getUsername();
+        dto.email = u.getEmail();
+        dto.nombre = u.getNombre();
+        dto.avatarUrl = u.getAvatarUrl();
+        dto.pushSubscriptionJson = u.getPushSubscriptionJson();
+        return dto;
     }
 
     public String getId() {
@@ -74,13 +71,5 @@ public class Usuario {
 
     public void setPushSubscriptionJson(String pushSubscriptionJson) {
         this.pushSubscriptionJson = pushSubscriptionJson;
-    }
-
-    public String getPassword() {
-        return password;
-    }
-
-    public void setPassword(String password) {
-        this.password = password;
     }
 }

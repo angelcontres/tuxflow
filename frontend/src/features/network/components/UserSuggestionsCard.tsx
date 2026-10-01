@@ -59,7 +59,7 @@ export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
         </div>
         <span className="text-[11px] font-medium bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full flex items-center gap-1 border border-blue-100">
           <Sparkles className="w-3 h-3 text-blue-500" />
-          Grafo Neo4j
+          Sugerencias
         </span>
       </div>
       <p className="text-xs text-slate-500 mb-4 leading-relaxed">

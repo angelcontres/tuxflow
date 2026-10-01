@@ -4,9 +4,19 @@ import type { Usuario } from '../types/network.types';
 
 const { getMock } = vi.hoisted(() => ({ getMock: vi.fn() }));
 
+// El cliente compartido registra interceptores para adjuntar el token de
+// sesión, así que el mock de axios debe exponer esa API.
 vi.mock('axios', () => ({
   default: {
-    create: vi.fn(() => ({ get: getMock })),
+    isAxiosError: vi.fn(() => false),
+    create: vi.fn(() => ({
+      get: getMock,
+      post: vi.fn(),
+      interceptors: {
+        request: { use: vi.fn() },
+        response: { use: vi.fn() },
+      },
+    })),
   },
 }));
 
