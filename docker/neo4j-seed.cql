@@ -13,7 +13,9 @@ CREATE CONSTRAINT unique_post_id IF NOT EXISTS FOR (p:Post) REQUIRE p.id IS UNIQ
 // 3. Nodos de Usuarios
 CREATE (carlos:Usuario {
     id: 'carlos-patino', 
-    username: 'carlos', 
+    username: 'carlos',
+    password: 'carlos123', 
+    contrasenia: 'carlos123',
     nombre: 'Carlos Patiño', 
     email: 'carlos@upse.edu.ec', 
     avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
@@ -22,6 +24,8 @@ CREATE (carlos:Usuario {
 CREATE (paulo:Usuario {
     id: 'paulo-orrala', 
     username: 'paulo', 
+    password: 'paulo123',
+    contrasenia: 'paulo123',
     nombre: 'Paulo Orrala', 
     email: 'paulo@upse.edu.ec', 
     avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
@@ -30,6 +34,8 @@ CREATE (paulo:Usuario {
 CREATE (angel:Usuario {
     id: 'angel-villon', 
     username: 'angel', 
+    password: 'angel123',
+    contrasenia: 'angel123',
     nombre: 'Angel Villon', 
     email: 'angel@upse.edu.ec', 
     avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150',
@@ -38,6 +44,8 @@ CREATE (angel:Usuario {
 CREATE (beatriz:Usuario {
     id: 'beatriz-silva', 
     username: 'beatriz', 
+    password: 'beatriz123',
+    contrasenia: 'beatriz123',
     nombre: 'Beatriz Silva', 
     email: 'beatriz@upse.edu.ec', 
     avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150'
@@ -45,6 +53,8 @@ CREATE (beatriz:Usuario {
 CREATE (david:Usuario {
     id: 'david-mendoza', 
     username: 'david', 
+    password: 'david123',
+    contrasenia: 'david123',
     nombre: 'David Mendoza', 
     email: 'david@upse.edu.ec', 
     avatarUrl: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150'
@@ -52,6 +62,8 @@ CREATE (david:Usuario {
 CREATE (elena:Usuario {
     id: 'elena-vega', 
     username: 'elena', 
+    password: 'elena123',
+    contrasenia: 'elena123',
     nombre: 'Elena Vega', 
     email: 'elena@upse.edu.ec', 
     avatarUrl: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150'
