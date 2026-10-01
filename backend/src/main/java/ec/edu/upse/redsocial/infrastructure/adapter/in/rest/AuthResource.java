@@ -2,6 +2,7 @@ package ec.edu.upse.redsocial.infrastructure.adapter.in.rest;
 
 import ec.edu.upse.redsocial.domain.model.Usuario;
 import ec.edu.upse.redsocial.domain.port.in.GestionarGrafoSocialUseCase;
+import ec.edu.upse.redsocial.infrastructure.adapter.in.rest.dto.LoginRequest;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
@@ -18,9 +19,9 @@ public class AuthResource {
 
     @POST
     @Path("/login")
-    public Response login(Map<String, String> credentials) {
-        String emailOrUsername = credentials.get("email");
-        String password = credentials.get("password");
+    public Response login(LoginRequest credentials) {
+        String emailOrUsername = credentials.getEmail();
+        String password = credentials.getPassword();
 
         if (emailOrUsername == null || emailOrUsername.isBlank()) {
             return Response.status(Response.Status.BAD_REQUEST)
