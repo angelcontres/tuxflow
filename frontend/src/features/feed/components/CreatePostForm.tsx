@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Image, Send, Upload, X, Check, AlertCircle } from 'lucide-react';
 import { submitPost } from '../services/feedApi';
 import { uploadAvatar } from '../../user/services/userApi';
+import { getUserFacingError } from '../../../shared/utils/errorMessage';
 
 interface CreatePostFormProps {
   currentUserId: string;
@@ -51,7 +52,7 @@ export const CreatePostForm: React.FC<CreatePostFormProps> = ({
       setMediaUrl(res.avatarUrl);
       setShowMediaInput(true);
     } catch (err) {
-      console.error('Error al subir imagen a MinIO:', err);
+      showFeedback('error', getUserFacingError(err, 'No pudimos subir la imagen. Inténtalo de nuevo.'));
     } finally {
       setUploadingMedia(false);
     }
@@ -118,7 +119,7 @@ export const CreatePostForm: React.FC<CreatePostFormProps> = ({
           </div>
         </div>
 
-        {/* Input Multimedia / MinIO S3 */}
+        {/* Adjuntar imagen */}
         {showMediaInput && (
           <div className="mt-3 p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
             <div className="flex items-center gap-2">
@@ -136,7 +137,7 @@ export const CreatePostForm: React.FC<CreatePostFormProps> = ({
                 className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 shrink-0"
               >
                 <Upload className="w-3.5 h-3.5 text-slate-600" />
-                <span>{uploadingMedia ? 'Subiendo...' : 'MinIO'}</span>
+                <span>{uploadingMedia ? 'Subiendo...' : 'Subir'}</span>
               </button>
               <button
                 type="button"
@@ -183,7 +184,7 @@ export const CreatePostForm: React.FC<CreatePostFormProps> = ({
               className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-blue-600 px-2.5 py-1.5 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
             >
               <Upload className="w-4 h-4 text-emerald-500" />
-              <span>Subir a MinIO</span>
+              <span>Subir imagen</span>
             </button>
           </div>
 

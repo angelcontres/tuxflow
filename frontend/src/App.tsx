@@ -116,9 +116,7 @@ export const App: React.FC = () => {
             {loading ? (
               <div className="bg-white rounded-xl p-8 text-center border border-slate-200 shadow-xs">
                 <div className="animate-spin w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full mx-auto mb-3" />
-                <p className="text-xs text-slate-500 font-medium">
-                  Cargando publicaciones desde el grafo Neo4j...
-                </p>
+                <p className="text-xs text-slate-500 font-medium">Cargando publicaciones...</p>
               </div>
             ) : (
               <FeedList posts={posts} currentUserId={currentUserId} onRefresh={loadAllData} />
@@ -136,12 +134,12 @@ export const App: React.FC = () => {
                 <p className="text-xs font-semibold text-slate-900 truncate">@{currentUsername}</p>
                 <p className="text-[11px] text-emerald-600 font-medium flex items-center gap-1">
                   <UserCheck className="w-3.5 h-3.5 text-emerald-500" />
-                  Sesión activa en Grafo Social
+                  Sesión activa
                 </p>
               </div>
             </div>
 
-            {/* Tu red: sugerencias + seguidos (Neo4j) */}
+            {/* Tu red: sugerencias + seguidos */}
             <UserSuggestionsCard
               filas={red}
               currentUserId={currentUserId}
@@ -153,7 +151,7 @@ export const App: React.FC = () => {
 
             {/* Pie Informativo */}
             <footer className="text-center text-xs text-slate-400 py-2">
-              <p>Red Social Distribuida • Neo4j & MinIO S3</p>
+              <p>Red Social Distribuida</p>
               <p className="text-[11px] mt-0.5">Universidad Estatal Península de Santa Elena</p>
             </footer>
           </aside>

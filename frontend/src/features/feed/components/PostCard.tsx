@@ -73,7 +73,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUserId, onLikeC
               @{post.autorUsername}
             </span>
           </div>
-          <p className="text-[11px] text-slate-400">Publicado en el grafo social</p>
+          <p className="text-[11px] text-slate-400">Publicado</p>
         </div>
       </div>
 
@@ -82,7 +82,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUserId, onLikeC
         {renderFormattedText(post.texto)}
       </div>
 
-      {/* Multimedia Adjunta (MinIO S3 o Externa) */}
+      {/* Imagen adjunta */}
       {post.mediaUrl && (
         <div className="rounded-xl overflow-hidden border border-slate-100 bg-slate-50 mb-3 max-h-[450px] flex items-center justify-center">
           <img

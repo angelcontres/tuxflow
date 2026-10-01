@@ -93,7 +93,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         <div className="flex-1 text-center lg:text-left">
           <h1 className="text-5xl font-bold text-blue-600 mb-4">Red Social</h1>
           <p className="text-xl text-slate-600 leading-relaxed">
-            Conecta con amigos, comparte momentos y descubre tu red social distribuida con Neo4j y MinIO.
+            Conecta con amigos, comparte momentos y descubre tu red social.
           </p>
         </div>
 
@@ -283,7 +283,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           </div>
 
           <p className="text-center text-xs text-slate-400 mt-4">
-            Red Social Distribuida • Neo4j & MinIO S3
+            Red Social Distribuida
           </p>
         </div>
       </div>

@@ -1,5 +1,6 @@
 package ec.edu.upse.redsocial.infrastructure.adapter.out.neo4j;
 
+import ec.edu.upse.redsocial.domain.exception.AutorNoEncontradoException;
 import ec.edu.upse.redsocial.domain.model.Post;
 import ec.edu.upse.redsocial.domain.model.SugerenciaUsuario;
 import ec.edu.upse.redsocial.domain.model.Usuario;
@@ -494,18 +495,26 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                 fechaCreacion: datetime().epochMillis
             })
             CREATE (u)-[:PUBLICA]->(p)
+            RETURN p.id AS postId
             """;
         try (var session = driver.session()) {
             session.executeWrite(
                     tx -> {
-                        tx.run(
-                                        cypher,
-                                        Values.parameters(
-                                                "autorId", autorId,
-                                                "postId", postId,
-                                                "texto", texto,
-                                                "mediaUrl", mediaUrl != null ? mediaUrl : ""))
-                                .consume();
+                        var result =
+                                tx.run(
+                                                cypher,
+                                                Values.parameters(
+                                                        "autorId", autorId,
+                                                        "postId", postId,
+                                                        "texto", texto,
+                                                        "mediaUrl",
+                                                                mediaUrl != null ? mediaUrl : ""));
+                        // Si el autor no existe, el MATCH no devuelve filas y el CREATE
+                        // se descarta en silencio. Hay que reportarlo para no responder
+                        // 201 con un post que nunca se creó.
+                        if (!result.hasNext()) {
+                            throw new AutorNoEncontradoException(autorId);
+                        }
                         return null;
                     });
         }

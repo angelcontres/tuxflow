@@ -7,6 +7,7 @@ import {
   registerOrUpdateUsuario,
   uploadAvatar,
 } from '../../features/user/services/userApi';
+import { getUserFacingError } from '../utils/errorMessage';
 
 interface NavbarProps {
   currentUserId: string;
@@ -107,11 +108,13 @@ export const Navbar: React.FC<NavbarProps> = ({
       setEditAvatarUrl(res.avatarUrl);
       setFeedback({
         type: 'success',
-        message: 'Avatar subido exitosamente a MinIO S3.',
+        message: 'Foto de perfil actualizada correctamente.',
       });
     } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : 'Error al subir imagen a MinIO';
-      setFeedback({ type: 'error', message: errorMsg });
+      setFeedback({
+        type: 'error',
+        message: getUserFacingError(err, 'No pudimos subir la foto. Inténtalo de nuevo.'),
+      });
     } finally {
       setIsUploadingEditAvatar(false);
     }
@@ -129,11 +132,13 @@ export const Navbar: React.FC<NavbarProps> = ({
       setRegAvatarUrl(res.avatarUrl);
       setFeedback({
         type: 'success',
-        message: 'Avatar subido exitosamente a MinIO S3.',
+        message: 'Foto de perfil cargada correctamente.',
       });
     } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : 'Error al subir imagen a MinIO';
-      setFeedback({ type: 'error', message: errorMsg });
+      setFeedback({
+        type: 'error',
+        message: getUserFacingError(err, 'No pudimos subir la foto. Inténtalo de nuevo.'),
+      });
     } finally {
       setIsUploadingRegAvatar(false);
     }
@@ -161,13 +166,15 @@ export const Navbar: React.FC<NavbarProps> = ({
       setCurrentUserProfile(updated);
       setFeedback({
         type: 'success',
-        message: 'Perfil actualizado exitosamente en el grafo Neo4j.',
+        message: 'Perfil actualizado correctamente.',
       });
       onProfileUpdated?.();
       setActiveTab('view');
     } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : 'Error al actualizar perfil';
-      setFeedback({ type: 'error', message: errorMsg });
+      setFeedback({
+        type: 'error',
+        message: getUserFacingError(err, 'No pudimos actualizar tu perfil. Inténtalo de nuevo.'),
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -197,7 +204,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       await registerOrUpdateUsuario(payload);
       setFeedback({
         type: 'success',
-        message: `Usuario @${payload.username} registrado exitosamente en el grafo.`,
+        message: `Usuario @${payload.username} registrado correctamente.`,
       });
 
       onUserChange?.(payload.id, payload.username);
@@ -208,8 +215,10 @@ export const Navbar: React.FC<NavbarProps> = ({
       setRegAvatarUrl('');
       setIsModalOpen(false);
     } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : 'Error al registrar usuario';
-      setFeedback({ type: 'error', message: errorMsg });
+      setFeedback({
+        type: 'error',
+        message: getUserFacingError(err, 'No pudimos registrar el usuario. Inténtalo de nuevo.'),
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -523,12 +532,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                     />
                   </div>
 
-                  {/* Subida de Avatar a MinIO S3 */}
+                  {/* Foto de perfil */}
                   <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-medium text-slate-700 flex items-center gap-1.5">
                         <Upload className="w-3.5 h-3.5 text-blue-600" />
-                        Avatar (MinIO S3)
+                        Foto de perfil
                       </label>
                       {editAvatarUrl && (
                         <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
@@ -661,12 +670,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                     />
                   </div>
 
-                  {/* Subir avatar a MinIO */}
+                  {/* Foto de perfil */}
                   <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
                     <label className="text-xs font-medium text-slate-700 flex items-center justify-between">
                       <span className="flex items-center gap-1.5">
                         <Upload className="w-3.5 h-3.5 text-blue-600" />
-                        Subir Avatar a MinIO
+                        Foto de perfil
                       </span>
                       {regAvatarUrl && (
                         <span className="text-[10px] text-emerald-600 font-semibold">Listo</span>
@@ -729,7 +738,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
                     >
                       <UserPlus className="w-3.5 h-3.5" />
-                      {isSubmitting ? 'Registrando...' : 'Registrar en Grafo Social'}
+                      {isSubmitting ? 'Registrando...' : 'Registrar usuario'}
                     </button>
                   </div>
                 </form>
