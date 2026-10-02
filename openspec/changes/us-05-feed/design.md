@@ -75,6 +75,23 @@ inicial, que es lo mismo que ve cuando el autor no tiene avatar.
 
 ---
 
+### D4 — Explain collateral disappearances with an ephemeral notice, not stored state
+
+"Tu red" is 2-hop reachability recomputed on every refresh, so unfollowing the last bridge to
+someone legitimately removes that person from the list. The list update itself is correct; what
+is missing is feedback. `UserSuggestionsCard` therefore keeps the pre-refresh rows and the just
+unfollowed bridge username in refs, diffs them against the refreshed `filas`, and shows a
+temporary `role="status"` banner only when a disappeared suggestion row listed the bridge in its
+pre-refresh `seguidosEnComun`. Follows never produce the notice, self-removal of the bridge is
+excluded, and unexplained disappearances stay unexplained rather than inventing a cause. The
+notice auto-clears after 6000 ms with proper timer cleanup.
+
+**Alternativa descartada**: persisting reachability or the notice in the backend. The reachability
+is derived data and the notice is transient presentation feedback; storing either would couple a
+momentary UI explanation to the graph.
+
+---
+
 ## Riesgo residual
 
 - `EXISTS((u)-[:REACCIONA]->(p))` es la forma clásica de Neo4j 5 y funciona, pero está deprecada a

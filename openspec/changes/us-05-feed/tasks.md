@@ -109,6 +109,24 @@ Vitest + Testing Library + jsdom, pruebas colocaladas `*.test.tsx`, imports expl
 
 ---
 
+## Unidad 5: Aviso de desaparición colateral en la tarjeta de red
+
+**Desbloquea**: que el usuario entienda por qué un tercero salió de "Tu red" al dejar de seguir
+a su único puente. Independiente del feed en código, pero viaja en el mismo PR.
+**Rollback**: revertir devuelve la actualización silenciosa de la lista, sin aviso.
+
+- [ ] Guardar en refs las filas previas y el username del puente justo tras confirmar el unfollow
+      en el servidor (solo rama unfollow; el follow no produce desapariciones colaterales)
+- [ ] Al refrescar `filas`, mostrar `"<Nombre> dejó de aparecer en tu red al dejar de seguir a
+      <puente>."` en un banner `role="status"` solo si un sugerido desaparecido listaba al puente
+      en su `seguidosEnComun` previo; en cualquier otro caso no mostrar aviso
+- [ ] Auto-limpiar el aviso a los 6000 ms con limpieza del temporizador, reiniciable por cada unfollow
+- [ ] Pruebas colocaladas en `UserSuggestionsCard.test.tsx`: aviso ante pérdida del único puente;
+      sin aviso si el sugerido conserva otro puente, si solo sale el propio puente, si el puente no
+      estaba en `seguidosEnComun`, o si la acción fue un follow; limpieza automática con timers falsos
+
+---
+
 ## Fuera de alcance
 
 - Cambiar el Cypher, el mapeo `isNull() ? null : asLong()` o `Post.fechaCreacion` (ya es `Long`).

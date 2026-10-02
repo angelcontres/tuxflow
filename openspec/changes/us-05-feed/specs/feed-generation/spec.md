@@ -148,3 +148,25 @@ filtrado vigente del backend, sin posts fantasma de usuarios que ya no se siguen
 - **THEN** la publicación sigue visible en el feed
 - **AND** el contador de likes se actualiza en el lugar, sin volver a pedir el feed
 - **AND** si la petición de like falla, el contador se revierte y el error se registra en consola
+
+### Requirement: Explain collateral disappearances from the network card
+
+The system MUST show a temporary, non-blocking notice when unfollowing a user causes a
+third party to leave "Tu red" because the unfollowed user was that person's only bridge
+(the bridge appears in the disappeared row's pre-refresh `seguidosEnComun`). The notice
+MUST name the disappeared person and the bridge, MUST disappear automatically after a
+short delay, and MUST NOT appear when nobody disappears collaterally.
+
+#### Scenario: Collateral disappearance shows an explanatory notice
+
+- **GIVEN** that "david" is a suggestion whose `seguidosEnComun` contains "paulo"
+- **WHEN** "carlos-patio" unfollows "paulo" and the refreshed list no longer contains "david"
+- **THEN** a polite live-region notice reads "David dejó de aparecer en tu red al dejar de seguir a paulo."
+- **AND** the notice clears itself after a short delay without blocking interaction with the list
+
+#### Scenario: No explanation when nobody disappears collaterally
+
+- **GIVEN** that "carlos-patio" unfollows "beatriz"
+- **WHEN** the refreshed list still contains every other person (or only "beatriz" herself left,
+  or the missing person never listed "beatriz" in `seguidosEnComun`, or the action was a follow)
+- **THEN** no notice is shown

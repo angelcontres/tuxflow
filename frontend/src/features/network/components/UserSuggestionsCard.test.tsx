@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { UserSuggestionsCard } from './UserSuggestionsCard';
 import { followUserInGraph, unfollowUserInGraph } from '../services/networkApi';
@@ -267,6 +267,255 @@ describe('UserSuggestionsCard', () => {
 
       expect(await screen.findByRole('alert')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Dejar de seguir' })).toBeInTheDocument();
+    });
+  });
+
+  describe('Aviso de desaparición colateral', () => {
+    it('muestra un aviso cuando un sugerido pierde a su único puente tras dejar de seguir', async () => {
+      unfollowMock.mockResolvedValue(undefined);
+      const onNetworkUpdated = vi.fn();
+      const user = userEvent.setup();
+      const filasIniciales = [
+        seguidoFila({ id: 'u-paulo', username: 'paulo', nombre: 'Paulo' }),
+        sugerencia({
+          id: 'u-david',
+          username: 'david',
+          nombre: 'David',
+          conexionesEnComun: 1,
+          seguidosEnComun: ['paulo'],
+          seguido: false,
+        }),
+      ];
+      const { rerender } = render(
+        <UserSuggestionsCard
+          filas={filasIniciales}
+          currentUserId="carlos-patino"
+          onNetworkUpdated={onNetworkUpdated}
+        />,
+      );
+
+      await user.click(screen.getByRole('button', { name: 'Dejar de seguir' }));
+      rerender(
+        <UserSuggestionsCard
+          filas={[]}
+          currentUserId="carlos-patino"
+          onNetworkUpdated={onNetworkUpdated}
+        />,
+      );
+
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'David dejó de aparecer en tu red al dejar de seguir a Paulo.',
+      );
+    });
+
+    it('usa el username capitalizado cuando el sugerido no tiene nombre', async () => {
+      unfollowMock.mockResolvedValue(undefined);
+      const onNetworkUpdated = vi.fn();
+      const user = userEvent.setup();
+      const filasIniciales = [
+        seguidoFila({ id: 'u-paulo', username: 'paulo', nombre: 'Paulo' }),
+        {
+          id: 'u-david',
+          username: 'david',
+          conexionesEnComun: 1,
+          seguidosEnComun: ['paulo'],
+          seguido: false,
+          // `guardarUsuario` drops the `nombre` property when it is null and the
+          // backend returns the row as-is, so a row without it is a real
+          // runtime shape even though the type declares `nombre: string`.
+        } as unknown as SugerenciaUsuario & { seguido: boolean },
+      ];
+      const { rerender } = render(
+        <UserSuggestionsCard
+          filas={filasIniciales}
+          currentUserId="carlos-patino"
+          onNetworkUpdated={onNetworkUpdated}
+        />,
+      );
+
+      await user.click(screen.getByRole('button', { name: 'Dejar de seguir' }));
+      rerender(
+        <UserSuggestionsCard
+          filas={[]}
+          currentUserId="carlos-patino"
+          onNetworkUpdated={onNetworkUpdated}
+        />,
+      );
+
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'David dejó de aparecer en tu red al dejar de seguir a Paulo.',
+      );
+      expect(screen.getByRole('status')).not.toHaveTextContent('undefined');
+    });
+
+    it('no muestra aviso cuando el sugerido conserva otro puente y sigue en la lista', async () => {
+      unfollowMock.mockResolvedValue(undefined);
+      const onNetworkUpdated = vi.fn();
+      const user = userEvent.setup();
+      const david = sugerencia({
+        id: 'u-david',
+        username: 'david',
+        nombre: 'David',
+        conexionesEnComun: 2,
+        seguidosEnComun: ['paulo', 'beatriz'],
+        seguido: false,
+      });
+      const { rerender } = render(
+        <UserSuggestionsCard
+          filas={[seguidoFila({ id: 'u-beatriz', username: 'beatriz', nombre: 'Beatriz' }), david]}
+          currentUserId="carlos-patino"
+          onNetworkUpdated={onNetworkUpdated}
+        />,
+      );
+
+      await user.click(screen.getByRole('button', { name: 'Dejar de seguir' }));
+      rerender(
+        <UserSuggestionsCard
+          filas={[david]}
+          currentUserId="carlos-patino"
+          onNetworkUpdated={onNetworkUpdated}
+        />,
+      );
+
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    });
+
+    it('no muestra aviso cuando solo desaparece la propia persona dejada de seguir', async () => {
+      unfollowMock.mockResolvedValue(undefined);
+      const onNetworkUpdated = vi.fn();
+      const user = userEvent.setup();
+      const { rerender } = render(
+        <UserSuggestionsCard
+          filas={[seguidoFila({ id: 'u-beatriz', username: 'beatriz', nombre: 'Beatriz' })]}
+          currentUserId="carlos-patino"
+          onNetworkUpdated={onNetworkUpdated}
+        />,
+      );
+
+      await user.click(screen.getByRole('button', { name: 'Dejar de seguir' }));
+      rerender(
+        <UserSuggestionsCard
+          filas={[]}
+          currentUserId="carlos-patino"
+          onNetworkUpdated={onNetworkUpdated}
+        />,
+      );
+
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    });
+
+    it('no muestra aviso cuando el desaparecido no tenía al puente entre sus seguidos en común', async () => {
+      unfollowMock.mockResolvedValue(undefined);
+      const onNetworkUpdated = vi.fn();
+      const user = userEvent.setup();
+      const { rerender } = render(
+        <UserSuggestionsCard
+          filas={[
+            seguidoFila({ id: 'u-paulo', username: 'paulo', nombre: 'Paulo' }),
+            sugerencia({
+              id: 'u-david',
+              username: 'david',
+              nombre: 'David',
+              conexionesEnComun: 1,
+              seguidosEnComun: ['carlos'],
+              seguido: false,
+            }),
+          ]}
+          currentUserId="carlos-patino"
+          onNetworkUpdated={onNetworkUpdated}
+        />,
+      );
+
+      await user.click(screen.getByRole('button', { name: 'Dejar de seguir' }));
+      rerender(
+        <UserSuggestionsCard
+          filas={[]}
+          currentUserId="carlos-patino"
+          onNetworkUpdated={onNetworkUpdated}
+        />,
+      );
+
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    });
+
+    it('no muestra aviso tras seguir a una sugerencia aunque la lista cambie', async () => {
+      followMock.mockResolvedValue(undefined);
+      const onNetworkUpdated = vi.fn();
+      const user = userEvent.setup();
+      const { rerender } = render(
+        <UserSuggestionsCard
+          filas={[
+            sugerencia({
+              id: 'u-david',
+              username: 'david',
+              nombre: 'David',
+              conexionesEnComun: 1,
+              seguidosEnComun: ['paulo'],
+              seguido: false,
+            }),
+          ]}
+          currentUserId="carlos-patino"
+          onNetworkUpdated={onNetworkUpdated}
+        />,
+      );
+
+      await user.click(screen.getByRole('button', { name: 'Seguir' }));
+      rerender(
+        <UserSuggestionsCard
+          filas={[]}
+          currentUserId="carlos-patino"
+          onNetworkUpdated={onNetworkUpdated}
+        />,
+      );
+
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    });
+
+    it('limpia el aviso automáticamente después de un tiempo corto', async () => {
+      vi.useFakeTimers();
+      try {
+        unfollowMock.mockResolvedValue(undefined);
+        const onNetworkUpdated = vi.fn();
+        const { rerender } = render(
+          <UserSuggestionsCard
+            filas={[
+              seguidoFila({ id: 'u-paulo', username: 'paulo', nombre: 'Paulo' }),
+              sugerencia({
+                id: 'u-david',
+                username: 'david',
+                nombre: 'David',
+                conexionesEnComun: 1,
+                seguidosEnComun: ['paulo'],
+                seguido: false,
+              }),
+            ]}
+            currentUserId="carlos-patino"
+            onNetworkUpdated={onNetworkUpdated}
+          />,
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Dejar de seguir' }));
+        await act(async () => {
+          for (let i = 0; i < 10; i += 1) {
+            await Promise.resolve();
+          }
+        });
+        rerender(
+          <UserSuggestionsCard
+            filas={[]}
+            currentUserId="carlos-patino"
+            onNetworkUpdated={onNetworkUpdated}
+          />,
+        );
+
+        expect(screen.getByRole('status')).toBeInTheDocument();
+        act(() => {
+          vi.advanceTimersByTime(6000);
+        });
+        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });
