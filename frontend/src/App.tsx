@@ -84,9 +84,7 @@ export const App: React.FC = () => {
     }
   }, [currentUserId]);
 
-  // Refresco solo de red (sugerencias + seguidos). NO toca los posts ya
-  // renderizados: es el handler de follow/unfollow, así que dejar de seguir
-  // actualiza la tarjeta de red sin vaciar el feed (D2).
+  // Refresco solo de red (sugerencias + seguidos), sin tocar los posts.
   const loadNetwork = useCallback(async () => {
     try {
       const [sugData, segData] = await Promise.all([
@@ -101,7 +99,10 @@ export const App: React.FC = () => {
     }
   }, [currentUserId]);
 
-  // Carga combinada para el arranque y para la creación de posts.
+  // Carga combinada. Es lo que dispara follow/unfollow: al dejar de seguir,
+  // el feed se vuelve a pedir a propósito, porque el backend ya excluye de
+  // las publicaciones a los usuarios no seguidos y sus posts deben
+  // desaparecer de la vista sin esperar a recargar la página.
   const loadAllData = useCallback(async () => {
     await Promise.all([loadFeed(), loadNetwork()]);
   }, [loadFeed, loadNetwork]);
@@ -178,7 +179,7 @@ export const App: React.FC = () => {
             <UserSuggestionsCard
               filas={red}
               currentUserId={currentUserId}
-              onNetworkUpdated={loadNetwork}
+              onNetworkUpdated={loadAllData}
             />
 
             {/* Conexiones en común con otra persona */}

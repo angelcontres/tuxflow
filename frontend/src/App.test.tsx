@@ -87,8 +87,8 @@ const beatrizSugerencia: SugerenciaUsuario = {
 };
 
 /**
- * La red antes del unfollow (beatriz seguida) y despues (beatriz vuelve a
- * ser sugerencia con "Seguir"), como la devolveria el backend real.
+ * Red antes del unfollow (beatriz seguida) y despues (beatriz vuelve a ser
+ * sugerencia con "Seguir"), como la devolveria el backend real.
  */
 function simularRedConUnfollowDeBeatriz(): void {
   seguidosMock.mockResolvedValueOnce([beatrizSeguida]);
@@ -115,60 +115,60 @@ describe('App (feed tras dejar de seguir)', () => {
     unfollowMock.mockResolvedValue(undefined);
   });
 
-  it('tras dejar de seguir, los posts ya renderizados siguen visibles y la tarjeta de red refleja el nuevo estado', async () => {
-    feedMock.mockResolvedValue([postBeatriz(), postPaulo()]);
+  it('deja de seguir vuelve a pedir el feed y quita los posts del usuario filtrado', async () => {
+    // El backend excluye de las publicaciones a los no seguidos: la segunda
+    // respuesta ya no trae nada de beatriz.
+    feedMock.mockResolvedValueOnce([postBeatriz(), postPaulo()]);
+    feedMock.mockResolvedValue([postPaulo()]);
     simularRedConUnfollowDeBeatriz();
     const user = userEvent.setup();
     render(<App />);
 
     expect(await screen.findByText('Post de beatriz en el feed')).toBeInTheDocument();
+    expect(screen.getByText('Post de paulo en el feed')).toBeInTheDocument();
     expect(feedMock).toHaveBeenCalledTimes(1);
 
     await user.click(screen.getByRole('button', { name: 'Dejar de seguir' }));
 
     expect(unfollowMock).toHaveBeenCalledWith('carlos-patino', 'u-2');
     expect(await screen.findByRole('button', { name: 'Seguir' })).toBeInTheDocument();
-    expect(screen.getByText('Post de beatriz en el feed')).toBeInTheDocument();
+    expect(screen.queryByText('Post de beatriz en el feed')).not.toBeInTheDocument();
     expect(screen.getByText('Post de paulo en el feed')).toBeInTheDocument();
-    expect(feedMock).toHaveBeenCalledTimes(1);
+    expect(feedMock).toHaveBeenCalledTimes(2);
   });
 
-  it('en la próxima carga del feed tras el unfollow, los posts del usuario filtrado ya no aparecen', async () => {
-    feedMock.mockResolvedValueOnce([postBeatriz(), postPaulo()]);
+  it('los posts del usuario filtrado no reaparecen al recargar la vista', async () => {
     feedMock.mockResolvedValue([postPaulo()]);
     simularRedConUnfollowDeBeatriz();
     const user = userEvent.setup();
     const vista = render(<App />);
 
-    expect(await screen.findByText('Post de beatriz en el feed')).toBeInTheDocument();
+    expect(await screen.findByText('Post de paulo en el feed')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Dejar de seguir' }));
     expect(await screen.findByRole('button', { name: 'Seguir' })).toBeInTheDocument();
-    expect(screen.getByText('Post de beatriz en el feed')).toBeInTheDocument();
 
     vista.unmount();
     render(<App />);
 
     expect(await screen.findByText('Post de paulo en el feed')).toBeInTheDocument();
     expect(screen.queryByText('Post de beatriz en el feed')).not.toBeInTheDocument();
-    expect(feedMock).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('button', { name: 'Dejar de seguir' })).not.toBeInTheDocument();
   });
 
-  it('dar like a un post visible tras el unfollow actualiza el contador sin recargar el feed', async () => {
-    feedMock.mockResolvedValue([postBeatriz()]);
+  it('dar like a un post que sigue en el feed no vuelve a pedir el feed', async () => {
+    feedMock.mockResolvedValue([postPaulo()]);
     simularRedConUnfollowDeBeatriz();
     const user = userEvent.setup();
     render(<App />);
 
-    expect(await screen.findByText('Post de beatriz en el feed')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Dejar de seguir' }));
-    expect(await screen.findByRole('button', { name: 'Seguir' })).toBeInTheDocument();
+    expect(await screen.findByText('Post de paulo en el feed')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: '5' }));
+    await user.click(screen.getByRole('button', { name: '1' }));
 
     expect(likeMock).toHaveBeenCalledTimes(1);
-    expect(likeMock).toHaveBeenCalledWith('p-beatriz', 'carlos-patino');
-    expect(await screen.findByRole('button', { name: '6' })).toBeInTheDocument();
-    expect(screen.getByText('Post de beatriz en el feed')).toBeInTheDocument();
+    expect(likeMock).toHaveBeenCalledWith('p-paulo', 'carlos-patino');
+    expect(await screen.findByRole('button', { name: '2' })).toBeInTheDocument();
+    expect(screen.getByText('Post de paulo en el feed')).toBeInTheDocument();
     expect(feedMock).toHaveBeenCalledTimes(1);
   });
 });
