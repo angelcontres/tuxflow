@@ -21,8 +21,8 @@ import org.jboss.logging.Logger;
 /**
  * Emisión y validación de JWT con firma RSA (RS256) mediante SmallRye JWT.
  *
- * La clave privada solo se usa para firmar; la pública alcanza para validar.
- * Ambas se leen del classpath segun la ruta configurada.
+ * <p>La clave privada solo se usa para firmar; la pública alcanza para validar. Ambas se leen del
+ * classpath segun la ruta configurada.
  */
 @ApplicationScoped
 public class JwtTokenAdapter implements TokenService {
@@ -44,9 +44,12 @@ public class JwtTokenAdapter implements TokenService {
     void cargarClavePublica() {
         String pem;
         try (InputStream in =
-                Thread.currentThread().getContextClassLoader().getResourceAsStream(publicKeyLocation)) {
+                Thread.currentThread()
+                        .getContextClassLoader()
+                        .getResourceAsStream(publicKeyLocation)) {
             if (in == null) {
-                throw new IllegalStateException("No se encontró la clave pública: " + publicKeyLocation);
+                throw new IllegalStateException(
+                        "No se encontró la clave pública: " + publicKeyLocation);
             }
             pem = new String(in.readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException e) {

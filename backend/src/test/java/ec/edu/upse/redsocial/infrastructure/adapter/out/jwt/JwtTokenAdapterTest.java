@@ -39,7 +39,8 @@ class JwtTokenAdapterTest {
                         .replaceAll("\\s", "");
         privateKey =
                 KeyFactory.getInstance("RSA")
-                        .generatePrivate(new PKCS8EncodedKeySpec(Base64.getDecoder().decode(base64)));
+                        .generatePrivate(
+                                new PKCS8EncodedKeySpec(Base64.getDecoder().decode(base64)));
     }
 
     private String leer(String recurso) throws Exception {

@@ -78,8 +78,7 @@ class PostResourceTest {
     @Test
     @DisplayName("POST /posts responde 400 si el texto está vacío")
     void crearPostSinTextoResponde400() {
-        Response respuesta =
-                resource.crearPost(Map.of("autorId", "carlos-patino", "texto", "   "));
+        Response respuesta = resource.crearPost(Map.of("autorId", "carlos-patino", "texto", "   "));
 
         assertEquals(400, respuesta.getStatus());
         verify(crearPostUseCase, never()).crearPost(any(), any(), any(), any());
@@ -92,8 +91,7 @@ class PostResourceTest {
                 .thenThrow(new AutorNoEncontradoException("carlos-patino"));
 
         Response respuesta =
-                resource.crearPost(
-                        Map.of("autorId", "carlos-patino", "texto", "Hola mundo"));
+                resource.crearPost(Map.of("autorId", "carlos-patino", "texto", "Hola mundo"));
 
         @SuppressWarnings("unchecked")
         Map<String, String> entity = (Map<String, String>) respuesta.getEntity();
