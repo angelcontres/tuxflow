@@ -10,10 +10,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * Prueba el adaptador con la configuracion real de Quarkus, que es el camino
- * que sigue la aplicacion. Un test plano de JUnit no lee
- * smallrye.jwt.sign.key.location y por eso no alcanza para validar la
- * integracion de la firma.
+ * Prueba el adaptador con la configuracion real de Quarkus, que es el camino que sigue la
+ * aplicacion. Un test plano de JUnit no lee smallrye.jwt.sign.key.location y por eso no alcanza
+ * para validar la integracion de la firma.
  */
 @QuarkusTest
 class JwtTokenAdapterQuarkusTest {

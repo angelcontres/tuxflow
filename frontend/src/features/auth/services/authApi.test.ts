@@ -16,14 +16,7 @@ vi.mock('axios', () => ({
   },
 }));
 
-import {
-  clearToken,
-  getToken,
-  loginUser,
-  registerUser,
-  restoreSession,
-  setToken,
-} from './authApi';
+import { clearToken, getToken, loginUser, registerUser, restoreSession, setToken } from './authApi';
 
 const TOKEN = 'header.payload.firma';
 
