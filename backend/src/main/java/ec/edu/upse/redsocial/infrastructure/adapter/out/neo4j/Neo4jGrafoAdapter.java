@@ -330,8 +330,10 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
             SET u.username = $username,
                 u.email = $email,
                 u.nombre = $nombre,
-                u.avatarUrl = $avatarUrl,
-                u.password = $password
+                u.avatarUrl = $avatarUrl
+            FOREACH (_ IN CASE WHEN $password IS NULL THEN [] ELSE [1] END |
+                SET u.password = $password
+            )
             """;
         try (var session = driver.session()) {
             session.executeWrite(
@@ -347,10 +349,16 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                                                         u.getAvatarUrl() != null
                                                                 ? u.getAvatarUrl()
                                                                 : "",
-                                                "password",
-                                                        u.getPassword() != null
-                                                                ? u.getPassword()
-                                                                : ""))
+                                                // Sin el ternario a "" de antes. Aquí el
+                                                // null es una señal de "no cambiar", y
+                                                // convertirlo a "" la convertía en "borrar":
+                                                // guardar el perfil desde el Navbar manda el
+                                                // Usuario sin password porque el tipo del
+                                                // frontend no lo tiene, y con este ternario
+                                                // cada guardado dejaba al usuario sin poder
+                                                // iniciar sesión. El FOREACH de arriba sólo
+                                                // escribe la contraseña cuando llega.
+                                                "password", u.getPassword()))
                                 .consume();
                         return null;
                     });
