@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Route, UserMinus, UserPlus, Sparkles, Users } from 'lucide-react';
 import { FilaRed, esSugerencia } from '../types/network.types';
 import type { CaminoCorto } from '../types/network.types';
@@ -68,6 +68,11 @@ export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
   const [distancias, setDistancias] = useState<Record<string, CaminoCorto>>({});
   const [errorDistancia, setErrorDistancia] = useState<Record<string, string>>({});
   const [calculando, setCalculando] = useState<Record<string, boolean>>({});
+  const [aviso, setAviso] = useState<string | null>(null);
+  // Refs, no estado: el efecto de detección corre una vez por cada `filas` nuevas
+  // y necesita el snapshot anterior sin provocar un render extra.
+  const filasPreviasRef = useRef<FilaRed[]>(filas);
+  const puenteRef = useRef<string | null>(null);
 
   useEffect(() => {
     setConfirmados({});
@@ -264,7 +269,7 @@ export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
                     </button>
 
                     <button
-                      onClick={() => void handleToggle(fila.id, seguido)}
+                      onClick={() => void handleToggle(fila, seguido)}
                       disabled={cargando}
                       className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-blue-600 bg-slate-100 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >

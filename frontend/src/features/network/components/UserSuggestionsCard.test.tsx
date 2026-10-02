@@ -1,9 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { UserSuggestionsCard } from './UserSuggestionsCard';
+import { fusionarRed } from '../../../App';
 import { fetchCaminoCorto, followUserInGraph, unfollowUserInGraph } from '../services/networkApi';
-import type { CaminoCorto, SugerenciaUsuario, Usuario } from '../types/network.types';
+import type { CaminoCorto, FilaRed, SugerenciaUsuario, Usuario } from '../types/network.types';
 
 vi.mock('../services/networkApi', () => ({
   fetchCaminoCorto: vi.fn(),
@@ -397,6 +398,206 @@ describe('UserSuggestionsCard', () => {
 
       expect(screen.getByRole('button', { name: 'Seguir' })).toBeInTheDocument();
       expect(caminoMock).toHaveBeenCalledTimes(1);
+    });
+  });
+  describe('Aviso de desaparición colateral', () => {
+    // Payloads reales de GET /follows y GET /sugerencias para el caso Angel:
+    // Angel sigue a Paulo y Beatriz, y los dos siguen a David. Cuando Angel deja
+    // de seguir a uno, David sigue entrando por el otro; cuando deja al segundo,
+    // se acaba el último puente y David sale de la red.
+    const PAULO: Usuario = {
+      id: 'paulo-orrala',
+      username: 'paulo',
+      nombre: 'Paulo Orrala',
+      avatarUrl: 'http://x/paulo.png',
+    };
+    const BEATRIZ: Usuario = {
+      id: 'beatriz-silva',
+      username: 'beatriz',
+      nombre: 'Beatriz Silva',
+      avatarUrl: 'http://x/beatriz.png',
+    };
+    const DAVID_DOS_PUENTES: SugerenciaUsuario = {
+      id: 'david-mendoza',
+      username: 'david',
+      nombre: 'David Mendoza',
+      avatar: 'http://x/david.png',
+      conexionesEnComun: 2,
+      seguidosEnComun: ['paulo', 'beatriz'],
+    };
+    const DAVID_UN_PUENTE: SugerenciaUsuario = {
+      ...DAVID_DOS_PUENTES,
+      conexionesEnComun: 1,
+      seguidosEnComun: ['paulo'],
+    };
+    // David aparece sin nadie en común conocido: el aviso no puede inventar una
+    // explicación cuando no hay evidencia de que el puente lo mantenía en la red.
+    const DAVID_SIN_PUENTE: SugerenciaUsuario = { ...DAVID_UN_PUENTE, seguidosEnComun: [] };
+    const DAVID_SEGUIDO: Usuario = {
+      id: 'david-mendoza',
+      username: 'david',
+      nombre: 'David Mendoza',
+      avatarUrl: 'http://x/david.png',
+    };
+
+    // El orden de las filas lo fija `fusionarRed`: primero los seguidos, después
+    // las sugerencias. Cada fila expone un botón "Distancia" y otro de seguimiento,
+    // así que el nombre del botón aísla sin ambigüedad a los ya seguidos.
+    const botonDejarDeSeguir = (indice = 0): HTMLElement =>
+      screen.getAllByRole('button', { name: 'Dejar de seguir' })[indice];
+    const botonSeguir = (indice = 0): HTMLElement =>
+      screen.getAllByRole('button', { name: 'Seguir' })[indice];
+
+    const card = (filas: FilaRed[]): React.ReactElement => (
+      <UserSuggestionsCard filas={filas} currentUserId="angel-vega" onNetworkUpdated={vi.fn()} />
+    );
+
+    it('no avisa nada en la carga inicial, porque todavia no se dejo de seguir a nadie', () => {
+      render(card(fusionarRed([PAULO, BEATRIZ], [DAVID_DOS_PUENTES])));
+
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    });
+
+    it('no avisa en el primer unfollow porque el otro puente sigue en pie', async () => {
+      unfollowMock.mockResolvedValue(undefined);
+      const user = userEvent.setup();
+      const view = render(card(fusionarRed([PAULO, BEATRIZ], [DAVID_DOS_PUENTES])));
+
+      await user.click(botonDejarDeSeguir(1));
+      view.rerender(card(fusionarRed([PAULO], [DAVID_UN_PUENTE])));
+
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    });
+
+    // Regresión: este caso se pierde si `handleToggle` recibe el id en vez de la
+    // fila, porque el puente se registra con `fila.username` y quedaría undefined.
+    it('avisa en el segundo unfollow, cuando se acaba el ultimo puente', async () => {
+      unfollowMock.mockResolvedValue(undefined);
+      const user = userEvent.setup();
+      const view = render(card(fusionarRed([PAULO, BEATRIZ], [DAVID_DOS_PUENTES])));
+
+      await user.click(botonDejarDeSeguir(1));
+      view.rerender(card(fusionarRed([PAULO], [DAVID_UN_PUENTE])));
+
+      await user.click(botonDejarDeSeguir(0));
+      view.rerender(card(fusionarRed([], [])));
+
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'David dejó de aparecer en tu red al dejar de seguir a Paulo.',
+      );
+    });
+
+    it('no anuncia a la persona que el usuario acaba de dejar de seguir', async () => {
+      unfollowMock.mockResolvedValue(undefined);
+      const user = userEvent.setup();
+      const view = render(card(fusionarRed([PAULO, BEATRIZ], [DAVID_SIN_PUENTE])));
+
+      await user.click(botonDejarDeSeguir(0));
+      view.rerender(card(fusionarRed([BEATRIZ], [])));
+
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    });
+
+    it('no avisa cuando la persona desaparecida no tenia al puente entre sus seguidos', async () => {
+      unfollowMock.mockResolvedValue(undefined);
+      const user = userEvent.setup();
+      const view = render(card(fusionarRed([PAULO, BEATRIZ], [DAVID_SIN_PUENTE])));
+
+      await user.click(botonDejarDeSeguir(0));
+      view.rerender(card(fusionarRed([BEATRIZ], [])));
+
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    });
+
+    it('usa el @username capitalizado aunque la fila venga sin nombre', async () => {
+      const davidSinNombre = {
+        id: 'david-mendoza',
+        username: 'david',
+        conexionesEnComun: 2,
+        seguidosEnComun: ['paulo', 'beatriz'],
+      } as unknown as SugerenciaUsuario;
+      unfollowMock.mockResolvedValue(undefined);
+      const user = userEvent.setup();
+      const view = render(card(fusionarRed([PAULO, BEATRIZ], [davidSinNombre])));
+
+      await user.click(botonDejarDeSeguir(1));
+      view.rerender(card(fusionarRed([PAULO], [davidSinNombre])));
+
+      await user.click(botonDejarDeSeguir(0));
+      view.rerender(card(fusionarRed([], [])));
+
+      const aviso = screen.getByRole('status');
+      expect(aviso).toHaveTextContent(
+        'David dejó de aparecer en tu red al dejar de seguir a Paulo.',
+      );
+      expect(aviso).not.toHaveTextContent('undefined');
+    });
+
+    it('expone el aviso como anuncio accesible', async () => {
+      unfollowMock.mockResolvedValue(undefined);
+      const user = userEvent.setup();
+      const view = render(card(fusionarRed([PAULO, BEATRIZ], [DAVID_DOS_PUENTES])));
+
+      await user.click(botonDejarDeSeguir(1));
+      view.rerender(card(fusionarRed([PAULO], [DAVID_UN_PUENTE])));
+
+      await user.click(botonDejarDeSeguir(0));
+      view.rerender(card(fusionarRed([], [])));
+
+      expect(screen.getByRole('status')).toHaveAttribute('aria-live', 'polite');
+    });
+
+    it('retira el aviso a los seis segundos', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      try {
+        unfollowMock.mockResolvedValue(undefined);
+        const view = render(card(fusionarRed([PAULO, BEATRIZ], [DAVID_DOS_PUENTES])));
+
+        // fireEvent y no userEvent: con los timers falsos, userEvent queda esperando
+        // a temporizadores que solo este test avanza.
+        fireEvent.click(botonDejarDeSeguir(1));
+        await act(async () => {});
+        view.rerender(card(fusionarRed([PAULO], [DAVID_UN_PUENTE])));
+
+        fireEvent.click(botonDejarDeSeguir(0));
+        await act(async () => {});
+        view.rerender(card(fusionarRed([], [])));
+        expect(screen.getByRole('status')).toBeInTheDocument();
+
+        act(() => {
+          vi.advanceTimersByTime(6000);
+        });
+
+        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('no avisa al seguir a una sugerencia nueva', async () => {
+      followMock.mockResolvedValue(undefined);
+      const user = userEvent.setup();
+      const view = render(card(fusionarRed([PAULO], [DAVID_UN_PUENTE])));
+
+      await user.click(botonSeguir());
+      view.rerender(card(fusionarRed([PAULO, DAVID_SEGUIDO], [])));
+
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    });
+
+    it('limpia el aviso anterior cuando un refresco posterior no trae otra desaparición', async () => {
+      unfollowMock.mockResolvedValue(undefined);
+      const user = userEvent.setup();
+      const view = render(card(fusionarRed([PAULO, BEATRIZ], [DAVID_UN_PUENTE])));
+
+      await user.click(botonDejarDeSeguir(0));
+      view.rerender(card(fusionarRed([BEATRIZ], [])));
+      expect(screen.getByRole('status')).toBeInTheDocument();
+
+      await user.click(botonDejarDeSeguir());
+      view.rerender(card(fusionarRed([], [])));
+
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
     });
   });
 });
