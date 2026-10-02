@@ -2,6 +2,7 @@ package ec.edu.upse.redsocial.infrastructure.adapter.in.rest;
 
 import ec.edu.upse.redsocial.domain.model.Usuario;
 import ec.edu.upse.redsocial.domain.port.in.GestionarGrafoSocialUseCase;
+import ec.edu.upse.redsocial.infrastructure.adapter.in.rest.dto.UsuarioRequest;
 import ec.edu.upse.redsocial.infrastructure.adapter.in.rest.dto.UsuarioResponse;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
@@ -43,18 +44,27 @@ public class UserGraphResource {
     }
 
     @POST
-    public Response registrarUsuario(Usuario usuario) {
-        if (usuario == null
-                || usuario.getId() == null
-                || usuario.getId().isBlank()
-                || usuario.getUsername() == null
-                || usuario.getUsername().isBlank()) {
+    public Response registrarUsuario(UsuarioRequest request) {
+        if (request == null
+                || request.getId() == null
+                || request.getId().isBlank()
+                || request.getUsername() == null
+                || request.getUsername().isBlank()) {
             return Response.status(Response.Status.BAD_REQUEST)
                     .entity(Map.of("error", "Los campos 'id' y 'username' son obligatorios."))
                     .build();
         }
+
+        Usuario usuario = request.toUsuario();
         gestionarGrafoSocialUseCase.registrarUsuario(usuario);
-        return Response.status(Response.Status.CREATED).entity(usuario).build();
+
+        // Se devuelve UsuarioResponse y no el modelo de dominio. Antes se respondía el Usuario
+        // crudo, y eso arrastraba al contrato publico campos que son de persistencia, como
+        // "password": null. No es una fuga de la credencial real, pero expone la forma del
+        // dominio como si fuera parte de la API.
+        return Response.status(Response.Status.CREATED)
+                .entity(UsuarioResponse.from(usuario))
+                .build();
     }
 
     @POST
@@ -157,6 +167,18 @@ public class UserGraphResource {
     @Path("/camino-corto")
     public Response obtenerCaminoMasCorto(
             @QueryParam("origen") String origen, @QueryParam("destino") String destino) {
+        // Sin esta validación la consulta se ejecuta con un parámetro ausente y el grafo no
+        // encuentra nada: la respuesta es 200 con la forma de "no hay camino dentro de seis
+        // grados", que es idéntica a la de una consulta válida entre dos personas lejanas. El
+        // cliente no podría distinguir un resultado legítimo de una llamada mal formada, y
+        // terminaría pintando como error un caso que no lo es. Es el mismo motivo por el que
+        // /comunes responde 400 en vez de devolver la lista vacía.
+        if (origen == null || origen.isBlank() || destino == null || destino.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("error", "Los campos 'origen' y 'destino' son obligatorios"))
+                    .build();
+        }
+
         return Response.ok(gestionarGrafoSocialUseCase.obtenerCaminoMasCorto(origen, destino))
                 .build();
     }

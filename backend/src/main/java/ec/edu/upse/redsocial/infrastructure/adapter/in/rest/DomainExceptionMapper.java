@@ -8,8 +8,8 @@ import jakarta.ws.rs.ext.Provider;
 import java.util.Map;
 
 /**
- * Evita que las excepciones de dominio escapen como 500 con detalle técnico.
- * Traduce el error a un mensaje que el frontend puede mostrar al usuario.
+ * Evita que las excepciones de dominio escapen como 500 con detalle técnico. Traduce el error a un
+ * mensaje que el frontend puede mostrar al usuario.
  */
 @Provider
 public class DomainExceptionMapper implements ExceptionMapper<AutorNoEncontradoException> {

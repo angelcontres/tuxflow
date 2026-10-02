@@ -148,7 +148,9 @@ describe('CreatePostForm', () => {
     await user.upload(input, new File(['x'], 'f.png', { type: 'image/png' }));
 
     await waitFor(() => {
-      expect(screen.getByText('No pudimos subir la imagen. Inténtalo de nuevo.')).toBeInTheDocument();
+      expect(
+        screen.getByText('No pudimos subir la imagen. Inténtalo de nuevo.'),
+      ).toBeInTheDocument();
     });
     expect(screen.queryByText(/status code/i)).not.toBeInTheDocument();
   });

@@ -97,10 +97,7 @@ export const CreatePostForm: React.FC<CreatePostFormProps> = ({
       showFeedback('success', 'Publicación creada exitosamente');
       onPostCreated();
     } catch (err) {
-      showFeedback(
-        'error',
-        getUserFacingError(err, 'No pudimos publicar. Inténtalo de nuevo.'),
-      );
+      showFeedback('error', getUserFacingError(err, 'No pudimos publicar. Inténtalo de nuevo.'));
     } finally {
       setSubmitting(false);
     }
@@ -218,9 +215,7 @@ export const CreatePostForm: React.FC<CreatePostFormProps> = ({
                   className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-blue-600 disabled:opacity-50 px-2.5 py-1.5 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
                 >
                   <Upload className="w-4 h-4 text-blue-500" />
-                  <span>
-                    {uploadingMedia ? 'Subiendo imagen...' : 'Agregar imagen'}
-                  </span>
+                  <span>{uploadingMedia ? 'Subiendo imagen...' : 'Agregar imagen'}</span>
                 </button>
 
                 {!showUrlInput && (

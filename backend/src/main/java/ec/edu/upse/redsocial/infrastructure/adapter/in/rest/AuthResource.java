@@ -74,9 +74,8 @@ public class AuthResource {
     }
 
     /**
-     * Devuelve el usuario del token presentado. Es lo que permite al frontend
-     * restaurar la sesión tras recargar la página sin volver a pedir la
-     * contraseña.
+     * Devuelve el usuario del token presentado. Es lo que permite al frontend restaurar la sesión
+     * tras recargar la página sin volver a pedir la contraseña.
      */
     @GET
     @Path("/me")
@@ -116,14 +115,18 @@ public class AuthResource {
                 || usuario.getPassword() == null
                 || usuario.getPassword().isBlank()) {
             return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(Map.of("error", "Los campos nombre, username y password son obligatorios"))
+                    .entity(
+                            Map.of(
+                                    "error",
+                                    "Los campos nombre, username y password son obligatorios"))
                     .build();
         }
 
         // Generar ID automáticamente desde el username
-        String id = usuario.getUsername().toLowerCase()
-                .replaceAll("[^a-z0-9_]", "-")
-                + "-" + java.util.UUID.randomUUID().toString().substring(0, 8);
+        String id =
+                usuario.getUsername().toLowerCase().replaceAll("[^a-z0-9_]", "-")
+                        + "-"
+                        + java.util.UUID.randomUUID().toString().substring(0, 8);
         usuario.setId(id);
 
         // Verificar si el usuario ya existe

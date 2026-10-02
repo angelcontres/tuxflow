@@ -1,4 +1,4 @@
-import { ConexionComun, SugerenciaUsuario, Usuario } from '../types/network.types';
+import { CaminoCorto, ConexionComun, SugerenciaUsuario, Usuario } from '../types/network.types';
 import { api } from '../../../shared/api/client';
 
 export const fetchSugerenciasGrafo = async (userId: string): Promise<SugerenciaUsuario[]> => {
@@ -31,6 +31,21 @@ export const fetchConexionesComunes = async (
 ): Promise<ConexionComun[]> => {
   const response = await api.get<ConexionComun[]>('/users/comunes', {
     params: { userA, userB },
+  });
+  return response.data;
+};
+
+/**
+ * Cadena mínima de relaciones `SIGUE` entre dos perfiles, hasta seis saltos (Cypher #4
+ * obligatoria).
+ *
+ * El error se deja propagar a propósito, como en `fetchConexionesComunes`, y en particular
+ * no se convierte en una ruta vacía: un 400 por petición incompleta es una llamada mal
+ * formada, y el componente necesita distinguirla del resultado legítimo "no hay camino".
+ */
+export const fetchCaminoCorto = async (origen: string, destino: string): Promise<CaminoCorto> => {
+  const response = await api.get<CaminoCorto>('/users/camino-corto', {
+    params: { origen, destino },
   });
   return response.data;
 };

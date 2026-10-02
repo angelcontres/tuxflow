@@ -128,7 +128,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                         onClick={() => setShowPassword(!showPassword)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                       >
-                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        {showPassword ? (
+                          <EyeOff className="w-4 h-4" />
+                        ) : (
+                          <Eye className="w-4 h-4" />
+                        )}
                       </button>
                     </div>
 
@@ -222,7 +226,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                         onClick={() => setShowRegPassword(!showRegPassword)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                       >
-                        {showRegPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        {showRegPassword ? (
+                          <EyeOff className="w-4 h-4" />
+                        ) : (
+                          <Eye className="w-4 h-4" />
+                        )}
                       </button>
                     </div>
 
@@ -266,9 +274,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             )}
           </div>
 
-          <p className="text-center text-xs text-slate-400 mt-4">
-            Red Social Distribuida
-          </p>
+          <p className="text-center text-xs text-slate-400 mt-4">Red Social Distribuida</p>
         </div>
       </div>
     </div>

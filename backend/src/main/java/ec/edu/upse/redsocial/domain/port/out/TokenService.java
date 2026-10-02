@@ -5,8 +5,8 @@ import java.util.Optional;
 /**
  * Puerto de salida para emitir y validar tokens de sesión firmados.
  *
- * Mantiene la lógica criptográfica fuera del dominio: el dominio solo sabe
- * que pide "un token para este usuario" y "valida este token".
+ * <p>Mantiene la lógica criptográfica fuera del dominio: el dominio solo sabe que pide "un token
+ * para este usuario" y "valida este token".
  */
 public interface TokenService {
 
@@ -22,8 +22,8 @@ public interface TokenService {
     /**
      * Valida la firma y la expiración del token.
      *
-     * @return el id del usuario autenticado, o vacío si el token es inválido,
-     *     está manipulado o expiró
+     * @return el id del usuario autenticado, o vacío si el token es inválido, está manipulado o
+     *     expiró
      */
     Optional<String> validarToken(String token);
 }

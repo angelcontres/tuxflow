@@ -19,7 +19,13 @@ public class Usuario {
         this.avatarUrl = avatarUrl;
     }
 
-    public Usuario(String id, String username, String email, String nombre, String avatarUrl, String password) {
+    public Usuario(
+            String id,
+            String username,
+            String email,
+            String nombre,
+            String avatarUrl,
+            String password) {
         this.id = id;
         this.username = username;
         this.email = email;
