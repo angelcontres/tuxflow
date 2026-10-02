@@ -2,16 +2,18 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { UserSuggestionsCard } from './UserSuggestionsCard';
-import { followUserInGraph, unfollowUserInGraph } from '../services/networkApi';
-import type { SugerenciaUsuario, Usuario } from '../types/network.types';
+import { fetchCaminoCorto, followUserInGraph, unfollowUserInGraph } from '../services/networkApi';
+import type { CaminoCorto, SugerenciaUsuario, Usuario } from '../types/network.types';
 
 vi.mock('../services/networkApi', () => ({
+  fetchCaminoCorto: vi.fn(),
   followUserInGraph: vi.fn(),
   unfollowUserInGraph: vi.fn(),
 }));
 
 const followMock = vi.mocked(followUserInGraph);
 const unfollowMock = vi.mocked(unfollowUserInGraph);
+const caminoMock = vi.mocked(fetchCaminoCorto);
 
 type FilaSugerencia = SugerenciaUsuario & { seguido: boolean };
 type FilaSeguido = Usuario & { seguido: boolean };
@@ -53,6 +55,7 @@ describe('UserSuggestionsCard', () => {
   beforeEach(() => {
     followMock.mockReset();
     unfollowMock.mockReset();
+    caminoMock.mockReset();
   });
 
   describe('Renderizado de sugerencias', () => {
@@ -267,6 +270,133 @@ describe('UserSuggestionsCard', () => {
 
       expect(await screen.findByRole('alert')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Dejar de seguir' })).toBeInTheDocument();
+    });
+  });
+
+  describe('Cálculo de distancia', () => {
+    const CON_CAMINO: CaminoCorto = {
+      rutaConexion: [
+        { id: 'carlos-patino', username: 'carlos' },
+        { id: 'beatriz-silva', username: 'beatriz' },
+        { id: 'david-mendoza', username: 'david' },
+        { id: 'elena-vega', username: 'elena' },
+      ],
+      saltosTotales: 3,
+    };
+
+    const botonDistancia = (indice = 0): HTMLElement =>
+      screen.getAllByRole('button', { name: /distancia/i })[indice];
+
+    it('envía el usuario actual y el de la fila al pulsar el botón', async () => {
+      caminoMock.mockResolvedValue(CON_CAMINO);
+      const user = userEvent.setup();
+
+      renderCard({ filas: [sugerencia({ id: 'elena-vega', username: 'elena' })] });
+      await user.click(botonDistancia());
+
+      expect(caminoMock).toHaveBeenCalledTimes(1);
+      expect(caminoMock).toHaveBeenCalledWith('carlos-patino', 'elena-vega');
+    });
+
+    it('muestra la cadena de nombres y el total de saltos', async () => {
+      caminoMock.mockResolvedValue(CON_CAMINO);
+      const user = userEvent.setup();
+
+      renderCard({ filas: [sugerencia({ id: 'elena-vega', username: 'elena' })] });
+      await user.click(botonDistancia());
+
+      expect(await screen.findByText('3 saltos de separación')).toBeInTheDocument();
+      expect(screen.getByText('@carlos')).toBeInTheDocument();
+      expect(screen.getByText('@beatriz')).toBeInTheDocument();
+      expect(screen.getByText('@david')).toBeInTheDocument();
+    });
+
+    it('usa el singular cuando el camino es de un solo salto', async () => {
+      caminoMock.mockResolvedValue({
+        rutaConexion: [
+          { id: 'carlos-patino', username: 'carlos' },
+          { id: 'elena-vega', username: 'elena' },
+        ],
+        saltosTotales: 1,
+      });
+      const user = userEvent.setup();
+
+      renderCard({ filas: [sugerencia({ id: 'elena-vega', username: 'elena' })] });
+      await user.click(botonDistancia());
+
+      expect(await screen.findByText('1 salto de separación')).toBeInTheDocument();
+    });
+
+    it('presenta la ausencia de conexión como resultado y no como fallo', async () => {
+      // Ruta vacía con cero saltos es un 200 legítimo: no debe pintarse con rol de alerta,
+      // que es lo reservado para la petición inválida.
+      caminoMock.mockResolvedValue({ rutaConexion: [], saltosTotales: 0 });
+      const user = userEvent.setup();
+
+      renderCard({ filas: [sugerencia({ id: 'elena-vega', username: 'elena' })] });
+      await user.click(botonDistancia());
+
+      expect(
+        await screen.findByText('No hay conexión con @elena dentro de los 6 grados de separación.'),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('muestra una alerta cuando la petición falla y no la confunde con la ausencia de conexión', async () => {
+      caminoMock.mockRejectedValue(new Error('Request failed with status code 400'));
+      const user = userEvent.setup();
+
+      renderCard({ filas: [sugerencia({ id: 'elena-vega', username: 'elena' })] });
+      await user.click(botonDistancia());
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'No pudimos calcular la distancia. Inténtalo de nuevo.',
+      );
+      expect(screen.queryByText(/No hay conexión con @elena/)).not.toBeInTheDocument();
+    });
+
+    it('deshabilita el botón mientras la petición está en curso', async () => {
+      let resolve!: (value: CaminoCorto) => void;
+      caminoMock.mockReturnValue(
+        new Promise<CaminoCorto>((r) => {
+          resolve = r;
+        }),
+      );
+      const user = userEvent.setup();
+
+      renderCard({ filas: [sugerencia({ id: 'elena-vega', username: 'elena' })] });
+      await user.click(botonDistancia());
+
+      expect(screen.getByRole('button', { name: /calculando/i })).toBeDisabled();
+      resolve(CON_CAMINO);
+      expect(await screen.findByText('3 saltos de separación')).toBeInTheDocument();
+    });
+
+    it('calcula cada fila por separado', async () => {
+      caminoMock.mockResolvedValue(CON_CAMINO);
+      const user = userEvent.setup();
+
+      renderCard({
+        filas: [
+          sugerencia({ id: 'elena-vega', username: 'elena' }),
+          sugerencia({ id: 'david-mendoza', username: 'david' }),
+        ],
+      });
+      await user.click(botonDistancia(1));
+
+      expect(caminoMock).toHaveBeenCalledWith('carlos-patino', 'david-mendoza');
+    });
+
+    it('no altera el seguimiento: calcular distancia deja el botón de Seguir intacto', async () => {
+      caminoMock.mockResolvedValue(CON_CAMINO);
+      const user = userEvent.setup();
+
+      renderCard();
+      await user.click(botonDistancia());
+      await screen.findByText('3 saltos de separación');
+
+      expect(screen.getByRole('button', { name: 'Seguir' })).toBeInTheDocument();
+      expect(caminoMock).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -157,6 +157,18 @@ public class UserGraphResource {
     @Path("/camino-corto")
     public Response obtenerCaminoMasCorto(
             @QueryParam("origen") String origen, @QueryParam("destino") String destino) {
+        // Sin esta validación la consulta se ejecuta con un parámetro ausente y el grafo no
+        // encuentra nada: la respuesta es 200 con la forma de "no hay camino dentro de seis
+        // grados", que es idéntica a la de una consulta válida entre dos personas lejanas. El
+        // cliente no podría distinguir un resultado legítimo de una llamada mal formada, y
+        // terminaría pintando como error un caso que no lo es. Es el mismo motivo por el que
+        // /comunes responde 400 en vez de devolver la lista vacía.
+        if (origen == null || origen.isBlank() || destino == null || destino.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("error", "Los campos 'origen' y 'destino' son obligatorios"))
+                    .build();
+        }
+
         return Response.ok(gestionarGrafoSocialUseCase.obtenerCaminoMasCorto(origen, destino))
                 .build();
     }

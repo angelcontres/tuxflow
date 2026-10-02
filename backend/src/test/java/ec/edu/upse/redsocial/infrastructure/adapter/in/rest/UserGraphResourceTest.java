@@ -123,6 +123,78 @@ class UserGraphResourceTest {
     }
 
     @Test
+    @DisplayName(
+            "GET /camino-corto responde 200 con la ruta y los saltos que devuelve el caso de uso")
+    void obtenerCaminoMasCortoResponde200ConLaRuta() {
+        Map<String, Object> camino =
+                Map.of(
+                        "rutaConexion",
+                        List.of(
+                                Map.of("id", "carlos-patino", "username", "carlos"),
+                                Map.of("id", "beatriz-silva", "username", "beatriz"),
+                                Map.of("id", "david-mendoza", "username", "david"),
+                                Map.of("id", "elena-vega", "username", "elena")),
+                        "saltosTotales",
+                        3);
+        when(gestionarGrafoSocialUseCase.obtenerCaminoMasCorto("carlos-patino", "elena-vega"))
+                .thenReturn(camino);
+
+        Response respuesta = resource.obtenerCaminoMasCorto("carlos-patino", "elena-vega");
+
+        assertEquals(200, respuesta.getStatus());
+        assertEquals(camino, respuesta.getEntity());
+    }
+
+    @Test
+    @DisplayName("GET /camino-corto sin camino responde 200 con la forma vacía, no con un error")
+    void obtenerCaminoMasCortoSinCaminoResponde200() {
+        // No hay conexión dentro de los seis grados: es un resultado legítimo y no un fallo,
+        // así que no puede compartir respuesta con una petición incompleta.
+        Map<String, Object> sinCamino = Map.of("rutaConexion", List.of(), "saltosTotales", 0);
+        when(gestionarGrafoSocialUseCase.obtenerCaminoMasCorto("carlos-patino", "angel-villon"))
+                .thenReturn(sinCamino);
+
+        Response respuesta = resource.obtenerCaminoMasCorto("carlos-patino", "angel-villon");
+
+        assertEquals(200, respuesta.getStatus());
+        assertEquals(sinCamino, respuesta.getEntity());
+    }
+
+    @Test
+    @DisplayName(
+            "GET /camino-corto sin origen responde 400 en vez de una ruta vacía indistinguible")
+    void obtenerCaminoMasCortoSinOrigenResponde400() {
+        Response respuesta = resource.obtenerCaminoMasCorto(null, "elena-vega");
+
+        assertEquals(400, respuesta.getStatus());
+        assertFalse(respuesta.getEntity() instanceof List<?>);
+    }
+
+    @Test
+    @DisplayName("GET /camino-corto sin destino responde 400")
+    void obtenerCaminoMasCortoSinDestinoResponde400() {
+        Response respuesta = resource.obtenerCaminoMasCorto("carlos-patino", null);
+
+        assertEquals(400, respuesta.getStatus());
+    }
+
+    @Test
+    @DisplayName("GET /camino-corto con un identificador de solo espacios responde 400")
+    void obtenerCaminoMasCortoConIdentificadorEnBlancoResponde400() {
+        assertEquals(400, resource.obtenerCaminoMasCorto("   ", "elena-vega").getStatus());
+        assertEquals(400, resource.obtenerCaminoMasCorto("carlos-patino", "  ").getStatus());
+    }
+
+    @Test
+    @DisplayName("GET /camino-corto no consulta el grafo cuando la petición es inválida")
+    void obtenerCaminoMasCortoInvalidaNoConsultaElGrafo() {
+        resource.obtenerCaminoMasCorto(null, "elena-vega");
+        resource.obtenerCaminoMasCorto("carlos-patino", "  ");
+
+        verifyNoInteractions(gestionarGrafoSocialUseCase);
+    }
+
+    @Test
     @DisplayName("POST /avatar sin archivo responde 400 con mensaje para el usuario")
     void subirAvatarSinArchivoResponde400() {
         Response respuesta = resource.subirAvatarSinUsuario(null);

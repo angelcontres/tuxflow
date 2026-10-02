@@ -10,6 +10,7 @@ import jakarta.inject.Inject;
 import java.util.*;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.Record;
+import org.neo4j.driver.Value;
 import org.neo4j.driver.Values;
 
 @ApplicationScoped
@@ -194,14 +195,30 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
         }
     }
 
+    /**
+     * Nombre de usuario con el que se sustituye un salto sin username.
+     *
+     * <p>En Neo4j asignar null a una propiedad la elimina, así que un usuario sin nombre llega aquí
+     * como {@code NullValue}. Sin el sustituto, {@code NullValue.asString()} devolvería el texto
+     * literal {@code "null"} y ese nombre inventado se renderizaría como si fuera real. El
+     * identificador viaja en el mismo elemento, así que no se pierde información.
+     */
+    private static final String USERNAME_POR_DEFECTO = "desconocido";
+
     // --- 4. Grado de Separación y Camino Más Corto (Shortest Path) ---
     @Override
     public Map<String, Object> obtenerCaminoMasCorto(String origenId, String destinoId) {
+        // El Cypher obligatorio del ticket proyecta sólo el username de cada nodo
+        // (`[n IN nodes(p) | n.username]`). El design (D4) pide además el identificador de
+        // cada salto, para que la interfaz pueda recorrer el camino y no imprimirlo como texto
+        // plano, así que la proyección pasa a un mapa por nodo. Lo demás se mantiene literal,
+        // porque es el alcance que fija D1: shortestPath, el recorrido dirigido de SIGUE, el
+        // tope de 6 grados y la exclusión `origen <> destino`.
         String cypher =
                 """
             MATCH p = shortestPath((origen:Usuario {id: $origenId})-[:SIGUE*..6]->(destino:Usuario {id: $destinoId}))
             WHERE origen <> destino
-            RETURN [n IN nodes(p) | n.username] AS rutaConexion,
+            RETURN [n IN nodes(p) | {id: n.id, username: n.username}] AS rutaConexion,
                    length(p) AS saltosTotales;
             """;
 
@@ -213,18 +230,61 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                                         cypher,
                                         Values.parameters(
                                                 "origenId", origenId, "destinoId", destinoId));
-                        if (result.hasNext()) {
-                            Record record = result.next();
-                            Map<String, Object> map = new HashMap<>();
-                            map.put(
-                                    "rutaConexion",
-                                    record.get("rutaConexion").asList(v -> v.asString()));
-                            map.put("saltosTotales", record.get("saltosTotales").asInt());
-                            return map;
+                        // Sin camino dentro de seis grados, el shortestPath no devuelve filas.
+                        // Antes se respondía con un mapa vacío, indistinguible de una petición sin
+                        // parámetros y de un usuario comparado consigo mismo: tres situaciones
+                        // distintas con una sola respuesta posible. La forma vacía explícita deja
+                        // "no hay conexión" como resultado y no como fallo (D2).
+                        if (!result.hasNext()) {
+                            return caminoVacio();
                         }
-                        return Collections.emptyMap();
+                        Record record = result.next();
+                        Map<String, Object> map = new HashMap<>();
+                        map.put("rutaConexion", leerRutaConexion(record.get("rutaConexion")));
+                        map.put("saltosTotales", record.get("saltosTotales").asInt());
+                        return map;
                     });
         }
+    }
+
+    /** Respuesta de "no hay camino dentro del alcance": ruta vacía y cero saltos, no un error. */
+    private static Map<String, Object> caminoVacio() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("rutaConexion", new ArrayList<Map<String, Object>>());
+        map.put("saltosTotales", 0);
+        return map;
+    }
+
+    /**
+     * Lee la lista de saltos del camino, conservando el orden que devolvió la base de datos.
+     *
+     * <p>Un salto sin username no anula el resto de la ruta: el resto de la información es válida y
+     * se necesita (D5).
+     */
+    private static List<Map<String, Object>> leerRutaConexion(Value ruta) {
+        List<Map<String, Object>> saltos = new ArrayList<>();
+        if (ruta == null || ruta.isNull()) {
+            return saltos;
+        }
+        for (Value salto : ruta.asList(valor -> valor)) {
+            Map<String, Object> nodo = new HashMap<>();
+            nodo.put("id", textoONulo(salto, "id"));
+            nodo.put("username", usernameONulo(salto));
+            saltos.add(nodo);
+        }
+        return saltos;
+    }
+
+    /** Texto de una propiedad del salto, o null si el salto no la trae. */
+    private static String textoONulo(Value salto, String propiedad) {
+        Value valor = salto.get(propiedad);
+        return valor == null || valor.isNull() ? null : valor.asString();
+    }
+
+    /** Username del salto, con valor por defecto cuando el nodo no lo tiene cargado. */
+    private static String usernameONulo(Value salto) {
+        Value valor = salto.get("username");
+        return valor == null || valor.isNull() ? USERNAME_POR_DEFECTO : valor.asString();
     }
 
     // --- 5. Tendencias en la Red Extendida (Posts con más interacción a 1 y 2 saltos) ---
