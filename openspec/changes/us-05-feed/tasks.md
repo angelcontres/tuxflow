@@ -1,121 +1,136 @@
 # Tasks: US-05 (TUX-55) — Feed cronológico por grafo social
 
-> **Dominio**: `feed-generation` · **Estrategia de entrega**: `single-pr` · **Límite de revisión**: 800 líneas
+> **Ticket Linear**: `TUX-55` · **Dominio**: `feed-generation` · **Estrategia de entrega**: `single-pr`
+> **Límite de revisión**: 800 líneas
 
-**Archivos a modificar**: `Neo4jGrafoAdapter.java`, `PostCard.tsx`, `post.types.ts`
+**Archivos a modificar**: `App.tsx`, `FeedList.tsx`, `PostCard.tsx`, helper `formatFecha` nuevo,
+pruebas colocaladas `*.test.tsx` (frontend). El backend no se toca.
 
 ## Review Workload Forecast
 
 | Métrica | Valor |
 |---|---|
-| Unidades de trabajo | 3 |
-| Líneas estimadas de cambio | 45–70 |
+| Unidades de trabajo | 4 (3 de comportamiento + 1 fase de tests) |
+| Líneas estimadas de cambio | 180–260 (incluyendo pruebas) |
 | Riesgo de presupuesto de 400 líneas | **Bajo** |
 | PRs encadenados recomendados | **No** |
 | Decisión necesaria antes de apply | **No** |
-| División sugerida | PR único |
 | Estrategia de entrega | single-pr |
-| Límite de revisión del preflight | 800 líneas |
 
 | Unidad | Alcance | Líneas |
 |---|---|---|
-| 1 | Leer la fecha como entero (D1) | 8–12 |
-| 2 | Formatear la fecha en el componente (D2) | 25–40 |
-| 3 | Manejar el fallo de carga del avatar (D3) | 10–15 |
+| 1 | Desacoplar el refetch de red del refetch de feed (D2, unfollow) | 30–50 |
+| 2 | Like sin refetch del feed, contador en el lugar (D2, like) | 20–40 |
+| 3 | Fecha formateada + avatar con fallback a inicial (D1, D3) | 40–60 |
+| 4 | Fase de tests obligatoria (Vitest + Testing Library, colocaladas) | 90–110 |
 
-**Recomendación**: un único PR. La unidad 1 es una línea y es la que desbloquea todo lo demás: mientras el
-endpoint devuelva 500, las unidades 2 y 3 no se pueden ni comprobar.
-
----
-
-## Unidad 1: Que el feed deje de devolver 500
-
-**Desbloquea**: la historia entera. Sin esto no hay nada que ver en el navegador.
-**Rollback**: revertir devuelve el 500. Es el estado actual, así que no hay riesgo de empeorar nada.
-
-- [ ] En `Neo4jGrafoAdapter.obtenerFeedCronologico()`, cambiar la línea que asigna la fecha para leer el
-      valor con `asLong()` y convertirlo con `String.valueOf(...)`
-- [ ] No cambiar la firma de `Post.setFechaCreacion`: sigue recibiendo `String`
-- [ ] No tocar el Cypher #1. Es obligatorio, está verificado contra el ticket y no es la causa
-- [ ] No cambiar `Post.fechaCreacion` a `long`. El modelo se comparte con US-04, US-06 y US-11
-- [ ] Verificar con el cURL del backlog que la respuesta es `200` y trae `post-b1` y `post-p1`, sin
-      `post-d1`
-
-**Nota**: el fallo es una excepción de coerción, no un `null`. Por eso aparece como 500 y no como feed
-vacío. Si tras el cambio la fecha llega como número y no como texto, el mapeo quedó a medias.
+**Recomendación**: un único PR. Las unidades 1 y 2 comparten el mismo desacople y deben revisarse
+juntas: si solo se desacopla el unfollow, el like reintroduce la desaparición. La unidad 4 cubre las
+tres anteriores y es bloqueante para el cierre según `openspec/config.yaml` (`rules.tasks`: fase de
+tests obligatoria; `rules.verify`: historia sin pruebas = WARNING, no PASS).
 
 ---
 
-## Unidad 2: Formatear la fecha
+## Unidad 1: Desacoplar el refetch de red (unfollow no vacía el feed)
 
-**Desbloquea**: el entregable "formatted date" del ticket, hoy ausente.
-**Rollback**: revertir devuelve el epoch crudo, que es legible pero inútil.
+**Desbloquea**: el requisito nuevo — los posts ya renderizados sobreviven al unfollow. Sin esto, la
+unidad 2 no tiene sentido (el like seguiría reconstruido por el mismo `loadAllData`).
+**Rollback**: revertir devuelve la desaparición inmediata tras cada unfollow.
 
-### Pasos
-
-- [ ] Crear un helper `formatFecha(valor: string): string` en el módulo de feed, junto a los tipos
-- [ ] Convertir el valor con `new Date(Number(valor))`
-- [ ] Si la conversión no produce una fecha válida, devolver `'Reciente'`
-- [ ] Para menos de siete días, devolver tiempo relativo en español: minutos, horas o días
-- [ ] Para siete días o más, devolver la fecha absoluta con `Intl.DateTimeFormat`
-- [ ] Reemplazar el render actual de `post.fechaCreacion || 'Reciente'` por una llamada al helper
-- [ ] Quitar el `|| 'Reciente'`: es código muerto, porque epoch en milisegundos nunca es falsy. El
-      chequeo de validez va dentro del helper, no en el JSX
-- [ ] No formatear en el backend. La decisión de presentación es del cliente y depende de su locale
-- [ ] No agregar una dependencia de formato de fechas. `Intl` está en el runtime
-
-### Nota sobre el cero
-
-`0` es un epoch válido: 1 de enero de 1970. Un chequeo de vacío o de `=== 0` lo trataría como "sin fecha".
-Solo `Number.isNaN` distingue "no hay fecha" de "la fecha es muy antigua".
+- [ ] Separar en `App.tsx` el refresco de red (sugerencias + seguidos → `setRed`) del refresco de
+      feed (`fetchFeedBySocialGraph` → `setPosts`), de modo que `UserSuggestionsCard` reciba un
+      `onNetworkUpdated` que ya NO reconstruya los posts
+- [ ] Conservar el refresco de feed en la carga inicial y al crear un post (`CreatePostForm` →
+      `onPostCreated`); ahí sí aplica el filtrado vigente del backend
+- [ ] No cambiar el backend ni el Cypher. La API sigue excluyendo a los no seguidos
+- [ ] No proponer fan-out-on-write. Explícitamente rechazado en `proposal.md`
 
 ---
 
-## Unidad 3: Que el avatar sobreviva a una URL rota
+## Unidad 2: Like sin refetch (el contador se actualiza en el lugar)
 
-**Desbloquea**: el entregable "avatar support" cuando la URL está inaccesible.
-**Rollback**: revertir deja la imagen rota, que es el estado actual.
+**Desbloquea**: que dar like a un post de un usuario recién dejado de seguir no lo haga desaparecer
+en mitad del clic. Depende de la unidad 1 (mismo `loadAllData` compartido).
+**Rollback**: revertir devuelve la reconstrucción del feed en cada like.
 
-- [ ] Agregar un booleano `avatarError` al estado del componente, inicializado en `false`
-- [ ] Poner `onError` en el `<img>` del avatar para poner ese booleano en `true`
-- [ ] Renderizar el avatar solo cuando exista la URL **y** `avatarError` sea `false`
-- [ ] Cuando no se renderice el avatar, conservar la inicial del nombre como se muestra hoy
-- [ ] No tocar el `<img>` de `mediaUrl`. La imagen adjunta es entregable de US-04 y su `onError` se
-      resuelve con US-04
-- [ ] Mantener el badge `• Amigo en Grafo` visible siempre. Todo post del feed viene de alguien seguido,
-      así que el badge es cierto por construcción
+- [ ] Desconectar `PostCard.handleLike` del refetch global: tras `togglePostLike` con éxito, conservar
+      el estado optimista local (`isLiked` / `likesCount`) sin llamar a `onRefresh`/`loadAllData`
+- [ ] Conservar el comportamiento de fallo actual: revertir el contador y registrar con
+      `console.error` (el endpoint pertenece a US-06; no cambiar su contrato)
+- [ ] Ajustar el cableado `FeedList.tsx:33` (`onLikeChanged={onRefresh}`) según el diseño D2, sin
+      romper el resto de usos de `onRefresh`
+- [ ] Verificar el escenario: unfollow a "beatriz" → like a su post visible → el post sigue en
+      pantalla con el contador actualizado
+
+---
+
+## Unidad 3: Fecha formateada y avatar con fallback a la inicial
+
+**Desbloquea**: los entregables "formatted date" y "avatar support" del ticket, hoy pendientes.
+Independiente de las unidades 1–2 en código, pero viaja en el mismo PR.
+**Rollback**: revertir devuelve el literal `"Publicado"` y el círculo vacío.
+
+### Fecha (D1)
+
+- [ ] Crear el helper `formatFecha(valor: number): string` junto al módulo de feed
+- [ ] Menos de siete días: tiempo relativo en español (minutos, horas, días)
+- [ ] Siete días o más: fecha absoluta con `Intl.DateTimeFormat`
+- [ ] Valor ausente o inválido: devolver `'Reciente'` (chequeo de validez dentro del helper, con
+      `Number.isNaN`; `0` es un epoch válido y no es "sin fecha")
+- [ ] Reemplazar el literal `"Publicado"` de `PostCard.tsx:76` por la llamada al helper
+- [ ] No formatear en el backend; no agregar dependencia de fechas (`Intl` está en el runtime)
+
+### Avatar (D3)
+
+- [ ] Reemplazar el `onError` actual de `PostCard.tsx:62-64` (`display = 'none'`) por el estado de
+      "avatar caído" que renderiza la inicial, con el mismo patrón de `UserSuggestionsCard.tsx:81-101`
+- [ ] No tocar el `onError` de `mediaUrl` (`PostCard.tsx:93`): ya existe y funciona
+
+---
+
+## Unidad 4: Fase de tests obligatoria
+
+**Desbloquea**: el cierre de la historia. Según `openspec/config.yaml` (`testing.runner.frontend`:
+Vitest + Testing Library + jsdom, pruebas colocaladas `*.test.tsx`, imports explícitos desde
+`'vitest'`), ningún comportamiento se declara correcto sin una prueba que lo cubra.
+**Rollback**: N/A — sin esta unidad la historia se reporta como WARNING, no como PASS.
+
+- [ ] Prueba: tras unfollow exitoso, los posts ya renderizados siguen visibles y la tarjeta de red
+      refleja el nuevo estado
+- [ ] Prueba: en la próxima carga del feed tras el unfollow, los posts del usuario dejado de seguir
+      ya no aparecen (el mock de `fetchFeedBySocialGraph` devuelve el feed filtrado)
+- [ ] Prueba: dar like actualiza el contador en el lugar sin pedir el feed de nuevo (el mock del feed
+      no recibe una segunda llamada); ante fallo de `togglePostLike`, el contador se revierte
+- [ ] Prueba: `formatFecha` devuelve relativo para fechas recientes, absoluto para > 7 días y
+      `"Reciente"` para valor ausente o inválido
+- [ ] Prueba: avatar con URL rota renderiza la inicial, sin imagen rota ni círculo vacío
+- [ ] Si alguna prueba debe quedar pendiente, justificar el motivo en el archivo (regla de
+      `config.yaml`); nunca desactivar una prueba para dejarla verde
 
 ---
 
 ## Fuera de alcance
 
-- Cambiar el Cypher #1 o la sintaxis `EXISTS()`. Es obligatorio y verificado contra el ticket.
-- Cambiar `Post.fechaCreacion` a `long`. Deuda documentada en `design.md`.
-- Paginación. `LIMIT 20` es fijo y el Gherkin no la pide.
-- `onError` en la imagen de `mediaUrl`. Entregable de US-04.
-- US-06. El botón de like ya se llama desde `PostCard` y falla en silencio hasta que US-06 exista.
+- Cambiar el Cypher, el mapeo `isNull() ? null : asLong()` o `Post.fechaCreacion` (ya es `Long`).
+- Paginación (`LIMIT 20` fijo; el Gherkin no la pide).
+- Materialización fan-out-on-write (rechazada).
+- US-06: el contrato de `togglePostLike` no se modifica.
+- Sintaxis `EXISTS(...)` deprecada: no se toca (Cypher verificado contra el ticket).
 
 ## Verificación
 
 ```bash
-# Backend
-cd backend && mvn compile
+# Frontend (única capa tocada)
+cd frontend && pnpm test && pnpm run build && pnpm run lint
 
-# Frontend
-cd frontend && pnpm run build
-
-# cURL del backlog
-curl -X GET http://localhost:8080/api/feed/carlos-patino
+# Backend (sin cambios; solo confirmar que sigue verde)
+cd backend && $MAVEN_HOME/bin/mvn test
 ```
 
-No hay suite de pruebas en el proyecto, por decisión registrada en `openspec/config.yaml`.
-
-- [ ] `mvn compile` termina en verde
-- [ ] `pnpm run build` termina en verde
-- [ ] El cURL devuelve `200`, con `post-b1` y `post-p1`, y sin `post-d1`
-- [ ] Cada publicación trae `fechaCreacion` como texto numérico, no como exception
-- [ ] En navegador: la fecha se lee como tiempo relativo, no como número
-- [ ] En navegador: una publicación de hace más de una semana muestra fecha absoluta
-- [ ] En navegador: una publicación sin fecha válida muestra "Reciente"
-- [ ] En navegador: un avatar con URL rota muestra la inicial, no una imagen rota
-- [ ] En navegador: un usuario sin seguido muestra el estado vacío, no un error
+- [ ] `pnpm test` en verde, incluyendo las pruebas nuevas de la unidad 4
+- [ ] `pnpm run build` en verde (typechequea también las pruebas)
+- [ ] `pnpm run lint` sin errores nuevos
+- [ ] `$MAVEN_HOME/bin/mvn test` en verde (sin cambios de backend)
+- [ ] En navegador: tras dejar de seguir, los posts siguen visibles hasta la próxima carga
+- [ ] En navegador: la fecha se lee como tiempo relativo / absoluto / "Reciente" según el caso
+- [ ] En navegador: un avatar con URL rota muestra la inicial, no un círculo vacío

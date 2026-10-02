@@ -1,0 +1,124 @@
+# US-05 — Feed cronológico filtrado por grafo social (TUX-55)
+
+> **Rama**: `carlosfpatino/tux-55-us-05-chronological-feed-filtered-by-social-graph-2-hops`
+> **Dominio**: `feed-generation` · **TDD**: desactivado (`strict_tdd: false`, fuente `openspec/config.yaml`)
+> **Tests**: obligatorios. `config.yaml` exige fase de tests; no cerrar la historia sin pruebas.
+
+## Objetivo
+
+Que el feed de un usuario funcione, muestre la fecha formateada, degrade bien el avatar, y **no le arranque
+publicaciones de la pantalla mientras el usuario las está leyendo**.
+
+## Problema verificado
+
+`App.tsx:74-88` define `loadAllData`, que refresca feed + sugerencias + seguidos en un solo
+`Promise.all` y termina en `setPosts(feedData)`. `App.tsx:164` pasa ese mismo `loadAllData` como
+`onNetworkUpdated` a `UserSuggestionsCard`, que lo invoca tras cada unfollow
+(`UserSuggestionsCard.tsx:40`).
+
+Consecuencia: dejar de seguir a alguien borra sus publicaciones del feed **de inmediato**, sin que el
+usuario haya pedido recargar nada. Es un efecto secundario de compartir la función de refresco, no una
+decisión de producto.
+
+## Alcance autorizado
+
+| # | Trabajo | Dónde |
+|---|---|---|
+| 1 | Reescribir los 4 artifacts contra la realidad verificada | `openspec/changes/us-05-feed/**` |
+| 2 | Requisito nuevo: unfollow no refetchea el feed | `App.tsx`, `App.test.ts` |
+| 3 | Requisito nuevo: like no refetchea el feed | `PostCard.tsx`, `App.tsx` |
+| 4 | Fecha formateada (hoy muestra el literal `"Publicado"`) | `PostCard.tsx`, helper nuevo |
+| 5 | Avatar cae a la inicial cuando la URL falla | `PostCard.tsx` |
+| 6 | Pruebas de todo lo anterior | colocaladas |
+
+## Estado real verificado (2026-10-01)
+
+Ya resuelto, **no rehacer**:
+
+- **H1 — el 500 por `asString()`**: arreglado en `a20f067` (PR #11). `Neo4jGrafoAdapter.java:56-59` usa
+  `isNull() ? null : asLong()`. El feed ya devuelve 200.
+- **`Post.fechaCreacion`**: ya es `Long`, no `String`. Cambiado en el mismo commit.
+- **`post.types.ts:5`**: ya declara `fechaCreacion: number`.
+
+Los tres artifacts actuales mienten sobre esto. Hay que corregirlos, no reimplementarlos.
+
+## Pendiente real
+
+- **Fecha**: `PostCard.tsx:76` renderiza el string fijo `"Publicado"`. No muestra la fecha de ninguna
+  forma. No existe `formatFecha`.
+- **Avatar**: `PostCard.tsx:62-64` tiene `onError` pero hace `style.display = 'none'`, dejando el
+  círculo azul **vacío**. No cae a la inicial.
+- **`mediaUrl`**: `PostCard.tsx:93` ya tiene `onError`. El artifact lo declaraba fuera de alcance.
+- **Feed**: `LIMIT 20` fijo, sin paginación. Fuera de alcance (el Gherkin no lo pide).
+- **Like**: el endpoint es de US-06. Hoy el fallo se consola y el contador se revierte.
+
+## Decisiones
+
+- **Unfollow no borra posts de la pantalla.** Se desacoplan los refetches. El endpoint sigue filtrando
+  por grafo: el Gherkin ("excluye completamente la publicación de david") queda intacto. Cambia cuándo
+  se aplica el cambio, no qué devuelve la API.
+- **Like tampoco refetchea el feed.** Si no, un like sobre un post de alguien no seguido lo haría
+  desaparecer en el click. Se refresca el contador en el lugar.
+- **Copia local, no refetch, en el camino del like.** Evita el parpadeo y una request por like.
+- **Fecha formateada en el cliente.** El backend no debe decidir locale.
+- **Sin dependencia de fechas.** `Intl` está en el runtime.
+- **Éxito de unfollow es requisito, no efecto secundario.** Hoy el `catch` de la UI mantiene el botón en
+  "Dejar de seguir" si falla la request, pero hay que asegurar que la fila refleje el estado real.
+
+## Criterios de aceptación
+
+- [ ] El feed responde 200 y trae los posts de los seguidos, sin los de los no seguidos
+- [ ] Cada post trae `totalLikes` y `likedByMe` correctos
+- [ ] La fecha se ve como tiempo relativo si es reciente, absoluta si es de hace más de 7 días
+- [ ] Una fecha ausente o inválida muestra "Reciente"
+- [ ] Un avatar con URL rota muestra la inicial, no un círculo vacío ni una imagen rota
+- [ ] Tras dejar de seguir, los posts siguen visibles hasta la próxima carga del feed
+- [ ] Tras la próxima carga, esos posts ya no aparecen
+- [ ] Dar like no borra el post de la pantalla
+
+## Checks
+
+```bash
+cd backend  && $MAVEN_HOME/bin/mvn test
+cd frontend && pnpm test && pnpm run build && pnpm run lint
+```
+
+## Progreso
+
+**2026-10-01 — las 4 unidades implementadas y verificadas.** Frontend únicamente; backend sin tocar.
+
+- [x] **U1** `App.tsx`: `loadAllData` partido en `loadFeed` (posts), `loadNetwork` (red) y `loadAllData`
+      (combinada, para arranque y creación de posts). `onNetworkUpdated={loadNetwork}` — unfollow ya no
+      reconstruye el feed.
+- [x] **U2** `PostCard.tsx`: el like queda optimista y local, sin refetch. Se conserva la reversión del
+      contador y el `console.error` ante fallo. Cadena de props muertas `onLikeChanged`/`onRefresh`
+      eliminada de `PostCard` → `FeedList` → `App`.
+- [x] **U3a** `frontend/src/features/feed/utils/formatFecha.ts`: relativo < 7 días, absoluto con `Intl`
+      ≥ 7 días, `'Reciente'` ante valor ausente/inválido, `0` tratado como epoch válido, futuro
+      clampado a "ahora mismo". Reemplaza el literal `"Publicado"`.
+- [x] **U3b** `PostCard.tsx`: `avatarCaido` reemplaza el `display='none'`, con el patrón de
+      `UserSuggestionsCard`. Sin imagen rota ni círculo vacío. `mediaUrl` intacto.
+- [x] **U4** 21 pruebas nuevas en 3 archivos: `formatFecha.test.ts` (10), `PostCard.test.tsx` (8),
+      `App.test.tsx` (3, integración).
+
+### Evidencia de verificación (ejecutada por el orquestador, no reportada)
+
+| Check | Resultado |
+|---|---|
+| `pnpm test` | **PASS** — 9 archivos, 79 pruebas (58 preexistentes + 21 nuevas) |
+| `pnpm run build` | **PASS** — `tsc` limpio + `vite build` OK (typechequea también las pruebas) |
+| `pnpm run lint` | **PASS** — `eslint .` sin errores ni warnings |
+
+Backend no se modificó, así que no se re-corre `mvn test`.
+
+### Estado divergente conocido (deliberado)
+
+Tras unfollow, la tarjeta de red muestra "Seguir" mientras el feed todavía muestra los posts de esa
+persona. Es el comportamiento especificado en D2 y está fijado por prueba para que nadie lo "arregle"
+volviendo a un refetch conjunto.
+
+### Pendiente
+
+- Ninguna unidad de código. Falta la verificación manual en navegador (los 3 puntos de la lista de
+  verificación) y el commit.
+

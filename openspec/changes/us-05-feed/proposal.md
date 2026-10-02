@@ -1,14 +1,14 @@
 # Proposal: US-05 (TUX-55) — Feed cronológico filtrado por grafo social
 
 > **Ticket Linear**: `TUX-55` — US-05: Chronological feed filtered by social graph (2 hops) · Sprint 2 · 5 SP · P0 Must
-> **Card backlog**: `TUX-04` en `docs/backlog-programadores.md` línea 207
-> **Rama**: `feature/US-05-feed-grafo`
-> **Épica**: Feed Social · **Dominio canónico**: `feed-generation` · **Asignado**: Paulo Orrala / Angel Villon
+> **Dominio canónico**: `feed-generation`
 
 ## Intención
 
 Como usuario de la red social, quiero ver en mi timeline solo las publicaciones de los usuarios que sigo,
-con el total de likes y si ya reaccioné a cada una.
+con el total de likes y si ya reaccioné a cada una, con la fecha legible y el avatar degradado a la
+inicial cuando la imagen falla. Y quiero que dejar de seguir a alguien **no me arranque de la pantalla**
+las publicaciones que ya estoy leyendo.
 
 ## Criterio de aceptación (Gherkin)
 
@@ -20,87 +20,77 @@ Y excluye completamente la publicación de "david"
 Y calcula "totalLikes" y "likedByMe" mediante la relación [:REACCIONA].
 ```
 
-## Estado real: la estructura está completa, el camino está roto
+## Estado real verificado (2026-10-01)
 
-El entregable estructural de TUX-55 está entero:
+El camino del backend **ya funciona**. Lo siguiente está resuelto y no se rehace:
 
-| Entregable de TUX-55 | Ubicación | Estado |
-|---|---|---|
-| Cypher #1 obligatoria | `Neo4jGrafoAdapter:23` | **Idéntica al ticket, byte por byte** |
-| `ObtenerFeedUseCase` | `application/usecase/out/` | **Completo** |
-| `FeedApplicationService` | `application/service/` | **Completo** |
-| Inbound `GET /api/feed/{userId}` | `FeedResource` | **Completo** |
-| `fetchFeedBySocialGraph` | `feed/services/feedApi.ts:8` | **Completo** |
-| `FeedList.tsx` + `PostCard.tsx` | `feed/components/` | **Completos, con avatar y badge** |
+- **El 500 por `asString()` está arreglado** en el commit `a20f067` (PR #11).
+  `Neo4jGrafoAdapter.java:56-59` lee la fecha con `record.get("fecha").isNull() ? null : asLong()`.
+  El feed ya devuelve 200.
+- **`Post.fechaCreacion` ya es `Long`** (`Post.java:7`). Cambiado en el mismo commit.
+- **`post.types.ts:5` ya declara `fechaCreacion: number`.**
+- **`mediaUrl` ya tiene `onError`** (`PostCard.tsx:93`).
 
-La consulta cumple las tres líneas del Gherkin: dos saltos `SIGUE`→`PUBLICA`, `count(r)` sobre
-`[:REACCIONA]` para `totalLikes`, `EXISTS((u)-[:REACCIONA]->(p))` para `likedByMe`, y
-`ORDER BY p.fechaCreacion DESC`.
+La consulta Cypher (`Neo4jGrafoAdapter.java:23-40`) cumple el Gherkin: filtra por `[:SIGUE]`,
+cuenta `count(r)` sobre `[:REACCIONA]` para `totalLikes`, usa `EXISTS((u)-[:REACCIONA]->(p))` para
+`likedByMe`, ordena por `p.fechaCreacion DESC` y limita a 20. No se toca.
 
-**Y a pesar de eso, el feed devuelve 500.**
+## Problema verificado 1: la fecha no se muestra
 
----
+`PostCard.tsx:76` renderiza el literal fijo `"Publicado"`. La fecha no se muestra de ninguna forma:
+ni cruda ni formateada. No existe ningún helper `formatFecha`. El entregable "formatted date" del
+ticket está pendiente.
 
-## El hueco H1: `asString()` sobre un entero
+## Problema verificado 2: el avatar deja un círculo vacío
 
-El Cypher proyecta `p.fechaCreacion`, y ese campo lo escribe `crearPost`:
+El `onError` del avatar **sí existe** (`PostCard.tsx:62-64`), pero hace
+`style.display = 'none'` sobre el `<img>`, dejando el círculo azul **vacío**: ni imagen ni inicial.
+El hueco no es la falta de `onError`, sino la falta del fallback a la inicial (el patrón que
+`UserSuggestionsCard.tsx:81-101` ya resuelve con `avatarCaido` + inicial).
 
-```cypher
-// Neo4jGrafoAdapter:237
-fechaCreacion: datetime().epochMillis   // → un entero
-```
+## Problema verificado 3 (nuevo requisito): dejar de seguir vacía el feed en pantalla
 
-El mapeo del feed lo lee como si fuera texto:
+`App.tsx:74-88` define `loadAllData`, que refresca feed + sugerencias + seguidos en un solo
+`Promise.all` y termina en `setPosts(feedData)`. `App.tsx:164` pasa ese mismo `loadAllData` como
+`onNetworkUpdated` a `UserSuggestionsCard`, que lo invoca tras cada unfollow
+(`UserSuggestionsCard.tsx:40`).
 
-```java
-// Neo4jGrafoAdapter:50
-p.setFechaCreacion(record.get("fecha").asString());   // → lanza excepción
-```
+Consecuencia: dejar de seguir a alguien reconstruye el feed **de inmediato**, y los posts del usuario
+dejado de seguir desaparecen de la pantalla sin que el lector haya pedido recargar nada. Es un efecto
+secundario de compartir la función de refresco, no una decisión de producto.
 
-`Value.asString()` de Neo4j solo acepta valores de texto. Sobre un entero lanza `Uncoercible`, la
-excepción escapa del `session.executeRead` y la petición responde **500**.
+Comportamiento requerido:
 
-**No hay un camino donde el feed funcione.** Cualquier usuario que siga a alguien con al menos una
-publicación recibe un error. El `catch` de `FeedApplicationService` no lo oculta, así que el síntoma
-visible es un 500, no una lista vacía.
+- Tras dejar de seguir, los posts ya renderizados **siguen visibles** hasta la próxima carga del feed.
+- En la próxima carga (remontaje, recarga o nueva petición al feed), esos posts **ya no aparecen**,
+  porque el backend sigue filtrando por el grafo.
+- Es un cambio de **desacople de refetch en el cliente**. El backend no se toca, el Cypher no cambia.
+  El Gherkin ("excluye completamente la publicación de david") sigue siendo VERDADERO: lo que cambia es
+  **cuándo** se aplica el cambio, no lo que devuelve la API.
 
-El `ORDER BY` sí funciona: ordena enteros sin problema. Solo la proyección rompe. Por eso el bug se
-esconde tan bien — la consulta es correcta, el orden es correcto, y solo falla en el último paso.
+Consecuencia obligada: `PostCard.handleLike` (`PostCard.tsx:21-34`) llama `onLikeChanged`, que
+`FeedList.tsx:33` conecta a `onRefresh`, que `App.tsx:152` conecta al mismo `loadAllData`. Si solo se
+desacopla el unfollow, dar like a un post de un usuario recién dejado de seguir lo haría desaparecer
+en mitad del clic. **El camino del like debe desacoplarse también**, refrescando el contador en el
+lugar en vez de reconstruir el feed.
 
-## El hueco H2: la fecha se muestra cruda
+## Alcance de este change (solo frontend)
 
-Arreglado H1, el usuario vería `1758901234567`. `PostCard.tsx` renderiza el valor tal cual:
-
-```tsx
-<span className="text-xs text-slate-400 block">{post.fechaCreacion || 'Reciente'}</span>
-```
-
-El ticket pide "formatted date and badge support". El badge está (`• Amigo en Grafo`); la fecha formateada
-no existe.
-
-El `|| 'Reciente'` además es **código muerto**: epoch en milisegundos nunca es falsy, así que la
-alternativa nunca se toma. El fallback que hace falta no es un chequeo de vacío sino de validez.
-
-## El hueco H3: el avatar no sobrevive a una URL rota
-
-`PostCard` renderiza `post.autorAvatar` en un `<img>` sin `onError`. Una URL de avatar inaccesible deja
-el ícono de imagen rota del navegador en lugar de la inicial. Es el mismo entregable de "avatar support"
-que el ticket pide, y el mismo patrón que US-03 resuelve para `sug.avatar`.
-
-## Alcance de este change
-
-- `Neo4jGrafoAdapter.java`: leer `fecha` como entero.
-- `PostCard.tsx`: formatear la fecha y manejar el fallo de carga del avatar.
-- `feed/types/post.types.ts`: reflejar que el valor es un conteo de milisegundos, no una fecha.
+- `App.tsx`: separar el refresco de red del refresco de feed; el unfollow actualiza la red sin
+  reconstruir los posts.
+- `PostCard.tsx` + `FeedList.tsx` + `App.tsx`: el like actualiza el contador en el lugar, sin refetch
+  del feed.
+- `PostCard.tsx` (+ helper nuevo): formatear `fechaCreacion` (relativo si reciente, absoluto si hace
+  más de 7 días, `"Reciente"` si ausente o inválido).
+- `PostCard.tsx`: el `onError` del avatar cae a la inicial en vez de ocultar la imagen.
 
 ## Fuera de alcance
 
-- **Cambiar el Cypher #1.** Es obligatorio y está verificado contra el ticket. Además, la causa del bug
-  está en el mapeo, no en la consulta.
-- **Cambiar `Post.fechaCreacion` a `long`.** Sería el tipo correcto, pero el modelo se comparte con
-  US-04, US-06 y US-11, y cambiarlo propaga el ajuste a cuatro historias por un benefit de tipado que no
-  cambia el comportamiento. Queda anotado como deuda.
-- **`onError` en la imagen de `mediaUrl`.** Mismo patrón que H3, pero la imagen adjunta es entregable de
-  US-04, no de US-05. Se resuelve junto con US-04.
-- US-06 (reacciones). `togglePostLike` ya se llama desde `PostCard` y hoy falla de forma silenciosa, porque
-  el endpoint es de US-06.
+- **Cambiar el Cypher o el backend.** El feed ya devuelve 200 con el filtrado correcto.
+- **Cambiar `Post.fechaCreacion` de tipo.** Ya es `Long`; no hay nada que cambiar.
+- **Paginación.** `LIMIT 20` es fijo y el Gherkin no la pide.
+- **Materialización fan-out-on-write.** Explícitamente rechazada: no hace falta, está fuera de alcance
+  y rompería los criterios de aceptación del ticket.
+- **US-06 (reacciones).** El endpoint de `togglePostLike` pertenece a US-06. Hoy el fallo se registra
+  con `console.error` y el contador optimista se revierte (`PostCard.tsx:29-32`); ese comportamiento se
+  conserva tal cual.
