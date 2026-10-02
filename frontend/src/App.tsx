@@ -155,8 +155,6 @@ export const App: React.FC = () => {
 
           {/* BARRA LATERAL DERECHA: SESIÓN + SUGERENCIAS + CHAT */}
           <aside className="lg:col-span-5 space-y-6">
-
-
             {/* Tu red: sugerencias + seguidos */}
             <UserSuggestionsCard
               filas={red}
