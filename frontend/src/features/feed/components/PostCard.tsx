@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Heart, MessageCircle, Share2 } from 'lucide-react';
 import { Post } from '../types/post.types';
 import { togglePostLike } from '../services/feedApi';
+import { formatFecha } from '../utils/formatFecha';
 
 interface PostCardProps {
   post: Post;
@@ -11,11 +12,17 @@ interface PostCardProps {
 export const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const [isLiked, setIsLiked] = useState<boolean>(post.likedByMe);
   const [likesCount, setLikesCount] = useState<number>(post.totalLikes);
+  const [avatarCaido, setAvatarCaido] = useState<boolean>(false);
 
   React.useEffect(() => {
     setIsLiked(post.likedByMe);
     setLikesCount(post.totalLikes);
   }, [post.likedByMe, post.totalLikes]);
+
+  // Si cambia el post, el nuevo avatar merece su propio intento de carga.
+  React.useEffect(() => {
+    setAvatarCaido(false);
+  }, [post.autorAvatar]);
 
   const handleLike = async () => {
     const nextState = !isLiked;
@@ -23,8 +30,8 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     setLikesCount((prev) => (nextState ? prev + 1 : Math.max(0, prev - 1)));
 
     try {
-      // Contador optimista local: el like no reconstruye el feed. El
-      // endpoint pertenece a US-06, asi que un fallo se revierte igual.
+      // Actualizacion optimista local: el contador queda como esta sin
+      // reconstruir el feed (D2). El endpoint pertenece a US-06.
       await togglePostLike(post.id, currentUserId);
     } catch (err) {
       setIsLiked(!nextState);
@@ -48,20 +55,22 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   };
 
   const initial = (post.autorUsername || '?').charAt(0).toUpperCase();
+  const avatarUrl = post.autorAvatar;
+  // Mismo patron que UserSuggestionsCard: con avatar caido se muestra la
+  // inicial, nunca una imagen rota ni un círculo vacío (D3).
+  const mostrarAvatar = Boolean(avatarUrl) && !avatarCaido;
 
   return (
     <article className="bg-white rounded-xl border border-slate-200 shadow-xs p-5 mb-4 hover:border-slate-300 transition-colors">
       {/* Header del Post */}
       <div className="flex items-center gap-3 mb-3">
         <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm overflow-hidden shrink-0 shadow-xs">
-          {post.autorAvatar ? (
+          {mostrarAvatar && avatarUrl ? (
             <img
-              src={post.autorAvatar}
+              src={avatarUrl}
               alt={post.autorUsername}
               className="w-full h-full object-cover"
-              onError={(e) => {
-                (e.target as HTMLElement).style.display = 'none';
-              }}
+              onError={() => setAvatarCaido(true)}
             />
           ) : (
             initial
@@ -73,7 +82,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
               @{post.autorUsername}
             </span>
           </div>
-          <p className="text-[11px] text-slate-400">Publicado</p>
+          <p className="text-[11px] text-slate-400">{formatFecha(post.fechaCreacion)}</p>
         </div>
       </div>
 
