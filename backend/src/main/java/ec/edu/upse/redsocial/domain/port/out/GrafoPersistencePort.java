@@ -16,6 +16,13 @@ public interface GrafoPersistencePort {
 
     List<Usuario> obtenerSeguidos(String userId);
 
+    // Quien sigue a un perfil. Es la inversa de obtenerSeguidos: mismo par de nodos, flecha al
+    // revés.
+    // No es un alias de obtenerSeguidosInvertidos porque la consulta tiene su propia forma y su
+    // propia
+    // lista de defectos.
+    List<Usuario> obtenerSeguidores(String userId);
+
     // 3. Seguidos en común entre dos perfiles: las personas que ambos siguen
     List<Usuario> obtenerSeguidosEnComun(String userA, String userB);
 
@@ -42,6 +49,11 @@ public interface GrafoPersistencePort {
     void dejarDeSeguir(String seguidorId, String seguidoId);
 
     void crearPost(String autorId, String postId, String texto, String mediaUrl);
+
+    // Publicaciones de un autor, de la más nueva a la más antigua. `viewerId` es opcional: sin él
+    // la
+    // respuesta no trae `likedByMe` porque no hay quién mirar.
+    List<Post> obtenerPostsDeUsuario(String userId, String viewerId);
 
     void alternarLike(String userId, String postId);
 

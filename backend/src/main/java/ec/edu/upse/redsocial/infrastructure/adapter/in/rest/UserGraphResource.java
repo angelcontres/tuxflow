@@ -2,6 +2,7 @@ package ec.edu.upse.redsocial.infrastructure.adapter.in.rest;
 
 import ec.edu.upse.redsocial.domain.model.Usuario;
 import ec.edu.upse.redsocial.domain.port.in.GestionarGrafoSocialUseCase;
+import ec.edu.upse.redsocial.infrastructure.adapter.in.rest.dto.UsuarioPublicoResponse;
 import ec.edu.upse.redsocial.infrastructure.adapter.in.rest.dto.UsuarioRequest;
 import ec.edu.upse.redsocial.infrastructure.adapter.in.rest.dto.UsuarioResponse;
 import jakarta.inject.Inject;
@@ -134,7 +135,25 @@ public class UserGraphResource {
     @GET
     @Path("/{userId}/follows")
     public Response obtenerSeguidos(@PathParam("userId") String userId) {
-        return Response.ok(gestionarGrafoSocialUseCase.obtenerSeguidos(userId)).build();
+        // Antes devolvía List<Usuario>, el modelo de dominio. Se devuelve el DTO por el mismo
+        // motivo que en listarUsuarios y registrarUsuario: el dominio tiene password y
+        // pushSubscriptionJson, y un endpoint de lectura no debería poder filtrarlos ni por
+        // descuido. Ver UsuarioPublicoResponse para el detalle.
+        List<UsuarioPublicoResponse> safe =
+                gestionarGrafoSocialUseCase.obtenerSeguidos(userId).stream()
+                        .map(UsuarioPublicoResponse::from)
+                        .toList();
+        return Response.ok(safe).build();
+    }
+
+    @GET
+    @Path("/{userId}/followers")
+    public Response obtenerSeguidores(@PathParam("userId") String userId) {
+        List<UsuarioPublicoResponse> safe =
+                gestionarGrafoSocialUseCase.obtenerSeguidores(userId).stream()
+                        .map(UsuarioPublicoResponse::from)
+                        .toList();
+        return Response.ok(safe).build();
     }
 
     @GET
@@ -159,7 +178,10 @@ public class UserGraphResource {
                     .build();
         }
 
-        return Response.ok(gestionarGrafoSocialUseCase.obtenerSeguidosEnComun(userA, userB))
+        return Response.ok(
+                        gestionarGrafoSocialUseCase.obtenerSeguidosEnComun(userA, userB).stream()
+                                .map(UsuarioPublicoResponse::from)
+                                .toList())
                 .build();
     }
 

@@ -100,7 +100,20 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                             SugerenciaUsuario s = new SugerenciaUsuario();
                             s.setId(record.get("id").asString());
                             s.setUsername(record.get("username").asString());
-                            s.setNombre(record.get("nombre").asString());
+                            // Guarda de null, con el mismo criterio y el mismo motivo que en
+                            // obtenerSeguidosEnComun: guardarUsuario hace SET u.nombre = $nombre, y
+                            // en
+                            // Neo4j asignar null a una propiedad la elimina, así que el nodo llega
+                            // como NullValue. NullValue.asString() no lanza, devuelve el texto
+                            // literal
+                            // "null", y ese nombre inventado se renderizaría como si fuera real.
+                            // US-09
+                            // corrigió sólo la copia de obtenerSeguidosEnComun y dejó estas dos: el
+                            // perfil ajeno muestra nombres, así que el defecto pasó a ser visible.
+                            s.setNombre(
+                                    record.get("nombre").isNull()
+                                            ? null
+                                            : record.get("nombre").asString());
                             s.setAvatar(
                                     record.get("avatar").isNull()
                                             ? null
@@ -185,19 +198,66 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                         List<Usuario> usuarios = new ArrayList<>();
                         while (result.hasNext()) {
                             Record record = result.next();
-                            Usuario u = new Usuario();
-                            u.setId(record.get("id").asString());
-                            u.setUsername(record.get("username").asString());
-                            u.setNombre(record.get("nombre").asString());
-                            u.setAvatarUrl(
-                                    record.get("avatarUrl").isNull()
-                                            ? null
-                                            : record.get("avatarUrl").asString());
-                            usuarios.add(u);
+                            // Mapeo compartido con obtenerSeguidores: las dos consultas devuelven
+                            // las
+                            // mismas cuatro propiedades, y el nombre necesita guarda de null en las
+                            // dos.
+                            usuarios.add(mapearUsuarioDeRelacion(record));
                         }
                         return usuarios;
                     });
         }
+    }
+
+    // --- Seguidores de un perfil (la misma arista de [:SIGUE], leída al revés) ---
+    @Override
+    public List<Usuario> obtenerSeguidores(String userId) {
+        // La flecha entra por el usuario que se está mirando: (s)-[:SIGUE]->(u) son las personas
+        // que lo siguen. Invertirla devolvería a quién sigue, que es obtenerSeguidos, y con la
+        // semilla del proyecto las dos consultas devuelven conjuntos distintos (elena-vega sigue a
+        // carlos-patino, así que carlos tiene una seguidora y no tiene a nadie que él siga de
+        // ella).
+        String cypher =
+                """
+            MATCH (s:Usuario)-[:SIGUE]->(u:Usuario {id: $userId})
+            RETURN s.id AS id, s.username AS username, s.nombre AS nombre, s.avatarUrl AS avatarUrl
+            ORDER BY s.username ASC
+            """;
+
+        try (var session = driver.session()) {
+            return session.executeRead(
+                    tx -> {
+                        var result = tx.run(cypher, Values.parameters("userId", userId));
+                        List<Usuario> usuarios = new ArrayList<>();
+                        while (result.hasNext()) {
+                            Record record = result.next();
+                            usuarios.add(mapearUsuarioDeRelacion(record));
+                        }
+                        return usuarios;
+                    });
+        }
+    }
+
+    /**
+     * Mapea una fila de seguido o de seguidor al modelo de dominio.
+     *
+     * <p>El `nombre` lleva guarda de null porque en Neo4j asignar null a una propiedad la elimina:
+     * un usuario guardado sin nombre llega aquí como {@code NullValue}, y {@code
+     * NullValue.asString()} no lanza -- devuelve el texto literal {@code "null"} -- así que sin la
+     * guarda la API respondería 200 con un nombre inventado, que es peor que un 500 porque no se
+     * nota.
+     *
+     * <p>El identificador es la única propiedad garantizada: es la clave del {@code MERGE} de
+     * {@link #guardarUsuario}, así que siempre está.
+     */
+    private static Usuario mapearUsuarioDeRelacion(Record record) {
+        Usuario u = new Usuario();
+        u.setId(record.get("id").asString());
+        u.setUsername(record.get("username").asString());
+        u.setNombre(record.get("nombre").isNull() ? null : record.get("nombre").asString());
+        u.setAvatarUrl(
+                record.get("avatarUrl").isNull() ? null : record.get("avatarUrl").asString());
+        return u;
     }
 
     /**
@@ -609,6 +669,95 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                         return null;
                     });
         }
+    }
+
+    @Override
+    public List<Post> obtenerPostsDeUsuario(String userId, String viewerId) {
+        // La forma del ORDER BY se decide con el ROADMAP a la vista, no al revés.
+        //
+        // `crearPost` escribe `fechaCreacion: datetime().epochMillis`, o sea un entero en
+        // milisegundos, y eso es también lo que trae la semilla. Ordenar por un entero da el orden
+        // cronológico correcto, así que `ORDER BY p.fechaCreacion DESC` se queda como está y la
+        // lectura es `.asLong()`. El ROADMAP cerró esta decisión ("comparar contra su equivalente
+        // numérico, no migrar el campo a fecha con hora desde dentro de la historia"), y por eso
+        // aquí no se compara contra ninguna fecha con hora como hace obtenerTendenciasRedExtendida.
+        //
+        // El WHERE descarta las publicaciones sin fecha. No hay una cantidad razonable de
+        // publicaciones sin fecha en el grafo, pero si las hubiera no pueden ordenarse: meterlas
+        // detrás de las que sí lo tienen exige un `coalesce` con un número, y ese número tiene que
+        // ser inventado. Es preferible no mostrarlas antes que inventarles una posición.
+        //
+        // `viewerId` va en un OPTIONAL MATCH y no en un WHERE para que su ausencia no borre el
+        // post: sin visor, `visor` es null y EXISTS((null)-[:REACCIONA]->(p)) es false, que es
+        // exactamente lo que hay que devolver. El `count(DISTINCT reactor)` es el mismo cuidado que
+        // se aplicó en tendencias: `count(reactor)` cuenta filas, y con dos OPTIONAL MATCH seguidos
+        // el producto cartesiano multiplica el total de reacciones por el número de filas del
+        // visor.
+        String cypher =
+                """
+            MATCH (autor:Usuario {id: $userId})-[:PUBLICA]->(p:Post)
+            WHERE p.fechaCreacion IS NOT NULL
+            OPTIONAL MATCH (reactor:Usuario)-[r:REACCIONA]->(p)
+            OPTIONAL MATCH (visor:Usuario {id: $viewerId})
+            RETURN p.id AS id,
+                   p.texto AS texto,
+                   p.mediaUrl AS mediaUrl,
+                   p.fechaCreacion AS fecha,
+                   autor.id AS autorId,
+                   autor.username AS autorUsername,
+                   autor.avatarUrl AS autorAvatar,
+                   count(DISTINCT reactor) AS totalLikes,
+                   EXISTS((visor)-[:REACCIONA]->(p)) AS likedByMe
+            ORDER BY p.fechaCreacion DESC
+            """;
+
+        try (var session = driver.session()) {
+            return session.executeRead(
+                    tx -> {
+                        var result =
+                                tx.run(
+                                        cypher,
+                                        Values.parameters(
+                                                "userId",
+                                                userId,
+                                                // Un visor vacío se envía como null y no como "",
+                                                // porque el MATCH de texto sobre una propiedad
+                                                // ausente tampoco da filas, pero null deja claro
+                                                // en el log que no se miró a nadie.
+                                                "viewerId",
+                                                viewerId == null || viewerId.isBlank()
+                                                        ? null
+                                                        : viewerId));
+                        List<Post> posts = new ArrayList<>();
+                        while (result.hasNext()) {
+                            posts.add(mapearPostDeAutor(result.next()));
+                        }
+                        return posts;
+                    });
+        }
+    }
+
+    /**
+     * Mapea la fila de una publicación al modelo de dominio.
+     *
+     * <p>El mapeo es el mismo que en {@link #obtenerFeedCronologico} porque las dos consultas
+     * proyectan las mismas propiedades con los mismos alias. No se unifica en un método por la
+     * forma del RETURN -- cada consulta proyecta lo que necesita y así se lee cada una por separado
+     * -- pero la lectura de los valores es idéntica, incluido el {@code asLong()} de la fecha.
+     */
+    private static Post mapearPostDeAutor(Record record) {
+        Post p = new Post();
+        p.setId(record.get("id").asString());
+        p.setTexto(record.get("texto").asString());
+        p.setMediaUrl(record.get("mediaUrl").isNull() ? null : record.get("mediaUrl").asString());
+        p.setFechaCreacion(record.get("fecha").asLong());
+        p.setAutorId(record.get("autorId").asString());
+        p.setAutorUsername(record.get("autorUsername").asString());
+        p.setAutorAvatar(
+                record.get("autorAvatar").isNull() ? null : record.get("autorAvatar").asString());
+        p.setTotalLikes(record.get("totalLikes").asLong());
+        p.setLikedByMe(record.get("likedByMe").asBoolean());
+        return p;
     }
 
     @Override

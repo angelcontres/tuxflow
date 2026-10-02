@@ -7,6 +7,8 @@
     <artifactId>redsocial-backend</artifactId>
     <version>1.0.0-SNAPSHOT</version>
 
+        
+
     <properties>
         <compiler-plugin.version>3.13.0</compiler-plugin.version>
         <maven.compiler.release>21</maven.compiler.release>
@@ -213,6 +215,33 @@
                         </goals>
                     </execution>
                 </executions>
+            </plugin>
+
+            <!--
+                Surefire recoge también los *IT.
+
+                Lo natural sería dejar las pruebas de integración para maven-failsafe-plugin, que
+                es el plugin pensado para ellas, pero su artefacto no está en el repositorio local
+                de esta máquina y el build corre sin acceso a Maven Central: añadirlo dejó el
+                proyecto sin poder compilar. Recoger los *IT aquí da el mismo resultado observable
+                (las consultas se ejecutan contra un Neo4j de verdad) sin una dependencia que no
+                se puede resolver. Si algún día hay red y se añade failsafe, esto se revierte y
+                vuelve a ser la fase verify la que corre las de integración.
+
+                El contenedor se levanta una vez por clase y se salta solo con
+                `disabledWithoutDocker`, así que una máquina sin Docker sigue teniendo el build en
+                verde en vez de romperse.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.4</version>
+                <configuration>
+                    <includes>
+                        <include>**/*Test.java</include>
+                        <include>**/*IT.java</include>
+                    </includes>
+                </configuration>
             </plugin>
         </plugins>
     </build>

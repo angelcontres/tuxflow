@@ -15,6 +15,15 @@ interface UserSuggestionsCardProps {
   filas: FilaRed[];
   currentUserId: string;
   onNetworkUpdated: () => void;
+  /**
+   * Abre el perfil de una persona de la lista (US-12).
+   *
+   * El `@username` era texto con aspecto de enlace y `hover:underline`, que es la forma más
+   * barata de mentir sobre lo que se puede hacer. Ahora es un botón de verdad. Es opcional para no
+   * romper a quien monte la tarjeta sin esa capacidad: sin él, el `@username` vuelve a texto y no
+   * promete nada.
+   */
+  onOpenPerfil?: (usuarioId: string) => void;
 }
 
 interface DistanciaResultProps {
@@ -60,6 +69,7 @@ export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
   filas,
   currentUserId,
   onNetworkUpdated,
+  onOpenPerfil,
 }) => {
   const [confirmados, setConfirmados] = useState<Record<string, boolean>>({});
   const [errorPorId, setErrorPorId] = useState<Record<string, string | null>>({});
@@ -236,9 +246,18 @@ export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
                       </div>
                     )}
                     <div>
-                      <h4 className="text-xs font-semibold text-slate-800 hover:underline cursor-pointer">
-                        @{fila.username}
-                      </h4>
+                      {onOpenPerfil ? (
+                        <button
+                          type="button"
+                          onClick={() => onOpenPerfil(fila.id)}
+                          aria-label={`Ver perfil de @${fila.username}`}
+                          className="text-xs font-semibold text-slate-800 hover:underline cursor-pointer text-left"
+                        >
+                          @{fila.username}
+                        </button>
+                      ) : (
+                        <h4 className="text-xs font-semibold text-slate-800">@{fila.username}</h4>
+                      )}
                       <p className="text-[11px] text-slate-500">
                         {esSugerencia(fila)
                           ? `${fila.conexionesEnComun} conexión(es) mutua(s)`

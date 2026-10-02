@@ -156,12 +156,90 @@ describe('UserSuggestionsCard', () => {
     });
   });
 
+  describe('Apertura del perfil ajeno (US-12)', () => {
+    it('convierte el @username en un botón que abre el perfil de esa persona', async () => {
+      // Antes era texto con `hover:underline`, que es la forma más barata de mentir sobre lo que
+      // se puede hacer. Ahora hay un botón real detrás.
+      const onOpenPerfil = vi.fn();
+      const user = userEvent.setup();
+
+      renderCard({
+        filas: [sugerencia({ id: 'beatriz-silva', username: 'beatriz' })],
+        onOpenPerfil,
+      });
+      await user.click(screen.getByRole('button', { name: 'Ver perfil de @beatriz' }));
+
+      expect(onOpenPerfil).toHaveBeenCalledWith('beatriz-silva');
+    });
+
+    it('abre el perfil con el identificador de la fila, no con el nombre de usuario', async () => {
+      // El identificador es lo que viaja en la ruta del endpoint; el nombre de usuario no sirve
+      // para consultar el perfil y un enlace que lo mandara abriría un perfil inexistente.
+      const onOpenPerfil = vi.fn();
+      const user = userEvent.setup();
+
+      renderCard({
+        filas: [seguidoFila({ id: 'elena-vega', username: 'elena' })],
+        onOpenPerfil,
+      });
+      await user.click(screen.getByRole('button', { name: 'Ver perfil de @elena' }));
+
+      expect(onOpenPerfil).toHaveBeenCalledWith('elena-vega');
+    });
+
+    it('no ofrece abrir el perfil propio', () => {
+      renderCard({ filas: [seguidoFila({ id: 'carlos-patino', username: 'carlos' })] });
+
+      // La fila propia no aparece en la red, pero si llegara, el enlace abriría el propio perfil
+      // como si fuera de otra persona.
+      expect(
+        screen.queryByRole('button', { name: 'Ver perfil de @carlos' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('sin manejador, el @username sigue siendo texto y no promete nada', () => {
+      renderCard({ filas: [sugerencia({ username: 'beatriz' })] });
+
+      expect(screen.getByText('@beatriz')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /ver perfil/i })).not.toBeInTheDocument();
+    });
+
+    it('no confunde el enlace al perfil con el botón de seguimiento', async () => {
+      // Ambos están en la misma fila y se confunden por nombre si el enlace no se rotula.
+      const onOpenPerfil = vi.fn();
+      followMock.mockResolvedValue(undefined);
+      const user = userEvent.setup();
+
+      renderCard({ filas: [sugerencia({ id: 'u-2', username: 'beatriz' })], onOpenPerfil });
+      await user.click(screen.getByRole('button', { name: 'Ver perfil de @beatriz' }));
+
+      expect(followMock).not.toHaveBeenCalled();
+      expect(onOpenPerfil).toHaveBeenCalledWith('u-2');
+    });
+  });
+
   describe('Ausencia de sugerencias', () => {
     it('comunica que no hay recomendaciones en lugar de mostrar una lista vacía', () => {
       renderCard({ filas: [] });
 
       expect(screen.getByText('No hay nuevas recomendaciones por ahora.')).toBeInTheDocument();
       expect(screen.queryAllByRole('button', { name: /seguir/i })).toHaveLength(0);
+    });
+  });
+
+  describe('Orden de los botones por fila', () => {
+    it('cada fila expone su enlace al perfil y su botón de seguimiento por separado', () => {
+      renderCard({
+        filas: [
+          sugerencia({ id: 'u-2', username: 'beatriz' }),
+          sugerencia({ id: 'u-3', username: 'david' }),
+        ],
+        onOpenPerfil: vi.fn(),
+      });
+
+      expect(screen.getAllByRole('button', { name: /Ver perfil de/ })).toHaveLength(2);
+      expect(screen.getAllByRole('button', { name: /seguir/i })).toHaveLength(2);
+      expect(screen.getAllByRole('button', { name: /distancia/i })).toHaveLength(2);
     });
   });
 
