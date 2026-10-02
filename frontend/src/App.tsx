@@ -71,21 +71,40 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  const loadAllData = useCallback(async () => {
+  // Refresco solo del feed. Se usa en la carga inicial y al crear un
+  // post: ahí sí aplica el filtrado vigente del backend (D2).
+  const loadFeed = useCallback(async () => {
     try {
-      const [feedData, sugData, segData] = await Promise.all([
-        fetchFeedBySocialGraph(currentUserId).catch(() => []),
-        fetchSugerenciasGrafo(currentUserId).catch(() => []),
-        fetchSeguidos(currentUserId).catch(() => []),
-      ]);
+      const feedData = await fetchFeedBySocialGraph(currentUserId).catch(() => []);
       setPosts(feedData);
-      setRed(fusionarRed(segData, sugData));
     } catch (err) {
-      console.error('Error al sincronizar datos:', err);
+      console.error('Error al sincronizar el feed:', err);
     } finally {
       setLoading(false);
     }
   }, [currentUserId]);
+
+  // Refresco solo de red (sugerencias + seguidos). NO toca los posts ya
+  // renderizados: es el handler de follow/unfollow, así que dejar de seguir
+  // actualiza la tarjeta de red sin vaciar el feed (D2).
+  const loadNetwork = useCallback(async () => {
+    try {
+      const [sugData, segData] = await Promise.all([
+        fetchSugerenciasGrafo(currentUserId).catch(() => []),
+        fetchSeguidos(currentUserId).catch(() => []),
+      ]);
+      setRed(fusionarRed(segData, sugData));
+    } catch (err) {
+      console.error('Error al sincronizar la red:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentUserId]);
+
+  // Carga combinada para el arranque y para la creación de posts.
+  const loadAllData = useCallback(async () => {
+    await Promise.all([loadFeed(), loadNetwork()]);
+  }, [loadFeed, loadNetwork]);
 
   useEffect(() => {
     if (!isAuthenticated || !currentUserId) {
@@ -155,13 +174,11 @@ export const App: React.FC = () => {
 
           {/* BARRA LATERAL DERECHA: SESIÓN + SUGERENCIAS + CHAT */}
           <aside className="lg:col-span-5 space-y-6">
-
-
             {/* Tu red: sugerencias + seguidos */}
             <UserSuggestionsCard
               filas={red}
               currentUserId={currentUserId}
-              onNetworkUpdated={loadAllData}
+              onNetworkUpdated={loadNetwork}
             />
 
             {/* Conexiones en común con otra persona */}
