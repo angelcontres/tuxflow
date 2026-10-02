@@ -1,7 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { UserMinus, UserPlus, Sparkles, Users } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Route, UserMinus, UserPlus, Sparkles, Users } from 'lucide-react';
 import { FilaRed, esSugerencia } from '../types/network.types';
-import { followUserInGraph, unfollowUserInGraph } from '../services/networkApi';
+import type { CaminoCorto } from '../types/network.types';
+import { fetchCaminoCorto, followUserInGraph, unfollowUserInGraph } from '../services/networkApi';
+import { getUserFacingError } from '../../../shared/utils/errorMessage';
 
 /**
  * Username comes from the graph in lowercase. The notice interpolates it into a
@@ -15,6 +17,45 @@ interface UserSuggestionsCardProps {
   onNetworkUpdated: () => void;
 }
 
+interface DistanciaResultProps {
+  camino: CaminoCorto;
+  username: string;
+}
+
+/**
+ * Resultado del cálculo de distancia de una fila.
+ *
+ * Distingue tres cosas que el backend ya separa: hay camino (se muestra la cadena y los
+ * saltos), no hay camino dentro de los seis grados (resultado legítimo, no un fallo) y la
+ * petición falló (eso lo pinta la tarjeta, con rol de alerta).
+ */
+const DistanciaResult: React.FC<DistanciaResultProps> = ({ camino, username }) => {
+  if (camino.rutaConexion.length === 0) {
+    return (
+      <p className="mt-1.5 text-[11px] text-slate-500">
+        No hay conexión con @{username} dentro de los 6 grados de separación.
+      </p>
+    );
+  }
+
+  const saltos = camino.saltosTotales;
+  return (
+    <div className="mt-1.5 text-[11px] text-slate-600">
+      <p className="font-medium text-indigo-700">
+        {saltos} {saltos === 1 ? 'salto' : 'saltos'} de separación
+      </p>
+      <ol className="mt-1 flex flex-wrap items-center gap-1">
+        {camino.rutaConexion.map((nodo, indice) => (
+          <li key={`${nodo.id ?? nodo.username}-${indice}`} className="flex items-center gap-1">
+            {indice > 0 && <span className="text-slate-300">&rarr;</span>}
+            <span className="font-medium text-slate-700">@{nodo.username}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+};
+
 export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
   filas,
   currentUserId,
@@ -24,9 +65,9 @@ export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
   const [errorPorId, setErrorPorId] = useState<Record<string, string | null>>({});
   const [enVuelo, setEnVuelo] = useState<Record<string, boolean>>({});
   const [avatarCaido, setAvatarCaido] = useState<Record<string, boolean>>({});
-  const [aviso, setAviso] = useState<string | null>(null);
-  const filasPreviasRef = useRef<FilaRed[]>(filas);
-  const puenteRef = useRef<string | null>(null);
+  const [distancias, setDistancias] = useState<Record<string, CaminoCorto>>({});
+  const [errorDistancia, setErrorDistancia] = useState<Record<string, string>>({});
+  const [calculando, setCalculando] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setConfirmados({});
@@ -96,6 +137,37 @@ export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
     }
   };
 
+  /**
+   * Pide el grado de separación con otra persona y guarda el resultado en su fila.
+   *
+   * Un error y una ruta vacía se guardan en mapas distintos a propósito: "no hay camino
+   * dentro de los seis grados" es un resultado legítimo y no puede pintarse como fallo.
+   */
+  const handleCalcularDistancia = async (targetId: string) => {
+    setCalculando((prev) => ({ ...prev, [targetId]: true }));
+    // El error anterior se borra al reintentar: si ahora sale bien, el mensaje viejo
+    // no debe seguir en pantalla junto al resultado nuevo.
+    setErrorDistancia((prev) => {
+      const siguiente = { ...prev };
+      delete siguiente[targetId];
+      return siguiente;
+    });
+    try {
+      const camino = await fetchCaminoCorto(currentUserId, targetId);
+      setDistancias((prev) => ({ ...prev, [targetId]: camino }));
+    } catch (err: unknown) {
+      setErrorDistancia((prev) => ({
+        ...prev,
+        [targetId]: getUserFacingError(
+          err,
+          'No pudimos calcular la distancia. Inténtalo de nuevo.',
+        ),
+      }));
+    } finally {
+      setCalculando((prev) => ({ ...prev, [targetId]: false }));
+    }
+  };
+
   return (
     <div className="bg-white rounded-xl p-5 shadow-xs border border-slate-200 mb-6">
       <div className="flex items-center justify-between mb-2">
@@ -137,60 +209,84 @@ export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
             const avatarUrl = esSugerencia(fila) ? fila.avatar : fila.avatarUrl;
             const seguidosEnComun = esSugerencia(fila) ? fila.seguidosEnComun : null;
             const mostrarAvatar = Boolean(avatarUrl) && avatarCaido[fila.id] !== true;
+            const distancia = distancias[fila.id];
+            const errorCalculo = errorDistancia[fila.id];
+            const calculandoDistancia = calculando[fila.id] === true;
             return (
-              <div
-                key={fila.id}
-                className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  {mostrarAvatar ? (
-                    <div className="w-9 h-9 rounded-full overflow-hidden bg-slate-200 shrink-0">
-                      <img
-                        src={avatarUrl}
-                        alt={`Avatar de @${fila.username}`}
-                        className="w-full h-full object-cover"
-                        onError={() => setAvatarCaido((prev) => ({ ...prev, [fila.id]: true }))}
-                      />
-                    </div>
-                  ) : (
-                    <div className="w-9 h-9 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs shrink-0">
-                      {fila.username.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <div>
-                    <h4 className="text-xs font-semibold text-slate-800 hover:underline cursor-pointer">
-                      @{fila.username}
-                    </h4>
-                    <p className="text-[11px] text-slate-500">
-                      {esSugerencia(fila)
-                        ? `${fila.conexionesEnComun} conexión(es) mutua(s)`
-                        : fila.nombre || 'Persona que sigues'}
-                    </p>
-                    {seguidosEnComun && seguidosEnComun.length > 0 && (
-                      <p className="text-[11px] text-slate-400">
-                        Conocido por {seguidosEnComun.map((nombre) => `@${nombre}`).join(', ')}
-                      </p>
+              <div key={fila.id} className="p-2 rounded-lg hover:bg-slate-50 transition-colors">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {mostrarAvatar ? (
+                      <div className="w-9 h-9 rounded-full overflow-hidden bg-slate-200 shrink-0">
+                        <img
+                          src={avatarUrl}
+                          alt={`Avatar de @${fila.username}`}
+                          className="w-full h-full object-cover"
+                          onError={() => setAvatarCaido((prev) => ({ ...prev, [fila.id]: true }))}
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-9 h-9 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs shrink-0">
+                        {fila.username.charAt(0).toUpperCase()}
+                      </div>
                     )}
-                    {error && (
-                      <p role="alert" className="text-[11px] text-red-600 font-medium">
-                        {error}
+                    <div>
+                      <h4 className="text-xs font-semibold text-slate-800 hover:underline cursor-pointer">
+                        @{fila.username}
+                      </h4>
+                      <p className="text-[11px] text-slate-500">
+                        {esSugerencia(fila)
+                          ? `${fila.conexionesEnComun} conexión(es) mutua(s)`
+                          : fila.nombre || 'Persona que sigues'}
                       </p>
-                    )}
+                      {seguidosEnComun && seguidosEnComun.length > 0 && (
+                        <p className="text-[11px] text-slate-400">
+                          Conocido por {seguidosEnComun.map((nombre) => `@${nombre}`).join(', ')}
+                        </p>
+                      )}
+                      {error && (
+                        <p role="alert" className="text-[11px] text-red-600 font-medium">
+                          {error}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => void handleCalcularDistancia(fila.id)}
+                      disabled={calculandoDistancia}
+                      title={`Calcular la distancia entre @${currentUserId} y @${fila.username}`}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-indigo-600 bg-slate-100 hover:bg-indigo-50 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Route className="w-3.5 h-3.5" />
+                      <span>{calculandoDistancia ? 'Calculando...' : 'Distancia'}</span>
+                    </button>
+
+                    <button
+                      onClick={() => void handleToggle(fila.id, seguido)}
+                      disabled={cargando}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-blue-600 bg-slate-100 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {seguido ? (
+                        <UserMinus className="w-3.5 h-3.5" />
+                      ) : (
+                        <UserPlus className="w-3.5 h-3.5" />
+                      )}
+                      <span>{seguido ? 'Dejar de seguir' : 'Seguir'}</span>
+                    </button>
                   </div>
                 </div>
 
-                <button
-                  onClick={() => void handleToggle(fila, seguido)}
-                  disabled={cargando}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-blue-600 bg-slate-100 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {seguido ? (
-                    <UserMinus className="w-3.5 h-3.5" />
-                  ) : (
-                    <UserPlus className="w-3.5 h-3.5" />
-                  )}
-                  <span>{seguido ? 'Dejar de seguir' : 'Seguir'}</span>
-                </button>
+                {errorCalculo && (
+                  <p role="alert" className="mt-1.5 text-[11px] text-red-600 font-medium">
+                    {errorCalculo}
+                  </p>
+                )}
+
+                {distancia && !errorCalculo && (
+                  <DistanciaResult camino={distancia} username={fila.username} />
+                )}
               </div>
             );
           })}

@@ -2,15 +2,19 @@ package ec.edu.upse.redsocial.infrastructure.adapter.in.rest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import ec.edu.upse.redsocial.domain.model.Usuario;
 import ec.edu.upse.redsocial.domain.port.in.GestionarGrafoSocialUseCase;
+import ec.edu.upse.redsocial.infrastructure.adapter.in.rest.dto.UsuarioRequest;
+import ec.edu.upse.redsocial.infrastructure.adapter.in.rest.dto.UsuarioResponse;
 import jakarta.ws.rs.core.Response;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -20,6 +24,7 @@ import org.jboss.resteasy.reactive.multipart.FileUpload;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -30,6 +35,66 @@ class UserGraphResourceTest {
     @Mock GestionarGrafoSocialUseCase gestionarGrafoSocialUseCase;
 
     @InjectMocks UserGraphResource resource;
+
+    @Test
+    @DisplayName("POST / responde 201 con el UsuarioResponse, sin el password del dominio")
+    void registrarUsuarioRespondeConElDtoDeSalida() {
+        // El endpoint used to devolver el Usuario de dominio crudo, y eso arrastraba al contrato
+        // publico un campo "password": null que es de persistencia y no de API. La forma de la
+        // respuesta es lo que se verifica aqui.
+        UsuarioRequest request = new UsuarioRequest();
+        request.setId("carlos-patino");
+        request.setUsername("carlos");
+        request.setEmail("carlos@upse.edu.ec");
+        request.setNombre("Carlos Patino");
+        request.setAvatarUrl("http://localhost:9000/redsocial-media/media-x.png");
+
+        Response respuesta = resource.registrarUsuario(request);
+
+        assertEquals(201, respuesta.getStatus());
+        assertEquals(UsuarioResponse.class, respuesta.getEntity().getClass());
+        UsuarioResponse cuerpo = (UsuarioResponse) respuesta.getEntity();
+        assertEquals("carlos-patino", cuerpo.getId());
+        assertEquals("carlos", cuerpo.getUsername());
+        assertEquals("Carlos Patino", cuerpo.getNombre());
+    }
+
+    @Test
+    @DisplayName("POST / delega en el caso de uso un Usuario con password null")
+    void registrarUsuarioDelegaConPasswordNull() {
+        UsuarioRequest request = new UsuarioRequest();
+        request.setId("carlos-patino");
+        request.setUsername("carlos");
+
+        resource.registrarUsuario(request);
+
+        ArgumentCaptor<Usuario> enviado = ArgumentCaptor.forClass(Usuario.class);
+        verify(gestionarGrafoSocialUseCase).registrarUsuario(enviado.capture());
+        assertNull(enviado.getValue().getPassword());
+    }
+
+    @Test
+    @DisplayName("POST / sin id responde 400 y no toca el grafo")
+    void registrarUsuarioSinIdResponde400() {
+        UsuarioRequest request = new UsuarioRequest();
+        request.setUsername("carlos");
+
+        Response respuesta = resource.registrarUsuario(request);
+
+        assertEquals(400, respuesta.getStatus());
+        verifyNoInteractions(gestionarGrafoSocialUseCase);
+    }
+
+    @Test
+    @DisplayName("POST / sin username responde 400")
+    void registrarUsuarioSinUsernameResponde400() {
+        UsuarioRequest request = new UsuarioRequest();
+        request.setId("carlos-patino");
+
+        Response respuesta = resource.registrarUsuario(request);
+
+        assertEquals(400, respuesta.getStatus());
+    }
 
     @Test
     @DisplayName("GET /{userId}/follows responde 200 con lista vacía cuando no hay seguidos")
@@ -118,6 +183,78 @@ class UserGraphResourceTest {
     void obtenerSeguidosEnComunInvalidaNoConsultaElGrafo() {
         resource.obtenerSeguidosEnComun("carlos-patino", "  ");
         resource.obtenerSeguidosEnComun("angel-villon", "angel-villon");
+
+        verifyNoInteractions(gestionarGrafoSocialUseCase);
+    }
+
+    @Test
+    @DisplayName(
+            "GET /camino-corto responde 200 con la ruta y los saltos que devuelve el caso de uso")
+    void obtenerCaminoMasCortoResponde200ConLaRuta() {
+        Map<String, Object> camino =
+                Map.of(
+                        "rutaConexion",
+                        List.of(
+                                Map.of("id", "carlos-patino", "username", "carlos"),
+                                Map.of("id", "beatriz-silva", "username", "beatriz"),
+                                Map.of("id", "david-mendoza", "username", "david"),
+                                Map.of("id", "elena-vega", "username", "elena")),
+                        "saltosTotales",
+                        3);
+        when(gestionarGrafoSocialUseCase.obtenerCaminoMasCorto("carlos-patino", "elena-vega"))
+                .thenReturn(camino);
+
+        Response respuesta = resource.obtenerCaminoMasCorto("carlos-patino", "elena-vega");
+
+        assertEquals(200, respuesta.getStatus());
+        assertEquals(camino, respuesta.getEntity());
+    }
+
+    @Test
+    @DisplayName("GET /camino-corto sin camino responde 200 con la forma vacía, no con un error")
+    void obtenerCaminoMasCortoSinCaminoResponde200() {
+        // No hay conexión dentro de los seis grados: es un resultado legítimo y no un fallo,
+        // así que no puede compartir respuesta con una petición incompleta.
+        Map<String, Object> sinCamino = Map.of("rutaConexion", List.of(), "saltosTotales", 0);
+        when(gestionarGrafoSocialUseCase.obtenerCaminoMasCorto("carlos-patino", "angel-villon"))
+                .thenReturn(sinCamino);
+
+        Response respuesta = resource.obtenerCaminoMasCorto("carlos-patino", "angel-villon");
+
+        assertEquals(200, respuesta.getStatus());
+        assertEquals(sinCamino, respuesta.getEntity());
+    }
+
+    @Test
+    @DisplayName(
+            "GET /camino-corto sin origen responde 400 en vez de una ruta vacía indistinguible")
+    void obtenerCaminoMasCortoSinOrigenResponde400() {
+        Response respuesta = resource.obtenerCaminoMasCorto(null, "elena-vega");
+
+        assertEquals(400, respuesta.getStatus());
+        assertFalse(respuesta.getEntity() instanceof List<?>);
+    }
+
+    @Test
+    @DisplayName("GET /camino-corto sin destino responde 400")
+    void obtenerCaminoMasCortoSinDestinoResponde400() {
+        Response respuesta = resource.obtenerCaminoMasCorto("carlos-patino", null);
+
+        assertEquals(400, respuesta.getStatus());
+    }
+
+    @Test
+    @DisplayName("GET /camino-corto con un identificador de solo espacios responde 400")
+    void obtenerCaminoMasCortoConIdentificadorEnBlancoResponde400() {
+        assertEquals(400, resource.obtenerCaminoMasCorto("   ", "elena-vega").getStatus());
+        assertEquals(400, resource.obtenerCaminoMasCorto("carlos-patino", "  ").getStatus());
+    }
+
+    @Test
+    @DisplayName("GET /camino-corto no consulta el grafo cuando la petición es inválida")
+    void obtenerCaminoMasCortoInvalidaNoConsultaElGrafo() {
+        resource.obtenerCaminoMasCorto(null, "elena-vega");
+        resource.obtenerCaminoMasCorto("carlos-patino", "  ");
 
         verifyNoInteractions(gestionarGrafoSocialUseCase);
     }

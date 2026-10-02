@@ -1,0 +1,122 @@
+# ==============================================================================
+# Red Social Distribuida - Integración continua
+# ==============================================================================
+#
+# Corre los mismos gates que declara openspec/config.yaml (seccion ci):
+#   - Backend : mvn verify  (pruebas + Spotless + SpotBugs)
+#   - Frontend: pnpm run check (formato + lint + pruebas + build)
+#
+# Se usa un runner hospedado por GitHub (ubuntu-latest), que es gratis para
+# repos publicos. No se usa el runner propio 'docker-runner': ninguna de estas
+# comprobaciones necesita Neo4j ni MinIO levantados, porque toda prueba de
+# persistencia va contra el driver con stub.
+#
+# Para un runner propio con servicios de verdad, este archivo es el sitio donde
+# cambiaria 'runs-on' por [self-hosted, docker-runner].
+
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  # Ejecucion manual desde la pestana Actions, para depurar un commit concreto.
+  workflow_dispatch:
+
+# Lectura minima: el workflow no escribe en el repositorio ni despliega nada.
+permissions:
+  contents: read
+
+# Un push nuevo cancela la corrida anterior de la misma rama: se ahorra un runner
+# en vez de gastar dos cuando se encadenan varios commits.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ==========================================================================
+  # Backend (Quarkus + Java 21)
+  # ==========================================================================
+  backend:
+    name: Backend - pruebas, formato y analisis estatico
+    runs-on: ubuntu-latest
+    # Si una comprobacion se queda colgada, se corta en vez de gastar la cuota.
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Obtener el codigo
+        uses: actions/checkout@v4
+
+      - name: Instalar Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          # El mismo release que fija <maven.compiler.release> en pom.xml.
+          java-version: '21'
+          # Cachea las dependencias de Maven entre corridas.
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+
+      # Un solo paso a proposito: en el pom, spotless:check y spotbugs:check estan
+      # atados a la fase verify, igual que las pruebas. Lanzarlos por separado
+      # volveria a compilar y ejecutar todo tres veces para obtener el mismo
+      # resultado. Spotless y SpotBugs fallan la corrida si encuentran algo.
+      - name: mvn verify (pruebas + Spotless + SpotBugs)
+        run: mvn -B verify
+
+  # ==========================================================================
+  # Frontend (React + Vite + pnpm)
+  # ==========================================================================
+  frontend:
+    name: Frontend - formato, lint, pruebas y build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Obtener el codigo
+        uses: actions/checkout@v4
+
+      # pnpm debe configurarse antes que setup-node: el cache de Node necesita
+      # conocer la ruta del almacen de pnpm para poder usarlo.
+      - name: Instalar pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          # La version que declara openspec/config.yaml ("pnpm 10.x"). El
+          # pnpm-lock.yaml esta en lockfileVersion 9.0, compatible con esta serie.
+          version: '10'
+
+      - name: Instalar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      # --frozen-lockfile falla si package.json y el lockfile no coinciden. Es
+      # deliberado: un commit que suba una dependencia sin actualizar el lock no
+      # puede pasar aunque compile en la maquina de quien lo subio.
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      # Separados y no como el unico `pnpm run check`, para que la pestana de
+      # Actions senale que gate rompio en vez de devolver un unico paso opaco.
+      - name: Verificar formato (Prettier)
+        run: pnpm run format:check
+
+      - name: Lint (ESLint)
+        run: pnpm run lint
+
+      - name: Pruebas (Vitest)
+        run: pnpm test
+
+      - name: Build de produccion (tsc + vite build)
+        run: pnpm run build

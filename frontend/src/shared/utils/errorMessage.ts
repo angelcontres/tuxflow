@@ -1,6 +1,24 @@
 import axios from 'axios';
 
 /**
+ * Mensajes para los códigos de estado que el backend no puede explicar con un
+ * cuerpo JSON, porque los contesta la capa HTTP antes de que la petición llegue
+ * a un recurso.
+ *
+ * El 413 es el caso real: Quarkus rechaza un cuerpo mayor que
+ * `quarkus.http.limits.max-body-size` con cuerpo vacío, así que no hay campo
+ * `error` que leer. Sin esta tabla el usuario veía el texto genérico de cada
+ * formulario y no tenía forma de saber que el problema era el tamaño del
+ * archivo.
+ *
+ * El 20 MB citado aquí es el de `quarkus.http.limits.max-body-size` en
+ * application.properties. Si se cambia uno hay que cambiar el otro.
+ */
+const MENSAJES_POR_ESTADO: Record<number, string> = {
+  413: 'La imagen es demasiado grande. El máximo permitido es 20 MB.',
+};
+
+/**
  * Extrae un mensaje apto para mostrar al usuario a partir de un error de red.
  *
  * Los errores de axios vienen con texto técnico ("Request failed with status
@@ -16,7 +34,26 @@ export function getUserFacingError(err: unknown, fallback: string): string {
     return serverMessage;
   }
 
+  // Después del mensaje del servidor: si el backend sí explicó el problema, su
+  // texto es más preciso que cualquier mensaje genérico por estado.
+  const porEstado = extractMessageByStatus(err);
+
+  if (porEstado) {
+    return porEstado;
+  }
+
   return fallback;
+}
+
+/** Busca un mensaje propio para el código de estado del error. */
+function extractMessageByStatus(err: unknown): string | null {
+  if (axios.isAxiosError(err)) {
+    const status = err.response?.status;
+    if (typeof status === 'number') {
+      return MENSAJES_POR_ESTADO[status] ?? null;
+    }
+  }
+  return null;
 }
 
 /** Lee el campo `error` del body que devuelve el backend. */

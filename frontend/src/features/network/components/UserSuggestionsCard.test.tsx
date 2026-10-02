@@ -2,17 +2,18 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { UserSuggestionsCard } from './UserSuggestionsCard';
-import { followUserInGraph, unfollowUserInGraph } from '../services/networkApi';
-import type { FilaRed, SugerenciaUsuario, Usuario } from '../types/network.types';
-import { fusionarRed } from '../../../App';
+import { fetchCaminoCorto, followUserInGraph, unfollowUserInGraph } from '../services/networkApi';
+import type { CaminoCorto, SugerenciaUsuario, Usuario } from '../types/network.types';
 
 vi.mock('../services/networkApi', () => ({
+  fetchCaminoCorto: vi.fn(),
   followUserInGraph: vi.fn(),
   unfollowUserInGraph: vi.fn(),
 }));
 
 const followMock = vi.mocked(followUserInGraph);
 const unfollowMock = vi.mocked(unfollowUserInGraph);
+const caminoMock = vi.mocked(fetchCaminoCorto);
 
 type FilaSugerencia = SugerenciaUsuario & { seguido: boolean };
 type FilaSeguido = Usuario & { seguido: boolean };
@@ -54,6 +55,7 @@ describe('UserSuggestionsCard', () => {
   beforeEach(() => {
     followMock.mockReset();
     unfollowMock.mockReset();
+    caminoMock.mockReset();
   });
 
   describe('Renderizado de sugerencias', () => {
@@ -271,306 +273,130 @@ describe('UserSuggestionsCard', () => {
     });
   });
 
-  describe('Aviso de desaparición colateral', () => {
-    it('muestra un aviso cuando un sugerido pierde a su único puente tras dejar de seguir', async () => {
-      unfollowMock.mockResolvedValue(undefined);
-      const onNetworkUpdated = vi.fn();
+  describe('Cálculo de distancia', () => {
+    const CON_CAMINO: CaminoCorto = {
+      rutaConexion: [
+        { id: 'carlos-patino', username: 'carlos' },
+        { id: 'beatriz-silva', username: 'beatriz' },
+        { id: 'david-mendoza', username: 'david' },
+        { id: 'elena-vega', username: 'elena' },
+      ],
+      saltosTotales: 3,
+    };
+
+    const botonDistancia = (indice = 0): HTMLElement =>
+      screen.getAllByRole('button', { name: /distancia/i })[indice];
+
+    it('envía el usuario actual y el de la fila al pulsar el botón', async () => {
+      caminoMock.mockResolvedValue(CON_CAMINO);
       const user = userEvent.setup();
-      const filasIniciales = [
-        seguidoFila({ id: 'u-paulo', username: 'paulo', nombre: 'Paulo' }),
-        sugerencia({
-          id: 'u-david',
-          username: 'david',
-          nombre: 'David',
-          conexionesEnComun: 1,
-          seguidosEnComun: ['paulo'],
-          seguido: false,
-        }),
-      ];
-      const { rerender } = render(
-        <UserSuggestionsCard
-          filas={filasIniciales}
-          currentUserId="carlos-patino"
-          onNetworkUpdated={onNetworkUpdated}
-        />,
-      );
 
-      await user.click(screen.getByRole('button', { name: 'Dejar de seguir' }));
-      rerender(
-        <UserSuggestionsCard
-          filas={[]}
-          currentUserId="carlos-patino"
-          onNetworkUpdated={onNetworkUpdated}
-        />,
-      );
+      renderCard({ filas: [sugerencia({ id: 'elena-vega', username: 'elena' })] });
+      await user.click(botonDistancia());
 
-      expect(screen.getByRole('status')).toHaveTextContent(
-        'David dejó de aparecer en tu red al dejar de seguir a Paulo.',
-      );
+      expect(caminoMock).toHaveBeenCalledTimes(1);
+      expect(caminoMock).toHaveBeenCalledWith('carlos-patino', 'elena-vega');
     });
 
-    it('usa el username capitalizado aunque el sugerido no tenga nombre', async () => {
-      unfollowMock.mockResolvedValue(undefined);
-      const onNetworkUpdated = vi.fn();
+    it('muestra la cadena de nombres y el total de saltos', async () => {
+      caminoMock.mockResolvedValue(CON_CAMINO);
       const user = userEvent.setup();
-      const filasIniciales = [
-        seguidoFila({ id: 'u-paulo', username: 'paulo', nombre: 'Paulo' }),
-        {
-          id: 'u-david',
-          username: 'david',
-          conexionesEnComun: 1,
-          seguidosEnComun: ['paulo'],
-          seguido: false,
-          // `guardarUsuario` drops the `nombre` property when it is null and the
-          // backend returns the row as-is, so a row without it is a real
-          // runtime shape even though the type declares `nombre: string`.
-        } as unknown as SugerenciaUsuario & { seguido: boolean },
-      ];
-      const { rerender } = render(
-        <UserSuggestionsCard
-          filas={filasIniciales}
-          currentUserId="carlos-patino"
-          onNetworkUpdated={onNetworkUpdated}
-        />,
-      );
 
-      await user.click(screen.getByRole('button', { name: 'Dejar de seguir' }));
-      rerender(
-        <UserSuggestionsCard
-          filas={[]}
-          currentUserId="carlos-patino"
-          onNetworkUpdated={onNetworkUpdated}
-        />,
-      );
+      renderCard({ filas: [sugerencia({ id: 'elena-vega', username: 'elena' })] });
+      await user.click(botonDistancia());
 
-      expect(screen.getByRole('status')).toHaveTextContent(
-        'David dejó de aparecer en tu red al dejar de seguir a Paulo.',
-      );
-      expect(screen.getByRole('status')).not.toHaveTextContent('undefined');
+      expect(await screen.findByText('3 saltos de separación')).toBeInTheDocument();
+      expect(screen.getByText('@carlos')).toBeInTheDocument();
+      expect(screen.getByText('@beatriz')).toBeInTheDocument();
+      expect(screen.getByText('@david')).toBeInTheDocument();
     });
 
-    it('avisa solo en el segundo unfollow, cuando se acaba el ultimo puente', async () => {
-      // Payloads reales de GET /follows y GET /sugerencias con las seeds de
-      // carlos: sigue a beatriz y paulo, y ambos son puente hacia david.
-      const follows = [
-        { id: 'beatriz-silva', username: 'beatriz', nombre: 'Beatriz Silva' },
-        { id: 'paulo-orrala', username: 'paulo', nombre: 'Paulo Orrala' },
-      ];
-      const sugerencias = [
-        {
-          id: 'david-mendoza',
-          username: 'david',
-          nombre: 'David Mendoza',
-          conexionesEnComun: 2,
-          seguidosEnComun: ['paulo', 'beatriz'],
-        },
-      ];
-      unfollowMock.mockResolvedValue(undefined);
-      const onNetworkUpdated = vi.fn();
-      const user = userEvent.setup();
-      const card = (filas: FilaRed[]) => (
-        <UserSuggestionsCard
-          filas={filas}
-          currentUserId="carlos-patino"
-          onNetworkUpdated={onNetworkUpdated}
-        />
-      );
-      const botonDejarDeSeguir = (username: string): HTMLElement => {
-        const fila = screen
-          .getByText(`@${username}`)
-          .closest('div.flex.items-center.justify-between');
-        if (fila === null) {
-          throw new Error(`no se encontro la fila de @${username}`);
-        }
-        return within(fila as HTMLElement).getByRole('button', { name: 'Dejar de seguir' });
-      };
-      const { rerender } = render(card(fusionarRed(follows, sugerencias)));
-
-      // 1er unfollow: beatriz. david conserva a paulo como puente, no desaparece.
-      await user.click(botonDejarDeSeguir('beatriz'));
-      const soloPaulo = [follows[1]];
-      const davidConUnPuente = [
-        { ...sugerencias[0], conexionesEnComun: 1, seguidosEnComun: ['paulo'] },
-      ];
-      rerender(card(fusionarRed(soloPaulo, davidConUnPuente)));
-      expect(screen.queryByRole('status')).toBeNull();
-
-      // 2do unfollow: paulo. Se acaba el ultimo puente y david sale de la red.
-      await user.click(botonDejarDeSeguir('paulo'));
-      rerender(card(fusionarRed([], [])));
-      expect(screen.getByRole('status')).toHaveTextContent(
-        'David dejó de aparecer en tu red al dejar de seguir a Paulo.',
-      );
-    });
-
-    it('no muestra aviso cuando el sugerido conserva otro puente y sigue en la lista', async () => {
-      unfollowMock.mockResolvedValue(undefined);
-      const onNetworkUpdated = vi.fn();
-      const user = userEvent.setup();
-      const david = sugerencia({
-        id: 'u-david',
-        username: 'david',
-        nombre: 'David',
-        conexionesEnComun: 2,
-        seguidosEnComun: ['paulo', 'beatriz'],
-        seguido: false,
+    it('usa el singular cuando el camino es de un solo salto', async () => {
+      caminoMock.mockResolvedValue({
+        rutaConexion: [
+          { id: 'carlos-patino', username: 'carlos' },
+          { id: 'elena-vega', username: 'elena' },
+        ],
+        saltosTotales: 1,
       });
-      const { rerender } = render(
-        <UserSuggestionsCard
-          filas={[seguidoFila({ id: 'u-beatriz', username: 'beatriz', nombre: 'Beatriz' }), david]}
-          currentUserId="carlos-patino"
-          onNetworkUpdated={onNetworkUpdated}
-        />,
-      );
-
-      await user.click(screen.getByRole('button', { name: 'Dejar de seguir' }));
-      rerender(
-        <UserSuggestionsCard
-          filas={[david]}
-          currentUserId="carlos-patino"
-          onNetworkUpdated={onNetworkUpdated}
-        />,
-      );
-
-      expect(screen.queryByRole('status')).not.toBeInTheDocument();
-    });
-
-    it('no muestra aviso cuando solo desaparece la propia persona dejada de seguir', async () => {
-      unfollowMock.mockResolvedValue(undefined);
-      const onNetworkUpdated = vi.fn();
       const user = userEvent.setup();
-      const { rerender } = render(
-        <UserSuggestionsCard
-          filas={[seguidoFila({ id: 'u-beatriz', username: 'beatriz', nombre: 'Beatriz' })]}
-          currentUserId="carlos-patino"
-          onNetworkUpdated={onNetworkUpdated}
-        />,
-      );
 
-      await user.click(screen.getByRole('button', { name: 'Dejar de seguir' }));
-      rerender(
-        <UserSuggestionsCard
-          filas={[]}
-          currentUserId="carlos-patino"
-          onNetworkUpdated={onNetworkUpdated}
-        />,
-      );
+      renderCard({ filas: [sugerencia({ id: 'elena-vega', username: 'elena' })] });
+      await user.click(botonDistancia());
 
-      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+      expect(await screen.findByText('1 salto de separación')).toBeInTheDocument();
     });
 
-    it('no muestra aviso cuando el desaparecido no tenía al puente entre sus seguidos en común', async () => {
-      unfollowMock.mockResolvedValue(undefined);
-      const onNetworkUpdated = vi.fn();
+    it('presenta la ausencia de conexión como resultado y no como fallo', async () => {
+      // Ruta vacía con cero saltos es un 200 legítimo: no debe pintarse con rol de alerta,
+      // que es lo reservado para la petición inválida.
+      caminoMock.mockResolvedValue({ rutaConexion: [], saltosTotales: 0 });
       const user = userEvent.setup();
-      const { rerender } = render(
-        <UserSuggestionsCard
-          filas={[
-            seguidoFila({ id: 'u-paulo', username: 'paulo', nombre: 'Paulo' }),
-            sugerencia({
-              id: 'u-david',
-              username: 'david',
-              nombre: 'David',
-              conexionesEnComun: 1,
-              seguidosEnComun: ['carlos'],
-              seguido: false,
-            }),
-          ]}
-          currentUserId="carlos-patino"
-          onNetworkUpdated={onNetworkUpdated}
-        />,
-      );
 
-      await user.click(screen.getByRole('button', { name: 'Dejar de seguir' }));
-      rerender(
-        <UserSuggestionsCard
-          filas={[]}
-          currentUserId="carlos-patino"
-          onNetworkUpdated={onNetworkUpdated}
-        />,
-      );
+      renderCard({ filas: [sugerencia({ id: 'elena-vega', username: 'elena' })] });
+      await user.click(botonDistancia());
 
-      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+      expect(
+        await screen.findByText('No hay conexión con @elena dentro de los 6 grados de separación.'),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
 
-    it('no muestra aviso tras seguir a una sugerencia aunque la lista cambie', async () => {
-      followMock.mockResolvedValue(undefined);
-      const onNetworkUpdated = vi.fn();
+    it('muestra una alerta cuando la petición falla y no la confunde con la ausencia de conexión', async () => {
+      caminoMock.mockRejectedValue(new Error('Request failed with status code 400'));
       const user = userEvent.setup();
-      const { rerender } = render(
-        <UserSuggestionsCard
-          filas={[
-            sugerencia({
-              id: 'u-david',
-              username: 'david',
-              nombre: 'David',
-              conexionesEnComun: 1,
-              seguidosEnComun: ['paulo'],
-              seguido: false,
-            }),
-          ]}
-          currentUserId="carlos-patino"
-          onNetworkUpdated={onNetworkUpdated}
-        />,
-      );
 
-      await user.click(screen.getByRole('button', { name: 'Seguir' }));
-      rerender(
-        <UserSuggestionsCard
-          filas={[]}
-          currentUserId="carlos-patino"
-          onNetworkUpdated={onNetworkUpdated}
-        />,
-      );
+      renderCard({ filas: [sugerencia({ id: 'elena-vega', username: 'elena' })] });
+      await user.click(botonDistancia());
 
-      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'No pudimos calcular la distancia. Inténtalo de nuevo.',
+      );
+      expect(screen.queryByText(/No hay conexión con @elena/)).not.toBeInTheDocument();
     });
 
-    it('limpia el aviso automáticamente después de un tiempo corto', async () => {
-      vi.useFakeTimers();
-      try {
-        unfollowMock.mockResolvedValue(undefined);
-        const onNetworkUpdated = vi.fn();
-        const { rerender } = render(
-          <UserSuggestionsCard
-            filas={[
-              seguidoFila({ id: 'u-paulo', username: 'paulo', nombre: 'Paulo' }),
-              sugerencia({
-                id: 'u-david',
-                username: 'david',
-                nombre: 'David',
-                conexionesEnComun: 1,
-                seguidosEnComun: ['paulo'],
-                seguido: false,
-              }),
-            ]}
-            currentUserId="carlos-patino"
-            onNetworkUpdated={onNetworkUpdated}
-          />,
-        );
+    it('deshabilita el botón mientras la petición está en curso', async () => {
+      let resolve!: (value: CaminoCorto) => void;
+      caminoMock.mockReturnValue(
+        new Promise<CaminoCorto>((r) => {
+          resolve = r;
+        }),
+      );
+      const user = userEvent.setup();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Dejar de seguir' }));
-        await act(async () => {
-          for (let i = 0; i < 10; i += 1) {
-            await Promise.resolve();
-          }
-        });
-        rerender(
-          <UserSuggestionsCard
-            filas={[]}
-            currentUserId="carlos-patino"
-            onNetworkUpdated={onNetworkUpdated}
-          />,
-        );
+      renderCard({ filas: [sugerencia({ id: 'elena-vega', username: 'elena' })] });
+      await user.click(botonDistancia());
 
-        expect(screen.getByRole('status')).toBeInTheDocument();
-        act(() => {
-          vi.advanceTimersByTime(6000);
-        });
-        expect(screen.queryByRole('status')).not.toBeInTheDocument();
-      } finally {
-        vi.useRealTimers();
-      }
+      expect(screen.getByRole('button', { name: /calculando/i })).toBeDisabled();
+      resolve(CON_CAMINO);
+      expect(await screen.findByText('3 saltos de separación')).toBeInTheDocument();
+    });
+
+    it('calcula cada fila por separado', async () => {
+      caminoMock.mockResolvedValue(CON_CAMINO);
+      const user = userEvent.setup();
+
+      renderCard({
+        filas: [
+          sugerencia({ id: 'elena-vega', username: 'elena' }),
+          sugerencia({ id: 'david-mendoza', username: 'david' }),
+        ],
+      });
+      await user.click(botonDistancia(1));
+
+      expect(caminoMock).toHaveBeenCalledWith('carlos-patino', 'david-mendoza');
+    });
+
+    it('no altera el seguimiento: calcular distancia deja el botón de Seguir intacto', async () => {
+      caminoMock.mockResolvedValue(CON_CAMINO);
+      const user = userEvent.setup();
+
+      renderCard();
+      await user.click(botonDistancia());
+      await screen.findByText('3 saltos de separación');
+
+      expect(screen.getByRole('button', { name: 'Seguir' })).toBeInTheDocument();
+      expect(caminoMock).toHaveBeenCalledTimes(1);
     });
   });
 });
