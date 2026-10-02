@@ -77,6 +77,9 @@ services:
       - QUARKUS_NEO4J_AUTHENTICATION_USERNAME=neo4j
       - QUARKUS_NEO4J_AUTHENTICATION_PASSWORD=password123
       - S3_ENDPOINT=http://minio:9000
+      # El que se devuelve al navegador. "minio" solo existe dentro de la red de
+      # Docker, asi que guardarlo en la base deja el <img> roto.
+      - S3_PUBLIC_ENDPOINT=http://localhost:9000
       - S3_BUCKET=redsocial-media
       - S3_ACCESS_KEY=minioadmin
       - S3_SECRET_KEY=minioadmin
