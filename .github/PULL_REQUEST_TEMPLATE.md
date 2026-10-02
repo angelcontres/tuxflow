@@ -3,7 +3,8 @@
 
 ## 🔗 Historia de Usuario / Tarea Relacionada
 <!-- Ejemplo: US-01, US-05, o Fix de bug -->
-- **ID:** `US-`
+- **ID:** `US-XX` (ej. `US-05`)
+- **Tarea:** `TUX-XX` (ej. `TUX-55`)
 
 ## 🛠️ Tipo de Cambio
 - [ ] `feat:` Nueva funcionalidad
