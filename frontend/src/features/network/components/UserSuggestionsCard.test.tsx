@@ -1,9 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { UserSuggestionsCard } from './UserSuggestionsCard';
 import { followUserInGraph, unfollowUserInGraph } from '../services/networkApi';
-import type { SugerenciaUsuario, Usuario } from '../types/network.types';
+import type { FilaRed, SugerenciaUsuario, Usuario } from '../types/network.types';
+import { fusionarRed } from '../../../App';
 
 vi.mock('../services/networkApi', () => ({
   followUserInGraph: vi.fn(),
@@ -308,7 +309,7 @@ describe('UserSuggestionsCard', () => {
       );
     });
 
-    it('usa el username capitalizado cuando el sugerido no tiene nombre', async () => {
+    it('usa el username capitalizado aunque el sugerido no tenga nombre', async () => {
       unfollowMock.mockResolvedValue(undefined);
       const onNetworkUpdated = vi.fn();
       const user = userEvent.setup();
@@ -346,6 +347,60 @@ describe('UserSuggestionsCard', () => {
         'David dejó de aparecer en tu red al dejar de seguir a Paulo.',
       );
       expect(screen.getByRole('status')).not.toHaveTextContent('undefined');
+    });
+
+    it('avisa solo en el segundo unfollow, cuando se acaba el ultimo puente', async () => {
+      // Payloads reales de GET /follows y GET /sugerencias con las seeds de
+      // carlos: sigue a beatriz y paulo, y ambos son puente hacia david.
+      const follows = [
+        { id: 'beatriz-silva', username: 'beatriz', nombre: 'Beatriz Silva' },
+        { id: 'paulo-orrala', username: 'paulo', nombre: 'Paulo Orrala' },
+      ];
+      const sugerencias = [
+        {
+          id: 'david-mendoza',
+          username: 'david',
+          nombre: 'David Mendoza',
+          conexionesEnComun: 2,
+          seguidosEnComun: ['paulo', 'beatriz'],
+        },
+      ];
+      unfollowMock.mockResolvedValue(undefined);
+      const onNetworkUpdated = vi.fn();
+      const user = userEvent.setup();
+      const card = (filas: FilaRed[]) => (
+        <UserSuggestionsCard
+          filas={filas}
+          currentUserId="carlos-patino"
+          onNetworkUpdated={onNetworkUpdated}
+        />
+      );
+      const botonDejarDeSeguir = (username: string): HTMLElement => {
+        const fila = screen
+          .getByText(`@${username}`)
+          .closest('div.flex.items-center.justify-between');
+        if (fila === null) {
+          throw new Error(`no se encontro la fila de @${username}`);
+        }
+        return within(fila as HTMLElement).getByRole('button', { name: 'Dejar de seguir' });
+      };
+      const { rerender } = render(card(fusionarRed(follows, sugerencias)));
+
+      // 1er unfollow: beatriz. david conserva a paulo como puente, no desaparece.
+      await user.click(botonDejarDeSeguir('beatriz'));
+      const soloPaulo = [follows[1]];
+      const davidConUnPuente = [
+        { ...sugerencias[0], conexionesEnComun: 1, seguidosEnComun: ['paulo'] },
+      ];
+      rerender(card(fusionarRed(soloPaulo, davidConUnPuente)));
+      expect(screen.queryByRole('status')).toBeNull();
+
+      // 2do unfollow: paulo. Se acaba el ultimo puente y david sale de la red.
+      await user.click(botonDejarDeSeguir('paulo'));
+      rerender(card(fusionarRed([], [])));
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'David dejó de aparecer en tu red al dejar de seguir a Paulo.',
+      );
     });
 
     it('no muestra aviso cuando el sugerido conserva otro puente y sigue en la lista', async () => {

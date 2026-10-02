@@ -48,14 +48,13 @@ export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
       setAviso(null);
       return;
     }
-    // `nombre` is declared as required, but `guardarUsuario` drops the property
-    // when the value is null and the backend returns it as-is, so at runtime it
-    // can genuinely be missing. Fall back to the username instead of rendering
-    // "undefined".
-    const nombre = (afectada.nombre ?? '').trim();
-    const nombreMostrado = nombre !== '' ? nombre : capitalizar(afectada.username);
+    // The row above the notice shows the `@username` handle, so the message uses
+    // the username too instead of the full name. Reading `nombre` here would also
+    // be unsafe: `guardarUsuario` drops that property when it is null and the
+    // backend returns the row as-is, so it can be missing at runtime even though
+    // the type declares it required.
     setAviso(
-      `${nombreMostrado} dejó de aparecer en tu red al dejar de seguir a ${capitalizar(puente)}.`,
+      `${capitalizar(afectada.username)} dejó de aparecer en tu red al dejar de seguir a ${capitalizar(puente)}.`,
     );
   }, [filas]);
 
