@@ -1,9 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Route, UserMinus, UserPlus, Sparkles, Users } from 'lucide-react';
 import { FilaRed, esSugerencia } from '../types/network.types';
 import type { CaminoCorto } from '../types/network.types';
 import { fetchCaminoCorto, followUserInGraph, unfollowUserInGraph } from '../services/networkApi';
 import { getUserFacingError } from '../../../shared/utils/errorMessage';
+
+/**
+ * Username comes from the graph in lowercase. The notice interpolates it into a
+ * sentence, so it needs an initial capital to read like a name.
+ */
+const capitalizar = (valor: string): string => valor.charAt(0).toUpperCase() + valor.slice(1);
 
 interface UserSuggestionsCardProps {
   filas: FilaRed[];
@@ -62,20 +68,64 @@ export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
   const [distancias, setDistancias] = useState<Record<string, CaminoCorto>>({});
   const [errorDistancia, setErrorDistancia] = useState<Record<string, string>>({});
   const [calculando, setCalculando] = useState<Record<string, boolean>>({});
+  const [aviso, setAviso] = useState<string | null>(null);
+  // Refs, no estado: el efecto de detección corre una vez por cada `filas` nuevas
+  // y necesita el snapshot anterior sin provocar un render extra.
+  const filasPreviasRef = useRef<FilaRed[]>(filas);
+  const puenteRef = useRef<string | null>(null);
 
   useEffect(() => {
     setConfirmados({});
     setAvatarCaido({});
   }, [filas]);
 
+  useEffect(() => {
+    const antes = filasPreviasRef.current;
+    const puente = puenteRef.current;
+    filasPreviasRef.current = filas;
+    puenteRef.current = null;
+    if (puente === null) {
+      return;
+    }
+    const idsActuales = new Set(filas.map((x) => x.id));
+    const desaparecen = antes.filter((f) => !idsActuales.has(f.id) && f.username !== puente);
+    const afectada = desaparecen.find((f) => esSugerencia(f) && f.seguidosEnComun.includes(puente));
+    if (afectada === undefined) {
+      setAviso(null);
+      return;
+    }
+    // The row above the notice shows the `@username` handle, so the message uses
+    // the username too instead of the full name. Reading `nombre` here would also
+    // be unsafe: `guardarUsuario` drops that property when it is null and the
+    // backend returns the row as-is, so it can be missing at runtime even though
+    // the type declares it required.
+    setAviso(
+      `${capitalizar(afectada.username)} dejó de aparecer en tu red al dejar de seguir a ${capitalizar(puente)}.`,
+    );
+  }, [filas]);
+
+  useEffect(() => {
+    if (aviso === null) {
+      return;
+    }
+    const temporizador = setTimeout(() => {
+      setAviso(null);
+    }, 6000);
+    return () => {
+      clearTimeout(temporizador);
+    };
+  }, [aviso]);
+
   const seguidoVisible = (fila: FilaRed): boolean => confirmados[fila.id] ?? fila.seguido;
 
-  const handleToggle = async (targetId: string, seguido: boolean) => {
+  const handleToggle = async (fila: FilaRed, seguido: boolean) => {
+    const targetId = fila.id;
     setEnVuelo((prev) => ({ ...prev, [targetId]: true }));
     setErrorPorId((prev) => ({ ...prev, [targetId]: null }));
     try {
       if (seguido) {
         await unfollowUserInGraph(currentUserId, targetId);
+        puenteRef.current = fila.username;
         setConfirmados((prev) => ({ ...prev, [targetId]: false }));
       } else {
         await followUserInGraph(currentUserId, targetId);
@@ -140,6 +190,16 @@ export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
       <p className="text-xs text-slate-500 mb-4 leading-relaxed">
         Sugerencias y personas que sigues
       </p>
+
+      {aviso !== null && (
+        <p
+          role="status"
+          aria-live="polite"
+          className="text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 mb-4 leading-relaxed"
+        >
+          {aviso}
+        </p>
+      )}
 
       {filas.length === 0 ? (
         <div className="py-4 text-center">
@@ -209,7 +269,7 @@ export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
                     </button>
 
                     <button
-                      onClick={() => void handleToggle(fila.id, seguido)}
+                      onClick={() => void handleToggle(fila, seguido)}
                       disabled={cargando}
                       className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-blue-600 bg-slate-100 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >

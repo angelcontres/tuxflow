@@ -71,21 +71,41 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  const loadAllData = useCallback(async () => {
+  // Refresco solo del feed. Se usa en la carga inicial y al crear un
+  // post: ahí sí aplica el filtrado vigente del backend (D2).
+  const loadFeed = useCallback(async () => {
     try {
-      const [feedData, sugData, segData] = await Promise.all([
-        fetchFeedBySocialGraph(currentUserId).catch(() => []),
-        fetchSugerenciasGrafo(currentUserId).catch(() => []),
-        fetchSeguidos(currentUserId).catch(() => []),
-      ]);
+      const feedData = await fetchFeedBySocialGraph(currentUserId).catch(() => []);
       setPosts(feedData);
-      setRed(fusionarRed(segData, sugData));
     } catch (err) {
-      console.error('Error al sincronizar datos:', err);
+      console.error('Error al sincronizar el feed:', err);
     } finally {
       setLoading(false);
     }
   }, [currentUserId]);
+
+  // Refresco solo de red (sugerencias + seguidos), sin tocar los posts.
+  const loadNetwork = useCallback(async () => {
+    try {
+      const [sugData, segData] = await Promise.all([
+        fetchSugerenciasGrafo(currentUserId).catch(() => []),
+        fetchSeguidos(currentUserId).catch(() => []),
+      ]);
+      setRed(fusionarRed(segData, sugData));
+    } catch (err) {
+      console.error('Error al sincronizar la red:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentUserId]);
+
+  // Carga combinada. Es lo que dispara follow/unfollow: al dejar de seguir,
+  // el feed se vuelve a pedir a propósito, porque el backend ya excluye de
+  // las publicaciones a los usuarios no seguidos y sus posts deben
+  // desaparecer de la vista sin esperar a recargar la página.
+  const loadAllData = useCallback(async () => {
+    await Promise.all([loadFeed(), loadNetwork()]);
+  }, [loadFeed, loadNetwork]);
 
   useEffect(() => {
     if (!isAuthenticated || !currentUserId) {
@@ -149,7 +169,7 @@ export const App: React.FC = () => {
                 <p className="text-xs text-slate-500 font-medium">Cargando publicaciones...</p>
               </div>
             ) : (
-              <FeedList posts={posts} currentUserId={currentUserId} onRefresh={loadAllData} />
+              <FeedList posts={posts} currentUserId={currentUserId} />
             )}
           </section>
 
