@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, Edit3, Upload, Check, AlertCircle, X, Share2, LogOut } from 'lucide-react';
 import { Usuario } from '../../features/user/types/user.types';
-import { fetchUsuario, registerOrUpdateUsuario, uploadAvatar } from '../../features/user/services/userApi';
+import {
+  fetchUsuario,
+  registerOrUpdateUsuario,
+  uploadAvatar,
+} from '../../features/user/services/userApi';
 import { getUserFacingError } from '../utils/errorMessage';
 
 interface NavbarProps {
