@@ -114,8 +114,9 @@ Vitest + Testing Library + jsdom, pruebas colocaladas `*.test.tsx`, imports expl
 - Cambiar el Cypher, el mapeo `isNull() ? null : asLong()` o `Post.fechaCreacion` (ya es `Long`).
 - Paginación (`LIMIT 20` fijo; el Gherkin no la pide).
 - Materialización fan-out-on-write (rechazada).
-- Que un usuario pagado salga de "Tu red" al dejar de seguirlo: es el Cypher de sugerencias
-  (`Neo4jGrafoAdapter.java:77-90`, sólo 2 saltos y `LIMIT 5`), tema de US-02/US-09.
+- Que un usuario pagado salga de "Tu red" al dejar de seguirlo: no es un defecto, es la composición
+  de la regla de la unión de US-02 con las sugerencias de 2º grado de US-03. Cambiarlo sería
+  producto nuevo, no US-05.
 - US-06: el contrato de `togglePostLike` no se modifica.
 - Sintaxis `EXISTS(...)` deprecada: no se toca (Cypher verificado contra el ticket).
 

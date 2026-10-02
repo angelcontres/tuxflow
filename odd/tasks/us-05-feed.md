@@ -113,13 +113,22 @@ cd frontend && pnpm test && pnpm run build && pnpm run lint
 
 Backend no se modificó, así que no se re-corre `mvn test`.
 
-### Bug reportado y derivados a otro ticket
+### Comportamiento reportado — no es un defecto
 
-Al dejar de seguir a alguien, esa persona **desaparece de "Tu red"**. No lo causa este change: el
-Cypher de sugerencias (`Neo4jGrafoAdapter.java:77-90`) sólo trae gente a exactamente 2 saltos por
-alguien que seguís, con `LIMIT 5`. Si nadie más que seguís sigue a esa persona, no entra en
-`sugerencias` ni queda en `seguidos`. Es US-02/US-09, anotado como fuera de alcance en
-`proposal.md` y `tasks.md`.
+Al dejar de seguir a alguien, esa persona **desaparece de "Tu red"**. Se chaired el hallazgo y se
+verificó contra las specs: **es el comportamiento especificado**, no una falla de código.
+
+- **US-02** define la fuente de la tarjeta como "la unión de sugerencias y seguidos fusionada en el
+  cliente por id (seguidos primero, sin duplicados)".
+- **US-03** define las sugerencias como contactos de **segundo grado**.
+
+Al dejar de seguir, la persona sale de `seguidos` (correcto por US-02) y sólo reaparece si alguien
+que seguís también la sigue. `fusionarRed` (`App.tsx:15-35`) implementa la unión al pie de la letra:
+`seguido: true` para los seguidos, deduplicación por id, y las sugerencias detrás.
+
+Hacerla persistente exigiría comportamiento que **ninguna spec declara** (tumbas de "dejado de
+seguir", o cambiar la regla de la unión). Eso es producto nuevo, no US-05, así que queda fuera de
+alcance y anotado como tal en `proposal.md` y `tasks.md`.
 
 ### Pendiente
 

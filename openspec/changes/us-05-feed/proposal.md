@@ -84,8 +84,14 @@ Comportamiento requerido:
 - **Paginación.** `LIMIT 20` es fijo y el Gherkin no la pide.
 - **Materialización fan-out-on-write.** Explícitamente rechazada: no hace falta, está fuera de alcance
   y rompería los criterios de aceptación del ticket.
-- **Que un usuario pagado salga de "Tu red" al dejar de seguirlo.** Se reportó como bug, pero su
-  causa es el Cypher de sugerencias (`Neo4jGrafoAdapter.java:77-90`), que sólo trae gente a
-  exactamente 2 saltos y con `LIMIT 5`. Corregirlo es US-02/US-09, no US-05.
+- **Que un usuario pagado salga de "Tu red" al dejar de seguirlo.** Se reportó como comportamiento
+  inattendido, pero **no es un defecto**: es la composición exacta de dos specs ya aceptadas.
+  US-02 define la fuente de la tarjeta como "la unión de sugerencias y seguidos fusionada en el
+  cliente por id (seguidos primero, sin duplicados)", y US-03 define las sugerencias como contactos
+  de segundo grado. Al dejar de seguir, la persona sale de `seguidos` (correcto por US-02) y sólo
+  vuelve si es sugerencia de 2º grado — Cypher `Neo4jGrafoAdapter.java:77-90`, `LIMIT 5`.
+  `fusionarRed` (`App.tsx:15`) cumple la regla al pie de la letra. Hacerla persistente exigiría
+  inventar comportamiento que ninguna spec declara (tumbas de "dejado de seguir", o cambiar la
+  regla de la unión): es producto nuevo, no US-05.
 - **US-06 (reacciones).** El endpoint de `togglePostLike` pertenece a US-06. Hoy el fallo se registra
   con `console.error` y el contador optimista se revierte; ese comportamiento se conserva tal cual.
