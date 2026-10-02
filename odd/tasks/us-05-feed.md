@@ -6,27 +6,26 @@
 
 ## Objetivo
 
-Que el feed de un usuario funcione, muestre la fecha formateada, degrade bien el avatar, y **no le arranque
-publicaciones de la pantalla mientras el usuario las está leyendo**.
+Que el feed de un usuario funcione, muestre la fecha formateada, degrade bien el avatar, y **refleje
+siempre el filtrado vigente del grafo**: al dejar de seguir a alguien, sus posts desaparecen de
+inmediato, sin esperar a que el usuario recargue la página.
 
 ## Problema verificado
 
-`App.tsx:74-88` define `loadAllData`, que refresca feed + sugerencias + seguidos en un solo
-`Promise.all` y termina en `setPosts(feedData)`. `App.tsx:164` pasa ese mismo `loadAllData` como
-`onNetworkUpdated` a `UserSuggestionsCard`, que lo invoca tras cada unfollow
-(`UserSuggestionsCard.tsx:40`).
+`PostCard.handleLike` llama `onLikeChanged` tras cada reacción, que `FeedList` encadena a `onRefresh`,
+que `App.tsx` conecta al mismo `loadAllData` que dispara follow/unfollow. Cada like reconstruía la
+lista completa de publicaciones contra el grafo: un round-trip entero para mover un contador.
 
-Consecuencia: dejar de seguir a alguien borra sus publicaciones del feed **de inmediato**, sin que el
-usuario haya pedido recargar nada. Es un efecto secundario de compartir la función de refresco, no una
-decisión de producto.
+`onNetworkUpdated` de `UserSuggestionsCard` **se queda** en `loadAllData`. Dejar de seguir sí debe
+repetir el feed: es lo que hace que los posts del usuario filtrado desaparezcan al instante.
 
 ## Alcance autorizado
 
 | # | Trabajo | Dónde |
 |---|---|---|
 | 1 | Reescribir los 4 artifacts contra la realidad verificada | `openspec/changes/us-05-feed/**` |
-| 2 | Requisito nuevo: unfollow no refetchea el feed | `App.tsx`, `App.test.ts` |
-| 3 | Requisito nuevo: like no refetchea el feed | `PostCard.tsx`, `App.tsx` |
+| 2 | Desacoplar `loadFeed` / `loadNetwork` / `loadAllData` | `App.tsx`, `App.test.tsx` |
+| 3 | Like no refetchea el feed | `PostCard.tsx`, `FeedList.tsx`, `App.tsx` |
 | 4 | Fecha formateada (hoy muestra el literal `"Publicado"`) | `PostCard.tsx`, helper nuevo |
 | 5 | Avatar cae a la inicial cuando la URL falla | `PostCard.tsx` |
 | 6 | Pruebas de todo lo anterior | colocaladas |
@@ -54,11 +53,14 @@ Los tres artifacts actuales mienten sobre esto. Hay que corregirlos, no reimplem
 
 ## Decisiones
 
-- **Unfollow no borra posts de la pantalla.** Se desacoplan los refetches. El endpoint sigue filtrando
-  por grafo: el Gherkin ("excluye completamente la publicación de david") queda intacto. Cambia cuándo
-  se aplica el cambio, no qué devuelve la API.
-- **Like tampoco refetchea el feed.** Si no, un like sobre un post de alguien no seguido lo haría
-  desaparecer en el click. Se refresca el contador en el lugar.
+- **Unfollow SÍ repide el feed.** Es el comportamiento previo a este change y se conserva a
+  propósito: el feed muestra siempre el filtrado vigente del backend, sin posts fantasma de
+  usuarios que ya no se siguen. El Gherkin ("excluye completamente la publicación de david") queda
+  intacto — lo que cambia es qué peticiones dispara cada acción, no qué devuelve la API.
+  *(Revertido el 2026-10-01: la primera versión de este change desacoplaba el unfollow y dejaba los
+  posts en pantalla. El usuario lo rechazó: no era el comportamiento esperado.)*
+- **Like NO refetchea el feed.** El contador se refresca en el lugar. Es independiente del unfollow:
+  conviven sin conflicto.
 - **Copia local, no refetch, en el camino del like.** Evita el parpadeo y una request por like.
 - **Fecha formateada en el cliente.** El backend no debe decidir locale.
 - **Sin dependencia de fechas.** `Intl` está en el runtime.
@@ -72,9 +74,10 @@ Los tres artifacts actuales mienten sobre esto. Hay que corregirlos, no reimplem
 - [ ] La fecha se ve como tiempo relativo si es reciente, absoluta si es de hace más de 7 días
 - [ ] Una fecha ausente o inválida muestra "Reciente"
 - [ ] Un avatar con URL rota muestra la inicial, no un círculo vacío ni una imagen rota
-- [ ] Tras dejar de seguir, los posts siguen visibles hasta la próxima carga del feed
-- [ ] Tras la próxima carga, esos posts ya no aparecen
-- [ ] Dar like no borra el post de la pantalla
+- [ ] Tras dejar de seguir, el feed se vuelve a pedir y los posts de esa persona desaparecen ya
+- [ ] Los posts de los usuarios que se siguen siguen visibles
+- [ ] Al recargar la vista, los posts filtrados no reaparecen
+- [ ] Dar like actualiza el contador en el lugar sin pedir el feed de nuevo
 
 ## Checks
 
@@ -88,8 +91,7 @@ cd frontend && pnpm test && pnpm run build && pnpm run lint
 **2026-10-01 — las 4 unidades implementadas y verificadas.** Frontend únicamente; backend sin tocar.
 
 - [x] **U1** `App.tsx`: `loadAllData` partido en `loadFeed` (posts), `loadNetwork` (red) y `loadAllData`
-      (combinada, para arranque y creación de posts). `onNetworkUpdated={loadNetwork}` — unfollow ya no
-      reconstruye el feed.
+      (combinada). `onNetworkUpdated={loadAllData}` — el unfollow repide el feed a propósito.
 - [x] **U2** `PostCard.tsx`: el like queda optimista y local, sin refetch. Se conserva la reversión del
       contador y el `console.error` ante fallo. Cadena de props muertas `onLikeChanged`/`onRefresh`
       eliminada de `PostCard` → `FeedList` → `App`.
@@ -111,14 +113,16 @@ cd frontend && pnpm test && pnpm run build && pnpm run lint
 
 Backend no se modificó, así que no se re-corre `mvn test`.
 
-### Estado divergente conocido (deliberado)
+### Bug reportado y derivados a otro ticket
 
-Tras unfollow, la tarjeta de red muestra "Seguir" mientras el feed todavía muestra los posts de esa
-persona. Es el comportamiento especificado en D2 y está fijado por prueba para que nadie lo "arregle"
-volviendo a un refetch conjunto.
+Al dejar de seguir a alguien, esa persona **desaparece de "Tu red"**. No lo causa este change: el
+Cypher de sugerencias (`Neo4jGrafoAdapter.java:77-90`) sólo trae gente a exactamente 2 saltos por
+alguien que seguís, con `LIMIT 5`. Si nadie más que seguís sigue a esa persona, no entra en
+`sugerencias` ni queda en `seguidos`. Es US-02/US-09, anotado como fuera de alcance en
+`proposal.md` y `tasks.md`.
 
 ### Pendiente
 
 - Ninguna unidad de código. Falta la verificación manual en navegador (los 3 puntos de la lista de
-  verificación) y el commit.
+  verificación).
 

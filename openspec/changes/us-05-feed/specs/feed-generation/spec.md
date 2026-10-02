@@ -116,30 +116,35 @@ seguimiento.
 - **AND** no queda visible una imagen rota ni un círculo vacío
 - **AND** el badge de seguimiento sigue visible
 
-### Requirement: Dejar de seguir no retira los posts ya renderizados
+### Requirement: Dejar de seguir refresca el feed y retira los posts del usuario
 
-El sistema DEBE mantener en pantalla las publicaciones ya renderizadas tras dejar de seguir a su
-autor. El filtrado del backend SIGUE excluyendo a los no seguidos; lo que cambia es CUÁNDO el
-cliente vuelve a pedir el feed, no lo que la API devuelve.
+El sistema DEBE volver a pedir el feed al dejar de seguir a un usuario. Como el backend excluye de
+las publicaciones a los no seguidos, las publicaciones de esa persona DEBEN desaparecer del feed de
+inmediato, sin esperar a que el usuario recargue la página. La tarjeta de red también DEBE reflejar
+el nuevo estado.
 
-#### Scenario: Los posts siguen visibles tras dejar de seguir
+Este es el comportamiento previo a US-05 y se conserva a propósito: el feed siempre muestra el
+filtrado vigente del backend, sin posts fantasma de usuarios que ya no se siguen.
+
+#### Scenario: Los posts desaparecen de inmediato tras dejar de seguir
 
 - **GIVEN** que el feed muestra una publicación de "beatriz", a quien "carlos-patio" sigue
 - **WHEN** "carlos-patio" deja de seguir a "beatriz" desde la tarjeta de red
-- **THEN** la publicación de "beatriz" sigue visible en el feed
+- **THEN** el feed se vuelve a pedir al backend
+- **AND** la publicación de "beatriz" desaparece de la vista sin recargar la página
+- **AND** las publicaciones de los usuarios que se siguen siguen visibles
 - **AND** la tarjeta de red refleja el nuevo estado ("Seguir")
 
-#### Scenario: Los posts desaparecen en la próxima carga
+#### Scenario: Los posts filtrados no reaparecen al recargar la vista
 
-- **GIVEN** que "carlos-patio" dejó de seguir a "beatriz" sin recargar el feed
+- **GIVEN** que "carlos-patio" dejó de seguir a "beatriz"
 - **WHEN** se produce la próxima carga del feed (remontaje, recarga o nueva petición)
-- **THEN** la publicación de "beatriz" ya no aparece
+- **THEN** la publicación de "beatriz" no aparece
 
 #### Scenario: Dar like no retira el post de la pantalla
 
-- **GIVEN** que el feed muestra una publicación de "beatriz", a quien "carlos-patio" acaba de dejar
-  de seguir sin recargar el feed
+- **GIVEN** que el feed muestra una publicación de un usuario que "carlos-patio" sigue
 - **WHEN** "carlos-patio" da like a esa publicación
 - **THEN** la publicación sigue visible en el feed
-- **AND** el contador de likes se actualiza en el lugar
+- **AND** el contador de likes se actualiza en el lugar, sin volver a pedir el feed
 - **AND** si la petición de like falla, el contador se revierte y el error se registra en consola

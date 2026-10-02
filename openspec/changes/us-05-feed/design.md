@@ -33,27 +33,30 @@ El chequeo de validez vive dentro del helper (`Number.isNaN` tras `new Date(valo
 **Alternativa descartada**: formatear en el backend. Acoplaría la presentación al locale del servidor
 y obligaría a versionar la API para cambiar un texto visible.
 
-### D2 — Desacoplar los refetches: la red se refresca, el feed ya renderizado no
+### D2 — Desacoplar los refetches: la red y el feed se refrescan por separado
 
-Hoy `loadAllData` (`App.tsx:74-88`) es una sola función que reconstruye todo: `setPosts(feedData)` +
-`setRed(...)`. Dos consumidores distintos la usan con intenciones distintas: el like quiere ver su
-contador actualizado y la tarjeta de red quiere ver su fila actualizada, pero ninguno de los dos quiere
-que los posts en pantalla se recalculen contra el grafo actual.
+`loadAllData` (`App.tsx:104-107`) es una sola función que reconstruye todo: `setPosts(feedData)` +
+`setRed(...)`. El diseño la separa en dos intenciones con dependencias independientes:
 
-El diseño separa las intenciones:
+- **Refresco de red** (`loadNetwork`): recarga sugerencias + seguidos y actualiza solo `red`.
+- **Refresco de feed** (`loadFeed`): recarga `posts` aplicando el filtrado vigente del backend.
+- **Carga combinada** (`loadAllData`): `Promise.all` de ambas. Es la que se dispara en el arranque,
+  al crear un post (`CreatePostForm` → `onPostCreated`), al actualizar el perfil desde el `Navbar` y
+  **en follow/unfollow** (`onNetworkUpdated`).
 
-- **Refresco de red** (tras follow/unfollow): recarga sugerencias + seguidos y actualiza solo el
-  estado de la red. Los posts ya renderizados **no se tocan**.
-- **Refresco de feed**: solo en la carga inicial, al crear un post (`CreatePostForm` →
-  `onPostCreated`) y en la próxima carga explícita. Ahí sí se aplica el filtrado vigente del
-  backend, y los posts de usuarios dejados de seguir desaparecen.
-- **Like**: actualización optimista local del contador en `PostCard` (ya existe,
-  `PostCard.tsx:21-34`), **sin** llamar a `loadAllData`. Si la petición confirma, el contador queda;
-  si falla, se revierte y se registra en consola (comportamiento actual que se conserva). Nunca se
-  reconstruye la lista.
+Que follow/unfollow use `loadAllData` y no `loadNetwork` es una decisión de producto explícita: al
+dejar de seguir a alguien, sus posts deben desaparecer del feed **de inmediato**, porque el backend ya
+no los devuelve. Se evaluó la alternativa de refrescar solo la red y conservar los posts en pantalla,
+pero se descartó: deja posts fantasma de usuarios que ya no se siguen, que es la sorpresa que el
+usuario reportó.
 
-Así el Gherkin sigue intacto — la API excluye a los no seguidos — y lo único que cambia es **cuándo**
-el cliente vuelve a preguntar.
+- **Like**: actualización optimista local del contador en `PostCard` (`PostCard.tsx:23-35`),
+  **sin** pedir el feed. Si la petición confirma, el contador queda; si falla, se revierte y se
+  registra en consola. El feed se recalcula entero por cada like solo porque el contador se guardaba
+  en el servidor; mientras tanto, reconstruir la lista no aporta nada.
+
+Así el Gherkin sigue intacto — la API excluye a los no seguidos — y lo único que cambia es **qué
+peticiones dispara cada acción**, no lo que la API devuelve.
 
 **Alternativa descartada**: fan-out-on-write (materializar el feed por seguidor). Rechazada de forma
 explícita: no hace falta para este ticket, está fuera de alcance y rompería los criterios de

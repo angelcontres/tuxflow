@@ -7,8 +7,8 @@
 
 Como usuario de la red social, quiero ver en mi timeline solo las publicaciones de los usuarios que sigo,
 con el total de likes y si ya reaccioné a cada una, con la fecha legible y el avatar degradado a la
-inicial cuando la imagen falla. Y quiero que dejar de seguir a alguien **no me arranque de la pantalla**
-las publicaciones que ya estoy leyendo.
+inicial cuando la imagen falla. Y quiero que el feed refleje siempre el filtrado vigente: al dejar de
+seguir a alguien, sus publicaciones desaparecen de inmediato sin que tenga que recargar la página.
 
 ## Criterio de aceptación (Gherkin)
 
@@ -48,38 +48,31 @@ El `onError` del avatar **sí existe** (`PostCard.tsx:62-64`), pero hace
 El hueco no es la falta de `onError`, sino la falta del fallback a la inicial (el patrón que
 `UserSuggestionsCard.tsx:81-101` ya resuelve con `avatarCaido` + inicial).
 
-## Problema verificado 3 (nuevo requisito): dejar de seguir vacía el feed en pantalla
+## Problema verificado 3: el like no debe reconstruir el feed
 
-`App.tsx:74-88` define `loadAllData`, que refresca feed + sugerencias + seguidos en un solo
-`Promise.all` y termina en `setPosts(feedData)`. `App.tsx:164` pasa ese mismo `loadAllData` como
-`onNetworkUpdated` a `UserSuggestionsCard`, que lo invoca tras cada unfollow
-(`UserSuggestionsCard.tsx:40`).
+`PostCard.handleLike` (`PostCard.tsx:23-35`) llama `onLikeChanged` tras confirmar la reacción, que
+`FeedList.tsx` conecta a `onRefresh`, que `App.tsx` conecta a `loadAllData`. Cada like reconstruía la
+lista completa de publicaciones contra el grafo: un round-trip entero para mover un contador, con el
+scroll y el foco positions nueva y la oportunidad de que posts se reordenen mientras el usuario mira.
 
-Consecuencia: dejar de seguir a alguien reconstruye el feed **de inmediato**, y los posts del usuario
-dejado de seguir desaparecen de la pantalla sin que el lector haya pedido recargar nada. Es un efecto
-secundario de compartir la función de refresco, no una decisión de producto.
+`onNetworkUpdated` de `UserSuggestionsCard` **se queda** en `loadAllData`: dejar de seguir sí debe
+repedir el feed, para que los posts del usuario filtrado desaparezcan de inmediato. Esa combinación
+—unfollow refresca, like no— es intencional.
 
 Comportamiento requerido:
 
-- Tras dejar de seguir, los posts ya renderizados **siguen visibles** hasta la próxima carga del feed.
-- En la próxima carga (remontaje, recarga o nueva petición al feed), esos posts **ya no aparecen**,
-  porque el backend sigue filtrando por el grafo.
-- Es un cambio de **desacople de refetch en el cliente**. El backend no se toca, el Cypher no cambia.
-  El Gherkin ("excluye completamente la publicación de david") sigue siendo VERDADERO: lo que cambia es
-  **cuándo** se aplica el cambio, no lo que devuelve la API.
-
-Consecuencia obligada: `PostCard.handleLike` (`PostCard.tsx:21-34`) llama `onLikeChanged`, que
-`FeedList.tsx:33` conecta a `onRefresh`, que `App.tsx:152` conecta al mismo `loadAllData`. Si solo se
-desacopla el unfollow, dar like a un post de un usuario recién dejado de seguir lo haría desaparecer
-en mitad del clic. **El camino del like debe desacoplarse también**, refrescando el contador en el
-lugar en vez de reconstruir el feed.
+- Unfollow: el feed se vuelve a pedir y los posts del usuario dejado de seguir desaparecen de
+  inmediato, sin esperar a que el lector recargue la página. Es el comportamiento previo a este
+  change y se conserva.
+- Like: el contador se actualiza en el lugar, sin pedir el feed. Si la petición falla, se revierte y
+  se registra en consola.
 
 ## Alcance de este change (solo frontend)
 
-- `App.tsx`: separar el refresco de red del refresco de feed; el unfollow actualiza la red sin
-  reconstruir los posts.
+- `App.tsx`: separar el refresco de red del refresco de feed en `loadNetwork` / `loadFeed`, compuestas
+  por `loadAllData`. `onNetworkUpdated` sigue apuntando a `loadAllData`.
 - `PostCard.tsx` + `FeedList.tsx` + `App.tsx`: el like actualiza el contador en el lugar, sin refetch
-  del feed.
+  del feed; se eliminan las props `onLikeChanged` / `onRefresh`, que quedan sin llamador.
 - `PostCard.tsx` (+ helper nuevo): formatear `fechaCreacion` (relativo si reciente, absoluto si hace
   más de 7 días, `"Reciente"` si ausente o inválido).
 - `PostCard.tsx`: el `onError` del avatar cae a la inicial en vez de ocultar la imagen.
@@ -91,6 +84,8 @@ lugar en vez de reconstruir el feed.
 - **Paginación.** `LIMIT 20` es fijo y el Gherkin no la pide.
 - **Materialización fan-out-on-write.** Explícitamente rechazada: no hace falta, está fuera de alcance
   y rompería los criterios de aceptación del ticket.
+- **Que un usuario pagado salga de "Tu red" al dejar de seguirlo.** Se reportó como bug, pero su
+  causa es el Cypher de sugerencias (`Neo4jGrafoAdapter.java:77-90`), que sólo trae gente a
+  exactamente 2 saltos y con `LIMIT 5`. Corregirlo es US-02/US-09, no US-05.
 - **US-06 (reacciones).** El endpoint de `togglePostLike` pertenece a US-06. Hoy el fallo se registra
-  con `console.error` y el contador optimista se revierte (`PostCard.tsx:29-32`); ese comportamiento se
-  conserva tal cual.
+  con `console.error` y el contador optimista se revierte; ese comportamiento se conserva tal cual.

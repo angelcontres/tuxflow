@@ -19,29 +19,29 @@ pruebas colocaladas `*.test.tsx` (frontend). El backend no se toca.
 
 | Unidad | Alcance | Líneas |
 |---|---|---|
-| 1 | Desacoplar el refetch de red del refetch de feed (D2, unfollow) | 30–50 |
+| 1 | Desacoplar el refetch de red del refetch de feed (D2) | 30–50 |
 | 2 | Like sin refetch del feed, contador en el lugar (D2, like) | 20–40 |
 | 3 | Fecha formateada + avatar con fallback a inicial (D1, D3) | 40–60 |
 | 4 | Fase de tests obligatoria (Vitest + Testing Library, colocaladas) | 90–110 |
 
-**Recomendación**: un único PR. Las unidades 1 y 2 comparten el mismo desacople y deben revisarse
-juntas: si solo se desacopla el unfollow, el like reintroduce la desaparición. La unidad 4 cubre las
-tres anteriores y es bloqueante para el cierre según `openspec/config.yaml` (`rules.tasks`: fase de
-tests obligatoria; `rules.verify`: historia sin pruebas = WARNING, no PASS).
+**Recomendación**: un único PR. La unidad 4 cubre las tres anteriores y es bloqueante para el cierre
+según `openspec/config.yaml` (`rules.tasks`: fase de tests obligatoria; `rules.verify`: historia sin
+pruebas = WARNING, no PASS).
 
 ---
 
-## Unidad 1: Desacoplar el refetch de red (unfollow no vacía el feed)
+## Unidad 1: Desacoplar el refresco de red del refresco de feed
 
-**Desbloquea**: el requisito nuevo — los posts ya renderizados sobreviven al unfollow. Sin esto, la
-unidad 2 no tiene sentido (el like seguiría reconstruido por el mismo `loadAllData`).
-**Rollback**: revertir devuelve la desaparición inmediata tras cada unfollow.
+**Desbloquea**: que follow/unfollow y like dejen de compartir el mismo `loadAllData`, que hoy
+reconstruye feed + red en un solo `Promise.all`.
+**Rollback**: revertir devuelve la reconstrucción de ambas listas en cada acción.
 
 - [ ] Separar en `App.tsx` el refresco de red (sugerencias + seguidos → `setRed`) del refresco de
-      feed (`fetchFeedBySocialGraph` → `setPosts`), de modo que `UserSuggestionsCard` reciba un
-      `onNetworkUpdated` que ya NO reconstruya los posts
-- [ ] Conservar el refresco de feed en la carga inicial y al crear un post (`CreatePostForm` →
-      `onPostCreated`); ahí sí aplica el filtrado vigente del backend
+      feed (`fetchFeedBySocialGraph` → `setPosts`), componiéndolos en `loadAllData`
+- [ ] **Mantener** `onNetworkUpdated={loadAllData}` en `UserSuggestionsCard`. Unfollow **sí** repide el
+      feed: es lo que hace que los posts del usuario filtrado desaparezcan de inmediato
+- [ ] Conservar el refresco combinado en la carga inicial, al crear un post (`CreatePostForm` →
+      `onPostCreated`) y al actualizar el perfil desde el `Navbar`
 - [ ] No cambiar el backend ni el Cypher. La API sigue excluyendo a los no seguidos
 - [ ] No proponer fan-out-on-write. Explícitamente rechazado en `proposal.md`
 
@@ -49,18 +49,18 @@ unidad 2 no tiene sentido (el like seguiría reconstruido por el mismo `loadAllD
 
 ## Unidad 2: Like sin refetch (el contador se actualiza en el lugar)
 
-**Desbloquea**: que dar like a un post de un usuario recién dejado de seguir no lo haga desaparecer
-en mitad del clic. Depende de la unidad 1 (mismo `loadAllData` compartido).
+**Desbloquea**: que dar like no reconstruya la lista de publicaciones contra el grafo. Comparte
+`loadAllData` con la unidad 1, pero se benefician por separado: el unfollow repide el feed, el like no.
 **Rollback**: revertir devuelve la reconstrucción del feed en cada like.
 
 - [ ] Desconectar `PostCard.handleLike` del refetch global: tras `togglePostLike` con éxito, conservar
       el estado optimista local (`isLiked` / `likesCount`) sin llamar a `onRefresh`/`loadAllData`
 - [ ] Conservar el comportamiento de fallo actual: revertir el contador y registrar con
       `console.error` (el endpoint pertenece a US-06; no cambiar su contrato)
-- [ ] Ajustar el cableado `FeedList.tsx:33` (`onLikeChanged={onRefresh}`) según el diseño D2, sin
-      romper el resto de usos de `onRefresh`
-- [ ] Verificar el escenario: unfollow a "beatriz" → like a su post visible → el post sigue en
-      pantalla con el contador actualizado
+- [ ] Eliminar `onLikeChanged` (en `PostCard` y `FeedList`) y `onRefresh` de `FeedList`: quedan sin
+      ningún llamador
+- [ ] Verificar el escenario: like sobre un post de un usuario que se sigue → el contador sube y el
+      feed no se vuelve a pedir
 
 ---
 
@@ -95,10 +95,10 @@ Vitest + Testing Library + jsdom, pruebas colocaladas `*.test.tsx`, imports expl
 `'vitest'`), ningún comportamiento se declara correcto sin una prueba que lo cubra.
 **Rollback**: N/A — sin esta unidad la historia se reporta como WARNING, no como PASS.
 
-- [ ] Prueba: tras unfollow exitoso, los posts ya renderizados siguen visibles y la tarjeta de red
-      refleja el nuevo estado
-- [ ] Prueba: en la próxima carga del feed tras el unfollow, los posts del usuario dejado de seguir
-      ya no aparecen (el mock de `fetchFeedBySocialGraph` devuelve el feed filtrado)
+- [ ] Prueba: dejar de seguir vuelve a pedir el feed (`fetchFeedBySocialGraph` recibe una segunda
+      llamada) y los posts del usuario filtrado desaparecen de inmediato, mientras los de los
+      usuarios que se siguen siguen visibles
+- [ ] Prueba: tras el unfollow, al remontar la vista los posts del usuario filtrado no reaparecen
 - [ ] Prueba: dar like actualiza el contador en el lugar sin pedir el feed de nuevo (el mock del feed
       no recibe una segunda llamada); ante fallo de `togglePostLike`, el contador se revierte
 - [ ] Prueba: `formatFecha` devuelve relativo para fechas recientes, absoluto para > 7 días y
@@ -114,6 +114,8 @@ Vitest + Testing Library + jsdom, pruebas colocaladas `*.test.tsx`, imports expl
 - Cambiar el Cypher, el mapeo `isNull() ? null : asLong()` o `Post.fechaCreacion` (ya es `Long`).
 - Paginación (`LIMIT 20` fijo; el Gherkin no la pide).
 - Materialización fan-out-on-write (rechazada).
+- Que un usuario pagado salga de "Tu red" al dejar de seguirlo: es el Cypher de sugerencias
+  (`Neo4jGrafoAdapter.java:77-90`, sólo 2 saltos y `LIMIT 5`), tema de US-02/US-09.
 - US-06: el contrato de `togglePostLike` no se modifica.
 - Sintaxis `EXISTS(...)` deprecada: no se toca (Cypher verificado contra el ticket).
 
@@ -131,6 +133,6 @@ cd backend && $MAVEN_HOME/bin/mvn test
 - [ ] `pnpm run build` en verde (typechequea también las pruebas)
 - [ ] `pnpm run lint` sin errores nuevos
 - [ ] `$MAVEN_HOME/bin/mvn test` en verde (sin cambios de backend)
-- [ ] En navegador: tras dejar de seguir, los posts siguen visibles hasta la próxima carga
+- [ ] En navegador: al dejar de seguir, los posts de esa persona desaparecen sin recargar la página
 - [ ] En navegador: la fecha se lee como tiempo relativo / absoluto / "Reciente" según el caso
 - [ ] En navegador: un avatar con URL rota muestra la inicial, no un círculo vacío
