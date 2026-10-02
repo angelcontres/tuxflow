@@ -4,7 +4,7 @@ public class Post {
     private String id;
     private String texto;
     private String mediaUrl;
-    private String fechaCreacion;
+    private Long fechaCreacion;
     private String autorId;
     private String autorUsername;
     private String autorAvatar;
@@ -37,11 +37,11 @@ public class Post {
         this.mediaUrl = mediaUrl;
     }
 
-    public String getFechaCreacion() {
+    public Long getFechaCreacion() {
         return fechaCreacion;
     }
 
-    public void setFechaCreacion(String fechaCreacion) {
+    public void setFechaCreacion(Long fechaCreacion) {
         this.fechaCreacion = fechaCreacion;
     }
 

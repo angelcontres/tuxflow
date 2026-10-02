@@ -11,7 +11,6 @@ import { fetchFeedBySocialGraph } from './features/feed/services/feedApi';
 import { fetchSeguidos, fetchSugerenciasGrafo } from './features/network/services/networkApi';
 import { Post } from './features/feed/types/post.types';
 import { FilaRed, SugerenciaUsuario, Usuario } from './features/network/types/network.types';
-import { UserCheck } from 'lucide-react';
 
 export function fusionarRed(seguidos: Usuario[], sugerencias: SugerenciaUsuario[]): FilaRed[] {
   const filas: FilaRed[] = [];
@@ -156,19 +155,7 @@ export const App: React.FC = () => {
 
           {/* BARRA LATERAL DERECHA: SESIÓN + SUGERENCIAS + CHAT */}
           <aside className="lg:col-span-5 space-y-6">
-            {/* Tarjeta de Sesión Activa */}
-            <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
-                {currentUsername.charAt(0).toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-slate-900 truncate">@{currentUsername}</p>
-                <p className="text-[11px] text-emerald-600 font-medium flex items-center gap-1">
-                  <UserCheck className="w-3.5 h-3.5 text-emerald-500" />
-                  Sesión activa
-                </p>
-              </div>
-            </div>
+
 
             {/* Tu red: sugerencias + seguidos */}
             <UserSuggestionsCard

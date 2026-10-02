@@ -22,6 +22,15 @@ public class MinioS3StorageAdapter implements StorageMultimediaPort {
     @ConfigProperty(name = "quarkus.s3.endpoint-override", defaultValue = "http://localhost:9000")
     String endpoint;
 
+    /**
+     * Endpoint que se devuelve al navegador. Distinto del endpoint que usa el
+     * cliente S3: dentro de la red de Docker el host es "minio", pero el
+     * navegador no resuelve ese nombre. Guardar esa URL deja el <img> roto y el
+     * post se ve solo con el texto, aunque el archivo este subido.
+     */
+    @ConfigProperty(name = "redsocial.s3.public-endpoint", defaultValue = "http://localhost:9000")
+    String publicEndpoint;
+
     @Override
     public String subirArchivo(
             InputStream inputStream, long contentLength, String contentType, String extension) {
@@ -54,6 +63,6 @@ public class MinioS3StorageAdapter implements StorageMultimediaPort {
                     e);
         }
 
-        return endpoint + "/" + bucketName + "/" + key;
+        return publicEndpoint + "/" + bucketName + "/" + key;
     }
 }

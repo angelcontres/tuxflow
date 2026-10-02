@@ -106,8 +106,11 @@ echo.
 :: ===============================================================================
 :seed_database
 echo [4/4] Inyectando dataset semilla en Neo4j (usuarios, relaciones y posts)...
+:: LANG/LC_ALL son obligatorios: la imagen de neo4j corre con LC_CTYPE=POSIX y al
+:: mandar el .cql por stdin cada byte de un caracter multibyte se convierte en un
+:: U+FFFD, dejando "¡" como "��" y el emoji del post de Paulo como "���".
 if exist "docker\neo4j-seed.cql" (
-    type "docker\neo4j-seed.cql" | docker exec -i redsocial-neo4j cypher-shell -u neo4j -p password123 >nul 2>&1
+    type "docker\neo4j-seed.cql" | docker exec -i -e LANG=C.UTF-8 -e LC_ALL=C.UTF-8 redsocial-neo4j cypher-shell -u neo4j -p password123 >nul 2>&1
     if %errorlevel% equ 0 (
         echo [OK] Datos semilla inyectados exitosamente en el grafo.
     ) else (

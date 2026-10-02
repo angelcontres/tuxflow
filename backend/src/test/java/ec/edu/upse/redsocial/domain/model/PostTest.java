@@ -84,16 +84,24 @@ class PostTest {
     class FechaCreacion {
 
         @Test
-        @DisplayName("el dominio declara la fecha de creación como texto")
-        void domainDeclaresFechaAsText() {
+        @DisplayName("el dominio declara la fecha de creación como epoch millis (tipo long)")
+        void domainDeclaresFechaAsLong() {
             Post post = new Post();
-            post.setFechaCreacion("1750000000000");
+            post.setFechaCreacion(1750000000000L);
 
-            // El dominio la expone como String. El adaptador de Neo4j la escribe como entero epoch
-            // (datetime().epochMillis) y el feed la lee con asString(). Este test existe para dejar
-            // el contrato del dominio explícito: la desalineación entre las tres representaciones
-            // está registrada como deuda de arquitectura, no como comportamiento aceptado.
-            assertEquals("1750000000000", post.getFechaCreacion());
+            // La fecha es epoch millis de punta a punta: el seed la escribe como entero
+            // (1727260000000), crearPost usa datetime().epochMillis y el adaptador la lee con
+            // asLong(). El dominio la declara como Long para no forzar una coerción que antes
+            // rompía el feed con "Cannot coerce INTEGER to Java String".
+            assertEquals(1750000000000L, post.getFechaCreacion().longValue());
+        }
+
+        @Test
+        @DisplayName("una publicación sin fecha no falla al consultar la fecha")
+        void fechaCanBeNull() {
+            Post post = new Post();
+
+            assertNull(post.getFechaCreacion());
         }
     }
 }

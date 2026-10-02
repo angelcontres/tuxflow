@@ -10,5 +10,9 @@ RUN npm run build
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+# nginx:alpine ejecuta los scripts de /docker-entrypoint.d/ antes de arrancar.
+# Este ajusta el resolver del upstream al DNS real del runtime (docker o podman).
+COPY docker-entrypoint-resolver.sh /docker-entrypoint.d/15-resolver.sh
+RUN chmod +x /docker-entrypoint.d/15-resolver.sh
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
