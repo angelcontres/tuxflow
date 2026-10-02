@@ -6,10 +6,9 @@ import { togglePostLike } from '../services/feedApi';
 interface PostCardProps {
   post: Post;
   currentUserId: string;
-  onLikeChanged: () => void;
 }
 
-export const PostCard: React.FC<PostCardProps> = ({ post, currentUserId, onLikeChanged }) => {
+export const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const [isLiked, setIsLiked] = useState<boolean>(post.likedByMe);
   const [likesCount, setLikesCount] = useState<number>(post.totalLikes);
 
@@ -24,8 +23,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUserId, onLikeC
     setLikesCount((prev) => (nextState ? prev + 1 : Math.max(0, prev - 1)));
 
     try {
+      // Contador optimista local: el like no reconstruye el feed. El
+      // endpoint pertenece a US-06, asi que un fallo se revierte igual.
       await togglePostLike(post.id, currentUserId);
-      onLikeChanged();
     } catch (err) {
       setIsLiked(!nextState);
       setLikesCount((prev) => (!nextState ? prev + 1 : Math.max(0, prev - 1)));

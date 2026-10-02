@@ -149,7 +149,7 @@ export const App: React.FC = () => {
                 <p className="text-xs text-slate-500 font-medium">Cargando publicaciones...</p>
               </div>
             ) : (
-              <FeedList posts={posts} currentUserId={currentUserId} onRefresh={loadAllData} />
+              <FeedList posts={posts} currentUserId={currentUserId} />
             )}
           </section>
 
