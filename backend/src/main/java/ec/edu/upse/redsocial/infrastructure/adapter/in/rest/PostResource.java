@@ -49,9 +49,27 @@ public class PostResource {
     @POST
     @Path("/{postId}/like")
     public Response reaccionarPost(@PathParam("postId") String postId, Map<String, String> body) {
-        String userId = body.get("userId");
-        crearPostUseCase.reaccionarPost(userId, postId);
-        return Response.ok(Map.of("mensaje", "Reacción registrada")).build();
+        String userId = body != null ? body.get("userId") : null;
+        // Sin usuario no hay forma de crear la relación. Un 200 aquí sería un like que nunca
+        // existió.
+        if (userId == null || userId.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("error", "El campo 'userId' es obligatorio"))
+                    .build();
+        }
+
+        int totalLikes = crearPostUseCase.reaccionarPost(userId, postId);
+        return Response.ok(
+                        Map.of(
+                                "mensaje",
+                                "Reacción registrada",
+                                "postId",
+                                postId,
+                                "likedByMe",
+                                true,
+                                "totalLikes",
+                                totalLikes))
+                .build();
     }
 
     @GET

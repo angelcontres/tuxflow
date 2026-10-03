@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Heart, MessageCircle, Share2 } from 'lucide-react';
 import { Post } from '../types/post.types';
-import { togglePostLike } from '../services/feedApi';
+import { likePost } from '../services/feedApi';
 import { formatFecha } from '../utils/formatFecha';
 
 interface PostCardProps {
@@ -13,6 +13,8 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const [isLiked, setIsLiked] = useState<boolean>(post.likedByMe);
   const [likesCount, setLikesCount] = useState<number>(post.totalLikes);
   const [avatarCaido, setAvatarCaido] = useState<boolean>(false);
+  const [likeEnVuelo, setLikeEnVuelo] = useState<boolean>(false);
+  const [errorLike, setErrorLike] = useState<string | null>(null);
 
   React.useEffect(() => {
     setIsLiked(post.likedByMe);
@@ -25,18 +27,36 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   }, [post.autorAvatar]);
 
   const handleLike = async () => {
-    const nextState = !isLiked;
-    setIsLiked(nextState);
-    setLikesCount((prev) => (nextState ? prev + 1 : Math.max(0, prev - 1)));
+    // Un clic en vuelo se ignora: dos peticiones simultáneas podrían llegar en orden inverso y
+    // dejar el contador con el valor de la más antigua.
+    if (likeEnVuelo) return;
+
+    const likedPrevio = isLiked;
+    const totalPrevio = likesCount;
+    setLikeEnVuelo(true);
+    setErrorLike(null);
+
+    // Actualizacion optimista: el corazon se marca al instante, sin esperar al servidor (US-06).
+    // El like es idempotente, no un interruptor: sin Unlike en la API, un like ya registrado no se
+    // desmarca ni se descuenta, porque el grafo seguiria teniendo la reaccion.
+    if (!likedPrevio) {
+      setIsLiked(true);
+      setLikesCount((prev) => prev + 1);
+    }
 
     try {
-      // Actualizacion optimista local: el contador queda como esta sin
-      // reconstruir el feed (D2). El endpoint pertenece a US-06.
-      await togglePostLike(post.id, currentUserId);
+      // El servidor devuelve el total real (reacciones de todos). Esa cifra manda sobre el
+      // incremento local, que solo servia para que la UI respondiera al instante.
+      const resultado = await likePost(post.id, currentUserId);
+      setIsLiked(resultado.likedByMe);
+      setLikesCount(resultado.totalLikes);
     } catch (err) {
-      setIsLiked(!nextState);
-      setLikesCount((prev) => (!nextState ? prev + 1 : Math.max(0, prev - 1)));
+      setIsLiked(likedPrevio);
+      setLikesCount(totalPrevio);
+      setErrorLike('No se pudo registrar tu Me Gusta. Inténtalo de nuevo.');
       console.error('Error al dar like:', err);
+    } finally {
+      setLikeEnVuelo(false);
     }
   };
 
@@ -106,12 +126,21 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         </div>
       )}
 
+      {/* Error del like: visible para el usuario. El console.error es apoyo de diagnostico, no aviso. */}
+      {errorLike && (
+        <p role="alert" className="mb-2 text-xs text-rose-600">
+          {errorLike}
+        </p>
+      )}
+
       {/* Barra de Acciones / Interacciones */}
       <div className="pt-3 border-t border-slate-100 flex items-center gap-6 text-slate-500 text-xs">
         {/* Like */}
         <button
           onClick={handleLike}
-          className={`flex items-center gap-1.5 transition-colors cursor-pointer ${
+          disabled={likeEnVuelo}
+          aria-pressed={isLiked}
+          className={`flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-progress ${
             isLiked ? 'text-rose-600 font-semibold' : 'hover:text-rose-600'
           }`}
         >

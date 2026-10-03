@@ -1,6 +1,7 @@
 package ec.edu.upse.redsocial.infrastructure.adapter.out.neo4j;
 
 import ec.edu.upse.redsocial.domain.exception.AutorNoEncontradoException;
+import ec.edu.upse.redsocial.domain.exception.PostNoEncontradoException;
 import ec.edu.upse.redsocial.domain.model.Post;
 import ec.edu.upse.redsocial.domain.model.SugerenciaUsuario;
 import ec.edu.upse.redsocial.domain.model.Usuario;
@@ -612,19 +613,32 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
     }
 
     @Override
-    public void alternarLike(String userId, String postId) {
+    public int registrarLike(String userId, String postId) {
+        // MERGE mantiene la idempotencia: repetir la petición reutiliza la relación existente y deja
+        // intacta su fecha. El conteo se lee despues del MERGE para que incluya la reacción recién
+        // creada, y la UI concilia su contador optimista con el total real del servidor.
         String cypher =
                 """
             MATCH (u:Usuario {id: $userId}), (p:Post {id: $postId})
             MERGE (u)-[r:REACCIONA {tipo: 'LIKE'}]->(p)
             ON CREATE SET r.fecha = timestamp()
+            WITH p
+            OPTIONAL MATCH (p)<-[reaccion:REACCIONA]-(:Usuario)
+            RETURN count(reaccion) AS totalLikes
             """;
         try (var session = driver.session()) {
-            session.executeWrite(
+            return session.executeWrite(
                     tx -> {
-                        tx.run(cypher, Values.parameters("userId", userId, "postId", postId))
-                                .consume();
-                        return null;
+                        var result =
+                                tx.run(
+                                        cypher,
+                                        Values.parameters("userId", userId, "postId", postId));
+                        // Sin filas, el MATCH no encontró usuario o publicación. Responder 200 aquí
+                        // sería mentir: el cliente mostraría un like que no existe.
+                        if (!result.hasNext()) {
+                            throw new PostNoEncontradoException(postId);
+                        }
+                        return (int) result.next().get("totalLikes").asLong();
                     });
         }
     }

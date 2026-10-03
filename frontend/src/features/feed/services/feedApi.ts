@@ -1,4 +1,4 @@
-import { Post, CreatePostPayload } from '../types/post.types';
+import { Post, CreatePostPayload, LikePostResponse } from '../types/post.types';
 import { api } from '../../../shared/api/client';
 
 export const fetchFeedBySocialGraph = async (userId: string): Promise<Post[]> => {
@@ -11,6 +11,7 @@ export const submitPost = async (payload: CreatePostPayload): Promise<{ id: stri
   return response.data;
 };
 
-export const togglePostLike = async (postId: string, userId: string): Promise<void> => {
-  await api.post(`/posts/${postId}/like`, { userId });
+export const likePost = async (postId: string, userId: string): Promise<LikePostResponse> => {
+  const response = await api.post<LikePostResponse>(`/posts/${postId}/like`, { userId });
+  return response.data;
 };

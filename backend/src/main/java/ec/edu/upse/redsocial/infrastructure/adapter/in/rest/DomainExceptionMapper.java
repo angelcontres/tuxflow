@@ -1,6 +1,7 @@
 package ec.edu.upse.redsocial.infrastructure.adapter.in.rest;
 
 import ec.edu.upse.redsocial.domain.exception.AutorNoEncontradoException;
+import ec.edu.upse.redsocial.domain.exception.PostNoEncontradoException;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
@@ -16,6 +17,25 @@ public class DomainExceptionMapper implements ExceptionMapper<AutorNoEncontradoE
 
     @Override
     public Response toResponse(AutorNoEncontradoException exception) {
+        return notFound();
+    }
+
+    /**
+     * Mapeo aparte para la publicación ausente: cada mapper se registra por su tipo concreto, y un
+     * solo mapper para RuntimeException taparía además errores que deben seguir siendo 500.
+     */
+    @Provider
+    public static class PostNoEncontradoMapper
+            implements ExceptionMapper<PostNoEncontradoException> {
+
+        @Override
+        public Response toResponse(PostNoEncontradoException exception) {
+            return notFound();
+        }
+    }
+
+    private static Response notFound() {
+        // El mensaje no repite el identificador interno del recurso.
         return Response.status(Response.Status.NOT_FOUND)
                 .type(MediaType.APPLICATION_JSON)
                 .entity(Map.of("error", "El recurso indicado no existe"))

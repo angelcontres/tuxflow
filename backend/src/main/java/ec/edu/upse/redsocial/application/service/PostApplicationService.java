@@ -26,8 +26,10 @@ public class PostApplicationService implements CrearPostUseCase {
     }
 
     @Override
-    public void reaccionarPost(String userId, String postId) {
-        grafoPersistencePort.alternarLike(userId, postId);
+    public int reaccionarPost(String userId, String postId) {
+        // El like es idempotente: repetir la llamada no duplica la relación. El total devuelto
+        // permite que la tarjeta concilie su contador optimista con el dato real del grafo.
+        return grafoPersistencePort.registrarLike(userId, postId);
     }
 
     @Override

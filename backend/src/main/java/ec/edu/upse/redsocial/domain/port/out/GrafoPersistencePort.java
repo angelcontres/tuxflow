@@ -1,5 +1,6 @@
 package ec.edu.upse.redsocial.domain.port.out;
 
+import ec.edu.upse.redsocial.domain.exception.PostNoEncontradoException;
 import ec.edu.upse.redsocial.domain.model.Post;
 import ec.edu.upse.redsocial.domain.model.SugerenciaUsuario;
 import ec.edu.upse.redsocial.domain.model.Usuario;
@@ -43,7 +44,16 @@ public interface GrafoPersistencePort {
 
     void crearPost(String autorId, String postId, String texto, String mediaUrl);
 
-    void alternarLike(String userId, String postId);
+    /**
+     * Registra la relación {@code [:REACCIONA {tipo: 'LIKE'}]} de forma idempotente y devuelve el
+     * total de reacciones del post, para que la UI pueda conciliar su contador optimista con la
+     * realidad.
+     *
+     * <p>Repetir la operación no crea una segunda relación ni cambia la fecha original.
+     *
+     * @throws PostNoEncontradoException si el usuario o la publicación no existen
+     */
+    int registrarLike(String userId, String postId);
 
     List<String> obtenerSuscripcionesPushDeSeguidores(String autorId);
 }

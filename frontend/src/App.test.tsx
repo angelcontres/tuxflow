@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from './App';
 import { restoreSession } from './features/auth/services/authApi';
-import { fetchFeedBySocialGraph, togglePostLike } from './features/feed/services/feedApi';
+import { fetchFeedBySocialGraph, likePost } from './features/feed/services/feedApi';
 import {
   fetchSeguidos,
   fetchSugerenciasGrafo,
@@ -20,7 +20,7 @@ vi.mock('./features/auth/services/authApi', () => ({
 
 vi.mock('./features/feed/services/feedApi', () => ({
   fetchFeedBySocialGraph: vi.fn(),
-  togglePostLike: vi.fn(),
+  likePost: vi.fn(),
   submitPost: vi.fn(),
 }));
 
@@ -44,7 +44,7 @@ vi.mock('./features/chat/services/chatSocket', () => ({
 
 const sesionMock = vi.mocked(restoreSession);
 const feedMock = vi.mocked(fetchFeedBySocialGraph);
-const likeMock = vi.mocked(togglePostLike);
+const likeMock = vi.mocked(likePost);
 const sugerenciasMock = vi.mocked(fetchSugerenciasGrafo);
 const seguidosMock = vi.mocked(fetchSeguidos);
 const unfollowMock = vi.mocked(unfollowUserInGraph);
@@ -111,7 +111,7 @@ describe('App (feed tras dejar de seguir)', () => {
       username: 'carlos',
       nombre: 'Carlos',
     });
-    likeMock.mockResolvedValue(undefined);
+    likeMock.mockResolvedValue({ postId: 'p-paulo', likedByMe: true, totalLikes: 2 });
     unfollowMock.mockResolvedValue(undefined);
   });
 
