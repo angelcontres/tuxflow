@@ -39,34 +39,61 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
     const esLike = tipo === 'like';
     const activoPrevio = esLike ? isLiked : isDisliked;
-    const totalPrevio = esLike ? likesCount : dislikesCount;
-    const marcar = esLike ? setIsLiked : setIsDisliked;
-    const contar = esLike ? setLikesCount : setDislikesCount;
+    // Foto previa de las cuatro piezas: el efecto cruzado toca ambas mitades y la reversión
+    // tiene que restaurarlas todas.
+    const previo = {
+      liked: isLiked,
+      disliked: isDisliked,
+      likes: likesCount,
+      dislikes: dislikesCount,
+    };
     setReaccionEnVuelo(tipo);
     setErrorReaccion(null);
 
-    // Actualizacion optimista con interruptor: si ya estaba marcada, el clic la quita. Dar es
-    // idempotente en el servidor (MERGE) y quitar también (DELETE sin error si no había nada).
-    marcar(!activoPrevio);
-    contar((prev) => prev + (activoPrevio ? -1 : 1));
+    // Actualizacion optimista con interruptor y efecto cruzado: como like y dislike son
+    // mutuamente excluyentes, activar uno desmarca el otro y mueve ambos contadores.
+    if (activoPrevio) {
+      if (esLike) {
+        setIsLiked(false);
+        setLikesCount((prev) => prev - 1);
+      } else {
+        setIsDisliked(false);
+        setDislikesCount((prev) => prev - 1);
+      }
+    } else if (esLike) {
+      setIsLiked(true);
+      setLikesCount((prev) => prev + 1);
+      if (isDisliked) {
+        setIsDisliked(false);
+        setDislikesCount((prev) => prev - 1);
+      }
+    } else {
+      setIsDisliked(true);
+      setDislikesCount((prev) => prev + 1);
+      if (isLiked) {
+        setIsLiked(false);
+        setLikesCount((prev) => prev - 1);
+      }
+    }
 
     try {
-      // El servidor devuelve lo que su operación establece (marca y total propios). Esa cifra
-      // manda sobre el incremento local, que solo servia para que la UI respondiera al instante.
-      // Lo que la respuesta no trae se conserva: cada endpoint informa su mitad del estado.
+      // El servidor devuelve el estado completo (ambas banderas y ambos totales), que manda
+      // sobre el incremento local: solo servia para que la UI respondiera al instante.
       const resultado: ReactionResponse = activoPrevio
         ? await (esLike
             ? unlikePost(post.id, currentUserId)
             : undislikePost(post.id, currentUserId))
         : await (esLike ? likePost(post.id, currentUserId) : dislikePost(post.id, currentUserId));
-      if (typeof resultado.likedByMe === 'boolean') setIsLiked(resultado.likedByMe);
-      if (typeof resultado.dislikedByMe === 'boolean') setIsDisliked(resultado.dislikedByMe);
-      if (typeof resultado.totalLikes === 'number') setLikesCount(resultado.totalLikes);
-      if (typeof resultado.totalDislikes === 'number') setDislikesCount(resultado.totalDislikes);
+      setIsLiked(resultado.likedByMe);
+      setIsDisliked(resultado.dislikedByMe);
+      setLikesCount(resultado.totalLikes);
+      setDislikesCount(resultado.totalDislikes);
     } catch (err) {
-      // Reversión completa: la marca y el contador vuelven a lo que había antes del clic.
-      marcar(activoPrevio);
-      contar(totalPrevio);
+      // Reversión completa: marcas y contadores vuelven a la foto previa al clic.
+      setIsLiked(previo.liked);
+      setIsDisliked(previo.disliked);
+      setLikesCount(previo.likes);
+      setDislikesCount(previo.dislikes);
       setErrorReaccion(
         esLike
           ? 'No se pudo registrar tu Me Gusta. Inténtalo de nuevo.'

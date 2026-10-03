@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 
 import ec.edu.upse.redsocial.domain.exception.AutorNoEncontradoException;
 import ec.edu.upse.redsocial.domain.exception.PostNoEncontradoException;
+import ec.edu.upse.redsocial.domain.model.EstadoReaccion;
 import ec.edu.upse.redsocial.domain.port.in.CrearPostUseCase;
 import jakarta.ws.rs.core.Response;
 import java.util.Map;
@@ -104,26 +105,31 @@ class PostResourceTest {
     // --- Like idempotente (US-06) ---
 
     @Test
-    @DisplayName("POST /posts/{id}/like responde 200 con el total de reacciones del servidor")
+    @DisplayName("POST /posts/{id}/like responde 200 con el estado completo de reacciones")
     void likeResponde200ConElTotal() {
-        when(crearPostUseCase.reaccionarPost("carlos-patino", "post-b1")).thenReturn(7);
+        when(crearPostUseCase.reaccionarPost("carlos-patino", "post-b1"))
+                .thenReturn(new EstadoReaccion(7, 2));
 
         Response respuesta = resource.reaccionarPost("post-b1", Map.of("userId", "carlos-patino"));
 
         assertEquals(200, respuesta.getStatus());
         @SuppressWarnings("unchecked")
         Map<String, Object> entity = (Map<String, Object>) respuesta.getEntity();
-        // El contador optimista del cliente se concilia con este número, no con un incremento
-        // local.
+        // El contador optimista del cliente se concilia con estos números, no con un incremento
+        // local. Las cuatro claves viajan siempre: con mutualidad el like excluye el dislike.
         assertEquals(7, entity.get("totalLikes"));
+        assertEquals(2, entity.get("totalDislikes"));
         assertEquals(true, entity.get("likedByMe"));
+        assertEquals(false, entity.get("dislikedByMe"));
+        assertEquals("post-b1", entity.get("postId"));
     }
 
     @Test
     @DisplayName("Un like repetido también responde 200: registrar es idempotente")
     void likeRepetidoResponde200() {
-        // La segunda llamada reutiliza la relación: el total no cambia y tampoco es un error.
-        when(crearPostUseCase.reaccionarPost("carlos-patino", "post-b1")).thenReturn(7);
+        // La segunda llamada reutiliza la relación: los totales no cambian y tampoco es un error.
+        when(crearPostUseCase.reaccionarPost("carlos-patino", "post-b1"))
+                .thenReturn(new EstadoReaccion(7, 2));
 
         Response respuesta = resource.reaccionarPost("post-b1", Map.of("userId", "carlos-patino"));
 
@@ -182,9 +188,10 @@ class PostResourceTest {
     // --- Dislike idempotente y retirada de reacciones (TUX-68) ---
 
     @Test
-    @DisplayName("POST /posts/{id}/dislike responde 200 con el total de dislikes del servidor")
+    @DisplayName("POST /posts/{id}/dislike responde 200 con el estado completo de reacciones")
     void dislikeResponde200ConElTotal() {
-        when(crearPostUseCase.reaccionarDislike("carlos-patino", "post-b1")).thenReturn(3);
+        when(crearPostUseCase.reaccionarDislike("carlos-patino", "post-b1"))
+                .thenReturn(new EstadoReaccion(3, 1));
 
         Response respuesta =
                 resource.reaccionarDislike("post-b1", Map.of("userId", "carlos-patino"));
@@ -192,15 +199,19 @@ class PostResourceTest {
         assertEquals(200, respuesta.getStatus());
         @SuppressWarnings("unchecked")
         Map<String, Object> entity = (Map<String, Object>) respuesta.getEntity();
-        assertEquals(3, entity.get("totalDislikes"));
+        assertEquals(3, entity.get("totalLikes"));
+        assertEquals(1, entity.get("totalDislikes"));
         assertEquals(true, entity.get("dislikedByMe"));
+        assertEquals(false, entity.get("likedByMe"));
+        assertEquals("post-b1", entity.get("postId"));
     }
 
     @Test
     @DisplayName("Un dislike repetido también responde 200: registrar es idempotente")
     void dislikeRepetidoResponde200() {
-        // La segunda llamada reutiliza la relación con el mismo tipo: el total no cambia.
-        when(crearPostUseCase.reaccionarDislike("carlos-patino", "post-b1")).thenReturn(3);
+        // La segunda llamada reutiliza la relación con el mismo tipo: los totales no cambian.
+        when(crearPostUseCase.reaccionarDislike("carlos-patino", "post-b1"))
+                .thenReturn(new EstadoReaccion(3, 1));
 
         Response respuesta =
                 resource.reaccionarDislike("post-b1", Map.of("userId", "carlos-patino"));
@@ -235,9 +246,10 @@ class PostResourceTest {
     }
 
     @Test
-    @DisplayName("DELETE /posts/{id}/like responde 200 con likedByMe en false")
+    @DisplayName("DELETE /posts/{id}/like responde 200 con el estado completo recalculado")
     void quitarLikeResponde200() {
-        when(crearPostUseCase.quitarLike("carlos-patino", "post-b1")).thenReturn(true);
+        when(crearPostUseCase.quitarLike("carlos-patino", "post-b1"))
+                .thenReturn(new EstadoReaccion(6, 2));
 
         Response respuesta = resource.quitarLike("post-b1", "carlos-patino");
 
@@ -245,12 +257,17 @@ class PostResourceTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> entity = (Map<String, Object>) respuesta.getEntity();
         assertEquals(false, entity.get("likedByMe"));
+        assertEquals(false, entity.get("dislikedByMe"));
+        assertEquals(6, entity.get("totalLikes"));
+        assertEquals(2, entity.get("totalDislikes"));
+        assertEquals("post-b1", entity.get("postId"));
     }
 
     @Test
-    @DisplayName("DELETE /posts/{id}/dislike responde 200 con dislikedByMe en false")
+    @DisplayName("DELETE /posts/{id}/dislike responde 200 con el estado completo recalculado")
     void quitarDislikeResponde200() {
-        when(crearPostUseCase.quitarDislike("carlos-patino", "post-b1")).thenReturn(true);
+        when(crearPostUseCase.quitarDislike("carlos-patino", "post-b1"))
+                .thenReturn(new EstadoReaccion(7, 1));
 
         Response respuesta = resource.quitarDislike("post-b1", "carlos-patino");
 
@@ -258,14 +275,20 @@ class PostResourceTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> entity = (Map<String, Object>) respuesta.getEntity();
         assertEquals(false, entity.get("dislikedByMe"));
+        assertEquals(false, entity.get("likedByMe"));
+        assertEquals(7, entity.get("totalLikes"));
+        assertEquals(1, entity.get("totalDislikes"));
+        assertEquals("post-b1", entity.get("postId"));
     }
 
     @Test
-    @DisplayName("DELETE de una reacción que no existe responde 200 sin error")
+    @DisplayName("DELETE de una reacción que no existe responde 200 con el estado sin cambios")
     void quitarReaccionInexistenteResponde200() {
-        // Retirar es idempotente: si no había nada que borrar, igual es 200 con la marca en
-        // false. La tarjeta entonces no necesita distinguir "quitado" de "ya estaba quitado".
-        when(crearPostUseCase.quitarLike("carlos-patino", "post-b1")).thenReturn(false);
+        // Retirar es idempotente: si no había nada que borrar, igual es 200 con las marcas en
+        // false y los totales que ya había. La tarjeta ya no necesita conservar un decremento
+        // optimista porque la respuesta trae los números reales.
+        when(crearPostUseCase.quitarLike("carlos-patino", "post-b1"))
+                .thenReturn(new EstadoReaccion(7, 2));
 
         Response respuesta = resource.quitarLike("post-b1", "carlos-patino");
 
@@ -273,6 +296,8 @@ class PostResourceTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> entity = (Map<String, Object>) respuesta.getEntity();
         assertEquals(false, entity.get("likedByMe"));
+        assertEquals(7, entity.get("totalLikes"));
+        assertEquals(2, entity.get("totalDislikes"));
     }
 
     @Test

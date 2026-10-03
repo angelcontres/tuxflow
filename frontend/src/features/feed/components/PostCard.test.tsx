@@ -48,10 +48,34 @@ describe('PostCard', () => {
     dislikeMock.mockReset();
     unlikeMock.mockReset();
     undislikeMock.mockReset();
-    likeMock.mockResolvedValue({ postId: 'p-1', likedByMe: true, totalLikes: 6 });
-    dislikeMock.mockResolvedValue({ postId: 'p-1', dislikedByMe: true, totalDislikes: 1 });
-    unlikeMock.mockResolvedValue({ postId: 'p-1', likedByMe: false });
-    undislikeMock.mockResolvedValue({ postId: 'p-1', dislikedByMe: false });
+    likeMock.mockResolvedValue({
+      postId: 'p-1',
+      likedByMe: true,
+      dislikedByMe: false,
+      totalLikes: 6,
+      totalDislikes: 0,
+    });
+    dislikeMock.mockResolvedValue({
+      postId: 'p-1',
+      likedByMe: false,
+      dislikedByMe: true,
+      totalLikes: 5,
+      totalDislikes: 1,
+    });
+    unlikeMock.mockResolvedValue({
+      postId: 'p-1',
+      likedByMe: false,
+      dislikedByMe: false,
+      totalLikes: 5,
+      totalDislikes: 0,
+    });
+    undislikeMock.mockResolvedValue({
+      postId: 'p-1',
+      likedByMe: false,
+      dislikedByMe: false,
+      totalLikes: 5,
+      totalDislikes: 0,
+    });
   });
 
   afterEach(() => {
@@ -134,7 +158,13 @@ describe('PostCard', () => {
 
     it('adopta el total del servidor en lugar del incremento local', async () => {
       // Otra persona reaccionó entre la carga del feed y el clic.
-      likeMock.mockResolvedValue({ postId: 'p-1', likedByMe: true, totalLikes: 12 });
+      likeMock.mockResolvedValue({
+        postId: 'p-1',
+        likedByMe: true,
+        dislikedByMe: false,
+        totalLikes: 12,
+        totalDislikes: 0,
+      });
       const user = userEvent.setup();
       render(<PostCard post={post()} currentUserId="carlos-patino" />);
 
@@ -187,7 +217,13 @@ describe('PostCard', () => {
 
     it('adopta el total de dislikes del servidor en lugar del incremento local', async () => {
       // Otra persona reaccionó entre la carga del feed y el clic.
-      dislikeMock.mockResolvedValue({ postId: 'p-1', dislikedByMe: true, totalDislikes: 4 });
+      dislikeMock.mockResolvedValue({
+        postId: 'p-1',
+        likedByMe: false,
+        dislikedByMe: true,
+        totalLikes: 5,
+        totalDislikes: 4,
+      });
       const user = userEvent.setup();
       render(<PostCard post={post()} currentUserId="carlos-patino" />);
 
@@ -197,6 +233,15 @@ describe('PostCard', () => {
     });
 
     it('desmarca el dislike con un segundo clic usando la ruta de retirada', async () => {
+      // La retirada ahora devuelve el estado completo: el 1 final lo pone el servidor, no el
+      // decremento optimista (antes se conservaba porque la respuesta no traía total).
+      undislikeMock.mockResolvedValue({
+        postId: 'p-1',
+        likedByMe: false,
+        dislikedByMe: false,
+        totalLikes: 5,
+        totalDislikes: 1,
+      });
       const user = userEvent.setup();
       render(
         <PostCard post={post({ dislikedByMe: true, totalDislikes: 2 })} currentUserId="u-1" />,
@@ -238,6 +283,128 @@ describe('PostCard', () => {
       await user.click(boton);
 
       expect(dislikeMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('mutualidad like/dislike', () => {
+    it('dar dislike con el like activo desmarca el corazón y mueve ambos contadores', async () => {
+      const user = userEvent.setup();
+      render(
+        <PostCard
+          post={post({ likedByMe: true, totalLikes: 6, dislikedByMe: false, totalDislikes: 0 })}
+          currentUserId="carlos-patino"
+        />,
+      );
+
+      await user.click(screen.getByRole('button', { name: 'No me gusta' }));
+
+      expect(dislikeMock).toHaveBeenCalledTimes(1);
+      expect(dislikeMock).toHaveBeenCalledWith('p-1', 'carlos-patino');
+      expect(likeMock).not.toHaveBeenCalled();
+      expect(await screen.findByRole('button', { name: '5' })).toHaveAttribute(
+        'aria-pressed',
+        'false',
+      );
+      const dislike = screen.getByRole('button', { name: 'No me gusta' });
+      expect(dislike).toHaveAttribute('aria-pressed', 'true');
+      expect(dislike).toHaveTextContent('1');
+    });
+
+    it('dar like con el dislike activo desmarca el dislike y mueve ambos contadores', async () => {
+      likeMock.mockResolvedValue({
+        postId: 'p-1',
+        likedByMe: true,
+        dislikedByMe: false,
+        totalLikes: 6,
+        totalDislikes: 1,
+      });
+      const user = userEvent.setup();
+      render(
+        <PostCard
+          post={post({ likedByMe: false, totalLikes: 5, dislikedByMe: true, totalDislikes: 2 })}
+          currentUserId="carlos-patino"
+        />,
+      );
+
+      await user.click(screen.getByRole('button', { name: '5' }));
+
+      expect(likeMock).toHaveBeenCalledTimes(1);
+      expect(await screen.findByRole('button', { name: '6' })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+      const dislike = screen.getByRole('button', { name: 'No me gusta' });
+      expect(dislike).toHaveAttribute('aria-pressed', 'false');
+      expect(dislike).toHaveTextContent('1');
+    });
+
+    it('el efecto cruzado se ve al instante, sin esperar al servidor', async () => {
+      // La peticion queda pendiente: el desmarcado del contrario tiene que verse sin su respuesta.
+      dislikeMock.mockReturnValue(new Promise(() => {}));
+      const user = userEvent.setup();
+      render(
+        <PostCard
+          post={post({ likedByMe: true, totalLikes: 6, dislikedByMe: false, totalDislikes: 0 })}
+          currentUserId="carlos-patino"
+        />,
+      );
+
+      await user.click(screen.getByRole('button', { name: 'No me gusta' }));
+
+      expect(await screen.findByRole('button', { name: '5' })).toHaveAttribute(
+        'aria-pressed',
+        'false',
+      );
+      const dislike = screen.getByRole('button', { name: 'No me gusta' });
+      expect(dislike).toHaveAttribute('aria-pressed', 'true');
+      expect(dislike).toHaveTextContent('1');
+    });
+
+    it('la reconciliación adopta ambos totales del servidor', async () => {
+      // Alguien más reaccionó en paralelo: la respuesta corrige los dos contadores a la vez.
+      dislikeMock.mockResolvedValue({
+        postId: 'p-1',
+        likedByMe: false,
+        dislikedByMe: true,
+        totalLikes: 9,
+        totalDislikes: 4,
+      });
+      const user = userEvent.setup();
+      render(
+        <PostCard
+          post={post({ likedByMe: true, totalLikes: 6, dislikedByMe: false, totalDislikes: 0 })}
+          currentUserId="carlos-patino"
+        />,
+      );
+
+      await user.click(screen.getByRole('button', { name: 'No me gusta' }));
+
+      expect(await screen.findByRole('button', { name: '9' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'No me gusta' })).toHaveTextContent('4');
+    });
+
+    it('si el cruce falla, ambas mitades vuelven a su estado previo', async () => {
+      dislikeMock.mockRejectedValue(new Error('error de red'));
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const user = userEvent.setup();
+      render(
+        <PostCard
+          post={post({ likedByMe: true, totalLikes: 6, dislikedByMe: false, totalDislikes: 0 })}
+          currentUserId="carlos-patino"
+        />,
+      );
+
+      await user.click(screen.getByRole('button', { name: 'No me gusta' }));
+
+      expect(await screen.findByRole('button', { name: '6' })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+      const dislike = screen.getByRole('button', { name: 'No me gusta' });
+      expect(dislike).toHaveAttribute('aria-pressed', 'false');
+      expect(dislike).toHaveTextContent('0');
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole('alert')).toHaveTextContent('No se pudo registrar tu No me gusta');
     });
   });
 

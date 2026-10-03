@@ -1,27 +1,35 @@
 package ec.edu.upse.redsocial.domain.port.in;
 
+import ec.edu.upse.redsocial.domain.model.EstadoReaccion;
+
 public interface CrearPostUseCase {
     String crearPost(String autorId, String autorUsername, String texto, String mediaUrl);
 
     /**
-     * Registra la reacción de tipo like de forma idempotente.
+     * Registra la reacción de tipo like de forma idempotente y mutuamente excluyente con el
+     * dislike.
      *
-     * @return el total de reacciones de la publicación tras registrar la nueva
+     * @return el estado completo de reacciones tras registrar la nueva
      */
-    int reaccionarPost(String userId, String postId);
+    EstadoReaccion reaccionarPost(String userId, String postId);
 
     /**
      * Registra la reacción de tipo dislike de forma idempotente, espejo de {@link #reaccionarPost}.
      *
-     * @return el total de dislikes de la publicación tras registrar la nueva
+     * @return el estado completo de reacciones tras registrar la nueva
      */
-    int reaccionarDislike(String userId, String postId);
+    EstadoReaccion reaccionarDislike(String userId, String postId);
 
-    /** Retira el like del usuario. Idempotente: si no había reacción devuelve {@code false}. */
-    boolean quitarLike(String userId, String postId);
+    /**
+     * Retira el like del usuario. Idempotente: si no había reacción devuelve el estado sin cambios.
+     */
+    EstadoReaccion quitarLike(String userId, String postId);
 
-    /** Retira el dislike del usuario. Idempotente: si no había reacción devuelve {@code false}. */
-    boolean quitarDislike(String userId, String postId);
+    /**
+     * Retira el dislike del usuario. Idempotente: si no había reacción devuelve el estado sin
+     * cambios.
+     */
+    EstadoReaccion quitarDislike(String userId, String postId);
 
     Object obtenerTendencias(String userId);
 }

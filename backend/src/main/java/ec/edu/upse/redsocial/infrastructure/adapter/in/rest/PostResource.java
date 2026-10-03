@@ -1,6 +1,7 @@
 package ec.edu.upse.redsocial.infrastructure.adapter.in.rest;
 
 import ec.edu.upse.redsocial.domain.exception.AutorNoEncontradoException;
+import ec.edu.upse.redsocial.domain.model.EstadoReaccion;
 import ec.edu.upse.redsocial.domain.port.in.CrearPostUseCase;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
@@ -58,7 +59,9 @@ public class PostResource {
                     .build();
         }
 
-        int totalLikes = crearPostUseCase.reaccionarPost(userId, postId);
+        EstadoReaccion estado = crearPostUseCase.reaccionarPost(userId, postId);
+        // Con mutualidad el registro excluye la reacción contraria, así que ambas banderas se
+        // conocen con certeza sin lectura extra: el like quedó activo y el dislike no existe.
         return Response.ok(
                         Map.of(
                                 "mensaje",
@@ -67,8 +70,12 @@ public class PostResource {
                                 postId,
                                 "likedByMe",
                                 true,
+                                "dislikedByMe",
+                                false,
                                 "totalLikes",
-                                totalLikes))
+                                estado.totalLikes(),
+                                "totalDislikes",
+                                estado.totalDislikes()))
                 .build();
     }
 
@@ -84,17 +91,21 @@ public class PostResource {
                     .build();
         }
 
-        int totalDislikes = crearPostUseCase.reaccionarDislike(userId, postId);
+        EstadoReaccion estado = crearPostUseCase.reaccionarDislike(userId, postId);
         return Response.ok(
                         Map.of(
                                 "mensaje",
                                 "Reacción registrada",
                                 "postId",
                                 postId,
+                                "likedByMe",
+                                false,
                                 "dislikedByMe",
                                 true,
+                                "totalLikes",
+                                estado.totalLikes(),
                                 "totalDislikes",
-                                totalDislikes))
+                                estado.totalDislikes()))
                 .build();
     }
 
@@ -110,7 +121,9 @@ public class PostResource {
                     .build();
         }
 
-        crearPostUseCase.quitarLike(userId, postId);
+        EstadoReaccion estado = crearPostUseCase.quitarLike(userId, postId);
+        // La retirada no toca la reacción contraria y el registro ya es excluyente, así que el
+        // dislike tampoco existe: ambas banderas van en false con los totales recalculados.
         return Response.ok(
                         Map.of(
                                 "mensaje",
@@ -118,7 +131,13 @@ public class PostResource {
                                 "postId",
                                 postId,
                                 "likedByMe",
-                                false))
+                                false,
+                                "dislikedByMe",
+                                false,
+                                "totalLikes",
+                                estado.totalLikes(),
+                                "totalDislikes",
+                                estado.totalDislikes()))
                 .build();
     }
 
@@ -132,15 +151,21 @@ public class PostResource {
                     .build();
         }
 
-        crearPostUseCase.quitarDislike(userId, postId);
+        EstadoReaccion estado = crearPostUseCase.quitarDislike(userId, postId);
         return Response.ok(
                         Map.of(
                                 "mensaje",
                                 "Reacción retirada",
                                 "postId",
                                 postId,
+                                "likedByMe",
+                                false,
                                 "dislikedByMe",
-                                false))
+                                false,
+                                "totalLikes",
+                                estado.totalLikes(),
+                                "totalDislikes",
+                                estado.totalDislikes()))
                 .build();
     }
 

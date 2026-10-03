@@ -1,5 +1,6 @@
 package ec.edu.upse.redsocial.application.service;
 
+import ec.edu.upse.redsocial.domain.model.EstadoReaccion;
 import ec.edu.upse.redsocial.domain.port.in.CrearPostUseCase;
 import ec.edu.upse.redsocial.domain.port.out.GrafoPersistencePort;
 import ec.edu.upse.redsocial.domain.port.out.NotificationPushPort;
@@ -26,25 +27,26 @@ public class PostApplicationService implements CrearPostUseCase {
     }
 
     @Override
-    public int reaccionarPost(String userId, String postId) {
-        // El like es idempotente: repetir la llamada no duplica la relación. El total devuelto
-        // permite que la tarjeta concilie su contador optimista con el dato real del grafo.
+    public EstadoReaccion reaccionarPost(String userId, String postId) {
+        // El like es idempotente y excluyente con el dislike: repetir la llamada no duplica la
+        // relación y borra la contraria. El estado devuelto permite que la tarjeta concilie ambos
+        // contadores con el dato real del grafo.
         return grafoPersistencePort.registrarLike(userId, postId);
     }
 
     @Override
-    public int reaccionarDislike(String userId, String postId) {
-        // Espejo del like con tipo DISLIKE: el total devuelto es solo de dislikes.
+    public EstadoReaccion reaccionarDislike(String userId, String postId) {
+        // Espejo del like con tipo DISLIKE: el estado devuelto trae ambos totales.
         return grafoPersistencePort.registrarDislike(userId, postId);
     }
 
     @Override
-    public boolean quitarLike(String userId, String postId) {
+    public EstadoReaccion quitarLike(String userId, String postId) {
         return grafoPersistencePort.retirarLike(userId, postId);
     }
 
     @Override
-    public boolean quitarDislike(String userId, String postId) {
+    public EstadoReaccion quitarDislike(String userId, String postId) {
         return grafoPersistencePort.retirarDislike(userId, postId);
     }
 

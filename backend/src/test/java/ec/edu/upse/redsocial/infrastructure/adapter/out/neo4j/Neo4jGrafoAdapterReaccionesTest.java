@@ -1,16 +1,17 @@
 package ec.edu.upse.redsocial.infrastructure.adapter.out.neo4j;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import ec.edu.upse.redsocial.domain.exception.PostNoEncontradoException;
+import ec.edu.upse.redsocial.domain.model.EstadoReaccion;
 import ec.edu.upse.redsocial.domain.model.Post;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,10 +27,10 @@ import org.neo4j.driver.TransactionContext;
 import org.neo4j.driver.Value;
 import org.neo4j.driver.Values;
 import org.neo4j.driver.summary.ResultSummary;
-import org.neo4j.driver.summary.SummaryCounters;
 
 /**
- * Cubre el dislike y la retirada de reacciones, espejos del like idempotente.
+ * Cubre el dislike y la retirada de reacciones, espejos del like idempotente, más la mutualidad
+ * entre ambas.
  *
  * <p>Sigue el mismo patrón de {@code Neo4jGrafoAdapterRegistrarLikeTest}: driver, sesión y
  * transacción mockeados, filas simuladas con {@code Record}/{@code Values}. El defecto que se
@@ -65,9 +66,9 @@ class Neo4jGrafoAdapterReaccionesTest {
         adapter.driver = driver;
     }
 
-    /** Simula una fila devuelta por el Cypher con el total bajo la columna indicada. */
-    private void resultadoConTotal(String columna, long total) {
-        registrarFila(columna, Values.value(total), Values.value(1));
+    /** Simula la fila que devuelve el Cypher de registro con ambos totales más el centinela. */
+    private void resultadoConTotales(long totalLikes, long totalDislikes) {
+        registrarFila(Values.value(totalLikes), Values.value(totalDislikes), Values.value(1));
     }
 
     /**
@@ -76,7 +77,7 @@ class Neo4jGrafoAdapterReaccionesTest {
      * Por eso hasNext() es true y el centinela es count(p).
      */
     private void resultadoVacio() {
-        registrarFila("totalDislikes", Values.value(0), Values.value(0));
+        registrarFila(Values.value(0), Values.value(0), Values.value(0));
     }
 
     /**
@@ -89,9 +90,10 @@ class Neo4jGrafoAdapterReaccionesTest {
         when(tx.run(anyString(), any(Value.class))).thenReturn(result);
     }
 
-    private void registrarFila(String columna, Value total, Value encontrados) {
+    private void registrarFila(Value totalLikes, Value totalDislikes, Value encontrados) {
         Record fila = mock(Record.class);
-        when(fila.get(columna)).thenReturn(total);
+        when(fila.get("totalLikes")).thenReturn(totalLikes);
+        when(fila.get("totalDislikes")).thenReturn(totalDislikes);
         when(fila.get("encontrados")).thenReturn(encontrados);
         Result result = mock(Result.class);
         // El driver SIEMPRE entrega una fila en esta consulta, incluso sin coincidencias.
@@ -100,15 +102,25 @@ class Neo4jGrafoAdapterReaccionesTest {
         when(tx.run(anyString(), any(Value.class))).thenReturn(result);
     }
 
-    /** Simula el resumen de un DELETE con tantas relaciones borradas. */
-    private void borradas(int cantidad) {
-        SummaryCounters counters = mock(SummaryCounters.class);
-        when(counters.relationshipsDeleted()).thenReturn(cantidad);
-        ResultSummary resumen = mock(ResultSummary.class);
-        when(resumen.counters()).thenReturn(counters);
-        Result result = mock(Result.class);
-        when(result.consume()).thenReturn(resumen);
-        when(tx.run(anyString(), any(Value.class))).thenReturn(result);
+    /**
+     * Simula la retirada en dos pasos dentro de la misma transacción: el {@code DELETE} (cuyo
+     * resumen se consume) y el conteo posterior que devuelve el estado completo.
+     */
+    private void borradoYConteo(long totalLikes, long totalDislikes, long encontrados) {
+        Result borrado = mock(Result.class);
+        when(borrado.consume()).thenReturn(mock(ResultSummary.class));
+        Record fila = mock(Record.class);
+        when(fila.get("totalLikes")).thenReturn(Values.value(totalLikes));
+        when(fila.get("totalDislikes")).thenReturn(Values.value(totalDislikes));
+        when(fila.get("encontrados")).thenReturn(Values.value(encontrados));
+        Result conteo = mock(Result.class);
+        when(conteo.hasNext()).thenReturn(true);
+        when(conteo.next()).thenReturn(fila);
+        when(tx.run(anyString(), any(Value.class))).thenReturn(borrado, conteo);
+    }
+
+    private void borradoYConteo(long totalLikes, long totalDislikes) {
+        borradoYConteo(totalLikes, totalDislikes, 1);
     }
 
     private String consultaNormalizada() {
@@ -117,16 +129,30 @@ class Neo4jGrafoAdapterReaccionesTest {
         return cypher.getValue().replaceAll("\\s+", " ").trim();
     }
 
+    /** Las dos consultas de la retirada: primero el DELETE, después el conteo. */
+    private List<String> consultasNormalizadas() {
+        ArgumentCaptor<String> cypher = ArgumentCaptor.forClass(String.class);
+        verify(tx, times(2)).run(cypher.capture(), any(Value.class));
+        return cypher.getAllValues().stream().map(c -> c.replaceAll("\\s+", " ").trim()).toList();
+    }
+
     private Value parametrosEnviados() {
         ArgumentCaptor<Value> params = ArgumentCaptor.forClass(Value.class);
         verify(tx).run(anyString(), params.capture());
         return params.getValue();
     }
 
+    /** Parámetros del DELETE en la retirada: es la primera de las dos consultas. */
+    private Value parametrosDelBorrado() {
+        ArgumentCaptor<Value> params = ArgumentCaptor.forClass(Value.class);
+        verify(tx, times(2)).run(anyString(), params.capture());
+        return params.getAllValues().get(0);
+    }
+
     @Test
     @DisplayName("el dislike se registra con MERGE y tipo DISLIKE, no con CREATE")
     void elDislikeUsaMergeConTipoDislike() {
-        resultadoConTotal("totalDislikes", 1);
+        resultadoConTotales(0, 1);
 
         adapter.registrarDislike("carlos-patino", "post-b1");
 
@@ -143,20 +169,32 @@ class Neo4jGrafoAdapterReaccionesTest {
     }
 
     @Test
-    @DisplayName("registrar dislike cuenta dislikes, no likes")
-    void registrarDislikeCuentaSoloDislikes() {
-        resultadoConTotal("totalDislikes", 3);
+    @DisplayName("registrar dislike borra en la misma consulta el like previo del mismo usuario")
+    void registrarDislikeBorraElLikePrevio() {
+        resultadoConTotales(0, 1);
 
-        assertEquals(3, adapter.registrarDislike("carlos-patino", "post-b1"));
+        adapter.registrarDislike("carlos-patino", "post-b1");
 
         String consulta = consultaNormalizada();
-        // Sin el filtro, los likes del post inflarían el total de dislikes.
+        // Espejo de registrarLike: sin esta limpieza ambas relaciones convivirían y el feed
+        // mostraría likedByMe y dislikedByMe en true a la vez.
         assertTrue(
-                consulta.contains("[reaccion:REACCIONA {tipo: 'DISLIKE'}]"),
-                "El conteo tras el MERGE debe filtrar por tipo DISLIKE: " + consulta);
+                consulta.contains("OPTIONAL MATCH (u)-[d:REACCIONA {tipo: 'LIKE'}]->(p)"),
+                "El dislike debe buscar el like contrario del mismo usuario: " + consulta);
         assertTrue(
-                !consulta.contains("[reaccion:REACCIONA]-("),
-                "El conteo no puede leer reacciones sin filtro de tipo: " + consulta);
+                consulta.contains("DELETE d"),
+                "El like contrario debe borrarse en la misma transacción: " + consulta);
+    }
+
+    @Test
+    @DisplayName("registrar dislike devuelve el estado completo, no solo los dislikes")
+    void registrarDislikeDevuelveElEstadoCompleto() {
+        resultadoConTotales(2, 1);
+
+        EstadoReaccion estado = adapter.registrarDislike("carlos-patino", "post-b1");
+
+        assertEquals(2, estado.totalLikes());
+        assertEquals(1, estado.totalDislikes());
     }
 
     @Test
@@ -175,7 +213,7 @@ class Neo4jGrafoAdapterReaccionesTest {
     @Test
     @DisplayName("registrar dislike envía usuario y publicación como parámetros")
     void registrarDislikeEnviaLosParametros() {
-        resultadoConTotal("totalDislikes", 1);
+        resultadoConTotales(0, 1);
 
         adapter.registrarDislike("carlos-patino", "post-b1");
 
@@ -185,52 +223,81 @@ class Neo4jGrafoAdapterReaccionesTest {
     }
 
     @Test
-    @DisplayName("retirar like borra la reacción LIKE y devuelve true")
-    void retirarLikeBorraYDevuelveTrue() {
-        borradas(1);
+    @DisplayName("retirar like borra solo la reacción LIKE y devuelve el estado completo")
+    void retirarLikeBorraYDevuelveElEstado() {
+        borradoYConteo(2, 1);
 
-        assertTrue(adapter.retirarLike("carlos-patino", "post-b1"));
+        EstadoReaccion estado = adapter.retirarLike("carlos-patino", "post-b1");
 
-        String consulta = consultaNormalizada();
-        assertTrue(consulta.contains("DELETE r"), "Retirar debe borrar la relación: " + consulta);
+        assertEquals(2, estado.totalLikes());
+        assertEquals(1, estado.totalDislikes());
+
+        List<String> consultas = consultasNormalizadas();
+        String borrado = consultas.get(0);
+        assertTrue(borrado.contains("DELETE r"), "Retirar debe borrar la relación: " + borrado);
         assertTrue(
-                !consulta.contains("MERGE") && !consulta.contains("CREATE"),
-                "Retirar no debe crear nada: " + consulta);
+                !borrado.contains("MERGE") && !borrado.contains("CREATE"),
+                "Retirar no debe crear nada: " + borrado);
+        // La retirada no toca la reacción contraria: el DELETE menciona un solo tipo y no hay
+        // limpieza del otro.
+        assertTrue(
+                !borrado.contains("DISLIKE") && !borrado.contains("OPTIONAL MATCH"),
+                "Retirar el like no debe mencionar ni borrar el dislike: " + borrado);
+        String conteo = consultas.get(1);
+        assertTrue(
+                conteo.contains("count(DISTINCT rl) AS totalLikes")
+                        && conteo.contains("count(DISTINCT rd) AS totalDislikes"),
+                "La retirada debe devolver ambos totales: " + conteo);
         assertEquals(
                 Values.parameters("userId", "carlos-patino", "postId", "post-b1", "tipo", "LIKE")
                         .asMap(),
-                parametrosEnviados().asMap());
+                parametrosDelBorrado().asMap());
     }
 
     @Test
-    @DisplayName("retirar like devuelve false si no había nada que borrar")
-    void retirarLikeDevuelveFalseSiNoHabiaReaccion() {
-        borradas(0);
+    @DisplayName("retirar like sobre un post inexistente devuelve el estado en ceros sin error")
+    void retirarLikeSobrePostInexistenteDevuelveCeros() {
+        // Retirar es idempotente: si no había nada que borrar, igual hay estado que devolver.
+        borradoYConteo(0, 0, 0);
 
-        assertFalse(adapter.retirarLike("carlos-patino", "post-b1"));
+        EstadoReaccion estado = adapter.retirarLike("carlos-patino", "post-inexistente");
+
+        assertEquals(0, estado.totalLikes());
+        assertEquals(0, estado.totalDislikes());
     }
 
     @Test
-    @DisplayName("retirar dislike borra la reacción DISLIKE y devuelve true")
-    void retirarDislikeBorraYDevuelveTrue() {
-        borradas(1);
+    @DisplayName("retirar dislike borra solo la reacción DISLIKE y devuelve el estado completo")
+    void retirarDislikeBorraYDevuelveElEstado() {
+        borradoYConteo(3, 0);
 
-        assertTrue(adapter.retirarDislike("carlos-patino", "post-b1"));
+        EstadoReaccion estado = adapter.retirarDislike("carlos-patino", "post-b1");
 
-        String consulta = consultaNormalizada();
-        assertTrue(consulta.contains("DELETE r"), "Retirar debe borrar la relación: " + consulta);
+        assertEquals(3, estado.totalLikes());
+        assertEquals(0, estado.totalDislikes());
+
+        List<String> consultas = consultasNormalizadas();
+        String borrado = consultas.get(0);
+        assertTrue(borrado.contains("DELETE r"), "Retirar debe borrar la relación: " + borrado);
+        // La retirada no toca la reacción contraria: el like de ese usuario sigue intacto.
+        assertTrue(
+                !borrado.contains("'LIKE'") && !borrado.contains("OPTIONAL MATCH"),
+                "Retirar el dislike no debe mencionar ni borrar el like: " + borrado);
         assertEquals(
                 Values.parameters("userId", "carlos-patino", "postId", "post-b1", "tipo", "DISLIKE")
                         .asMap(),
-                parametrosEnviados().asMap());
+                parametrosDelBorrado().asMap());
     }
 
     @Test
-    @DisplayName("retirar dislike devuelve false si no había nada que borrar")
-    void retirarDislikeDevuelveFalseSiNoHabiaReaccion() {
-        borradas(0);
+    @DisplayName("retirar dislike sobre un post inexistente devuelve el estado en ceros sin error")
+    void retirarDislikeSobrePostInexistenteDevuelveCeros() {
+        borradoYConteo(0, 0, 0);
 
-        assertFalse(adapter.retirarDislike("carlos-patino", "post-b1"));
+        EstadoReaccion estado = adapter.retirarDislike("carlos-patino", "post-inexistente");
+
+        assertEquals(0, estado.totalLikes());
+        assertEquals(0, estado.totalDislikes());
     }
 
     @Test
@@ -284,7 +351,7 @@ class Neo4jGrafoAdapterReaccionesTest {
         assertEquals(1, feed.size());
         assertEquals(2L, feed.get(0).getTotalLikes());
         assertEquals(1L, feed.get(0).getTotalDislikes());
-        assertFalse(feed.get(0).isLikedByMe());
+        assertTrue(!feed.get(0).isLikedByMe());
         assertTrue(feed.get(0).isDislikedByMe());
     }
 }

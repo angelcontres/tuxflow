@@ -13,27 +13,17 @@ export interface Post {
 }
 
 /**
- * Respuesta de registrar un like. El servidor devuelve el total real de reacciones para que la
- * tarjeta concilie su contador optimista en vez de confiar en un incremento local.
- */
-export interface LikePostResponse {
-  postId: string;
-  likedByMe: boolean;
-  totalLikes: number;
-}
-
-/**
- * Respuesta de cualquier operación de reacción (like, dislike o retirada). Cada endpoint devuelve
- * solo lo que su operación establece con certeza y la tarjeta conserva su estado previo para el
- * resto: el servidor no inventa el estado contrario porque con las firmas actuales no puede
- * conocerlo sin una lectura extra.
+ * Respuesta de cualquier operación de reacción (like, dislike o retirada). Con la mutualidad el
+ * servidor devuelve siempre el estado completo: ambas banderas y ambos totales. La tarjeta
+ * reconcilia asignando las cuatro sin guardas, lo que elimina la deriva del contador que había
+ * cuando la retirada no traía el total.
  */
 export interface ReactionResponse {
   postId: string;
-  likedByMe?: boolean;
-  dislikedByMe?: boolean;
-  totalLikes?: number;
-  totalDislikes?: number;
+  likedByMe: boolean;
+  dislikedByMe: boolean;
+  totalLikes: number;
+  totalDislikes: number;
 }
 
 export interface CreatePostPayload {

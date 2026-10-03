@@ -88,6 +88,7 @@ likes y `1` dislike, y `likedByMe` responde `true` a quien sólo dio dislike.
 - [ ] **El feed NO cuenta dislikes dentro de `totalLikes`**
 - [ ] **`likedByMe` es `false` para quien sólo dio dislike**
 - [ ] La UI permite dar y quitar like, y dar y quitar dislike, con reversión ante fallo
+- [ ] Like y dislike son excluyentes: registrar uno borra el contrario en la misma transacción
 
 ## Checks
 
@@ -169,15 +170,69 @@ reproducir el comportamiento real del driver (`hasNext()` siempre `true` + centi
 separó `resultadoSinFilas()` (consulta sin agregación, como el feed) de `resultadoVacio()` (consulta
 con agregación).
 
+### Mutualidad like/dislike — implementada (2026-10-03)
+
+Like y dislike son **mutuamente excluyentes** por par (usuario, post). Registrar uno borra el
+contrario **en la misma transacción**; retirar uno no toca el otro.
+
+El `DELETE` de la reacción contraria va en el Cypher, no en el servicio: si el borrado fuera un
+segundo `tx.run` aparte, un fallo entre medio dejaría la reacción opuesta viva junto a la nueva.
+
+Cypher de registro (el de dislike es el espejo con `'DISLIKE'` y los tipos cruzados):
+
+```cypher
+MATCH (u:Usuario {id: $userId}), (p:Post {id: $postId})
+MERGE (u)-[r:REACCIONA {tipo: 'LIKE'}]->(p)
+ON CREATE SET r.fecha = timestamp()
+WITH u, p
+OPTIONAL MATCH (u)-[d:REACCIONA {tipo: 'DISLIKE'}]->(p)
+DELETE d
+WITH p
+OPTIONAL MATCH (p)<-[rl:REACCIONA {tipo: 'LIKE'}]-(:Usuario)
+OPTIONAL MATCH (p)<-[rd:REACCIONA {tipo: 'DISLIKE'}]-(:Usuario)
+RETURN count(DISTINCT rl) AS totalLikes, count(DISTINCT rd) AS totalDislikes, count(p) AS encontrados
+```
+
+**Las cuatro operaciones devuelven el estado completo** (`totalLikes` + `totalDislikes`) mediante el
+`record EstadoReaccion`. Eso **elimina la limitación D1**: la respuesta ya no trae "sólo mi mitad", así
+que `PostCard` reconcilia las cuatro piezas sin guardas `typeof` y el contador ya no queda en el
+decremento optimista.
+
+### Comportamiento verificado en vivo (usuario `carlos-patino`, `post-b1`)
+
+| Paso | Respuesta | Grafo |
+|---|---|---|
+| Estado inicial | `likedByMe: true`, `L=3 D=0` | 1 LIKE de carlos |
+| `POST /dislike` | `likedByMe: false`, `dislikedByMe: true`, `L=2 D=1` | **sólo DISLIKE** — el LIKE desapareció |
+| Feed | `likedByMe: false`, `dislikedByMe: true`, `L=2 D=1` | — |
+| `POST /like` | `likedByMe: true`, `dislikedByMe: false`, `L=3 D=0` | **sólo LIKE** — el DISLIKE desapareció |
+| Like ×2 más | `L=3 D=0` estable | 1 relación, idempotente |
+| `POST /post-inexistente/like` | **404** | el centinela `count(p)` sigue funcionando |
+| `POST /post-b1/like` sin `userId` | **400** | — |
+
+### Verificación del frontend
+
+`PostCard` tiene un único `handleReaccion(tipo)`. El efecto cruzado se aplica **antes** de esperar la
+respuesta, y la reversión restaura las cuatro piezas desde una foto previa.
+
+Tests que lo cubren (`PostCard.test.tsx`, 22 en verde, 5 de mutualidad):
+
+- `dar dislike con el like activo desmarca el corazón y mueve ambos contadores`
+- `dar like con el dislike activo desmarca el dislike y mueve ambos contadores`
+- **`el efecto cruzado se ve al instante, sin esperar al servidor`** — con la petición pendiente
+  (Promise sin resolver), el corazón pasa a `aria-pressed="false"` y su contador de 6 a 5, mientras el
+  dislike queda en `aria-pressed="true"` con 1. Es el criterio pedido: el corazón se desmarca aunque el
+  servidor todavía no respondió.
+- `la reconciliación adopta ambos totales del servidor`
+- `si el cruce falla, ambas mitades vuelven a su estado previo`
+
+**Limitación de esta verificación:** es a nivel de DOM con jsdom (`@testing-library/react`), no en un
+navegador real. No hay chromium ni playwright en esta máquina. Queda pendiente el clic a mano.
+
 ### Limitación conocida: la retirada no reconcilia el contador
 
-`unlikePost` / `undislikePost` devuelven `{ likedByMe: false }` sin total, porque con las firmas
-`boolean` el recurso no puede conocer el total recalculado sin una lectura extra. El frontend lo
-detecta con `typeof resultado.totalLikes === 'number'` y **conserva el decremento optimista**.
-
-Consecuencia: tras una retirada el contador puede quedar desfasado si alguien más reaccionó en
-paralelo. Se autocorrige en el siguiente refetch del feed o en la próxima reacción, cuya respuesta sí
-trae el total. Cierre de esa brecha: un DTO de estado de reacción o un `GET /{postId}/reaccion/{userId}`.
+Resuelta con la mutualidad. `unlikePost` / `undislikePost` ahora sí devuelven ambos totales, así que
+`PostCard` los adopta directamente y el contador deja de depender del decremento optimista.
 
 ### Desviación consciente del plan
 
@@ -187,9 +242,6 @@ documenta en vez de ocultarse.
 
 ### Pendiente
 
-- **Mutualidad like/dislike**: dar dislike a un post que ya tiene tu like deja ambos registros
-  (`likedByMe: true` y `dislikedByMe: true` a la vez). Verificado en vivo. El ticket no lo pide y
-  ninguna spec lo declara; es decisión de producto.
 - **Tendencias**: `obtenerTendenciasRedExtendida` (`:301-303`) cuenta `REACCIONA` sin filtro de tipo,
   así que los dislikes entran al ranking. Deuda ya documentada en `openspec/ROADMAP.md` (US-11).
 - **Verificación de navegador**: los botones se probaron por API y por test, no a mano en el browser.

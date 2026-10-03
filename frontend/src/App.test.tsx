@@ -114,7 +114,13 @@ describe('App (feed tras dejar de seguir)', () => {
       username: 'carlos',
       nombre: 'Carlos',
     });
-    likeMock.mockResolvedValue({ postId: 'p-paulo', likedByMe: true, totalLikes: 2 });
+    likeMock.mockResolvedValue({
+      postId: 'p-paulo',
+      likedByMe: true,
+      dislikedByMe: false,
+      totalLikes: 2,
+      totalDislikes: 0,
+    });
     unfollowMock.mockResolvedValue(undefined);
   });
 

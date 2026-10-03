@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import ec.edu.upse.redsocial.domain.exception.PostNoEncontradoException;
+import ec.edu.upse.redsocial.domain.model.EstadoReaccion;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -24,7 +25,8 @@ import org.neo4j.driver.Value;
 import org.neo4j.driver.Values;
 
 /**
- * Cubre que registrar un like sea idempotente y que devuelva el total real de reacciones.
+ * Cubre que registrar un like sea idempotente, mutuamente excluyente con el dislike y que devuelva
+ * el estado completo de reacciones.
  *
  * <p>El defecto que se cubre: el {@code MERGE} se descartaba con {@code .consume()}, así que un
  * post o un usuario inexistente devolvía la misma respuesta que un like correcto. El cliente
@@ -53,9 +55,9 @@ class Neo4jGrafoAdapterRegistrarLikeTest {
         adapter.driver = driver;
     }
 
-    /** Simula una fila devuelta por el Cypher con el total de reacciones. */
-    private void resultadoConTotal(long total) {
-        registrarFila(Values.value(total), Values.value(1));
+    /** Simula la fila que devuelve el Cypher con agregación: ambos totales más el centinela. */
+    private void resultadoConTotales(long totalLikes, long totalDislikes) {
+        registrarFila(Values.value(totalLikes), Values.value(totalDislikes), Values.value(1));
     }
 
     /**
@@ -64,12 +66,13 @@ class Neo4jGrafoAdapterRegistrarLikeTest {
      * hasNext() es true y el centinela es count(p).
      */
     private void resultadoVacio() {
-        registrarFila(Values.value(0), Values.value(0));
+        registrarFila(Values.value(0), Values.value(0), Values.value(0));
     }
 
-    private void registrarFila(Value totalLikes, Value encontrados) {
+    private void registrarFila(Value totalLikes, Value totalDislikes, Value encontrados) {
         Record fila = mock(Record.class);
         when(fila.get("totalLikes")).thenReturn(totalLikes);
+        when(fila.get("totalDislikes")).thenReturn(totalDislikes);
         when(fila.get("encontrados")).thenReturn(encontrados);
         Result result = mock(Result.class);
         // El driver SIEMPRE entrega una fila en esta consulta, incluso sin coincidencias.
@@ -87,7 +90,7 @@ class Neo4jGrafoAdapterRegistrarLikeTest {
     @Test
     @DisplayName("la reacción se registra con MERGE, no con CREATE")
     void laReaccionUsaMerge() {
-        resultadoConTotal(1);
+        resultadoConTotales(1, 0);
 
         adapter.registrarLike("carlos-patino", "post-b1");
 
@@ -107,23 +110,65 @@ class Neo4jGrafoAdapterRegistrarLikeTest {
     }
 
     @Test
-    @DisplayName("devuelve el total de reacciones que cuenta el grafo")
-    void devuelveElTotalDelGrafo() {
-        resultadoConTotal(7);
+    @DisplayName("devuelve el estado completo que cuenta el grafo")
+    void devuelveElEstadoDelGrafo() {
+        resultadoConTotales(7, 2);
 
-        assertEquals(7, adapter.registrarLike("carlos-patino", "post-b1"));
+        EstadoReaccion estado = adapter.registrarLike("carlos-patino", "post-b1");
+
+        assertEquals(7, estado.totalLikes());
+        assertEquals(2, estado.totalDislikes());
+    }
+
+    @Test
+    @DisplayName("registrar like borra en la misma consulta el dislike previo del mismo usuario")
+    void registrarLikeBorraElDislikePrevio() {
+        resultadoConTotales(4, 0);
+
+        adapter.registrarLike("carlos-patino", "post-b1");
+
+        String consulta = consultaNormalizada();
+        // Sin esta limpieza, dar dislike a un post con tu like dejaría ambas relaciones y el
+        // feed mostraría likedByMe y dislikedByMe en true a la vez.
+        assertTrue(
+                consulta.contains("OPTIONAL MATCH (u)-[d:REACCIONA {tipo: 'DISLIKE'}]->(p)"),
+                "El like debe buscar el dislike contrario del mismo usuario: " + consulta);
+        assertTrue(
+                consulta.contains("DELETE d"),
+                "El dislike contrario debe borrarse en la misma transacción: " + consulta);
+        assertTrue(
+                consulta.indexOf("MERGE") < consulta.indexOf("DELETE d"),
+                "La limpieza va después del registro, en la misma consulta: " + consulta);
+    }
+
+    @Test
+    @DisplayName(
+            "los conteos usan DISTINCT porque los OPTIONAL MATCH encadenados multiplican filas")
+    void losConteosUsanDistinct() {
+        resultadoConTotales(3, 0);
+
+        adapter.registrarLike("carlos-patino", "post-b1");
+
+        String consulta = consultaNormalizada();
+        // Medido: 3 likes x 2 dislikes daban count(rl) = 6 sin DISTINCT.
+        assertTrue(
+                consulta.contains("count(DISTINCT rl) AS totalLikes"),
+                "El conteo de likes debe usar DISTINCT: " + consulta);
+        assertTrue(
+                consulta.contains("count(DISTINCT rd) AS totalDislikes"),
+                "El conteo de dislikes debe usar DISTINCT: " + consulta);
     }
 
     @Test
     @DisplayName("el conteo se lee después del MERGE para incluir la reacción recién creada")
     void elConteoSeLeeDespuesDelMerge() {
-        resultadoConTotal(1);
+        resultadoConTotales(1, 0);
 
         adapter.registrarLike("carlos-patino", "post-b1");
 
         String consulta = consultaNormalizada();
         int posicionMerge = consulta.indexOf("MERGE");
-        int posicionConteo = consulta.indexOf("count(reaccion)");
+        int posicionConteo = consulta.indexOf("count(DISTINCT rl)");
         assertTrue(
                 posicionMerge >= 0 && posicionConteo > posicionMerge,
                 "El conteo tiene que ir después del MERGE o devolvería el total anterior al like: "
@@ -146,13 +191,13 @@ class Neo4jGrafoAdapterRegistrarLikeTest {
     @Test
     @DisplayName("envía el usuario y la publicación como parámetros, no interpolados")
     void enviaLosParametros() {
-        resultadoConTotal(1);
+        resultadoConTotales(1, 0);
 
         adapter.registrarLike("carlos-patino", "post-b1");
 
         ArgumentCaptor<Value> params = ArgumentCaptor.forClass(Value.class);
         verify(tx).run(anyString(), params.capture());
-        // Solo userId y postId: el total lo cuenta la propia consulta, así que un parámetro de
+        // Solo userId y postId: los totales los cuenta la propia consulta, así que un parámetro de
         // conteo sería una segunda fuente de verdad para el mismo número.
         assertEquals(
                 Values.parameters("userId", "carlos-patino", "postId", "post-b1").asMap(),
