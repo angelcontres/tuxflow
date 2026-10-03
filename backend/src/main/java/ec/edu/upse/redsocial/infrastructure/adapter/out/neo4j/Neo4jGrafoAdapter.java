@@ -27,7 +27,8 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
             MATCH (u:Usuario {id: $userId})
             MATCH (autor:Usuario)-[:PUBLICA]->(p:Post)
             WHERE autor = u OR (u)-[:SIGUE]->(autor)
-            OPTIONAL MATCH (p)<-[r:REACCIONA]-(:Usuario)
+            OPTIONAL MATCH (p)<-[rl:REACCIONA {tipo: 'LIKE'}]-(:Usuario)
+            OPTIONAL MATCH (p)<-[rd:REACCIONA {tipo: 'DISLIKE'}]-(:Usuario)
             RETURN p.id AS id,
                    p.texto AS texto,
                    p.mediaUrl AS mediaUrl,
@@ -35,8 +36,10 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                    autor.id AS autorId,
                    autor.username AS autorUsername,
                    autor.avatarUrl AS autorAvatar,
-                   count(r) AS totalLikes,
-                   EXISTS((u)-[:REACCIONA]->(p)) AS likedByMe
+                   count(DISTINCT rl) AS totalLikes,
+                   count(DISTINCT rd) AS totalDislikes,
+                   EXISTS((u)-[:REACCIONA {tipo: 'LIKE'}]->(p)) AS likedByMe,
+                   EXISTS((u)-[:REACCIONA {tipo: 'DISLIKE'}]->(p)) AS dislikedByMe
             ORDER BY p.fechaCreacion DESC
             LIMIT 20;
             """;
@@ -67,6 +70,8 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                                             : record.get("autorAvatar").asString());
                             p.setTotalLikes(record.get("totalLikes").asLong());
                             p.setLikedByMe(record.get("likedByMe").asBoolean());
+                            p.setTotalDislikes(record.get("totalDislikes").asLong());
+                            p.setDislikedByMe(record.get("dislikedByMe").asBoolean());
                             posts.add(p);
                         }
                         return posts;
@@ -623,8 +628,8 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
             MERGE (u)-[r:REACCIONA {tipo: 'LIKE'}]->(p)
             ON CREATE SET r.fecha = timestamp()
             WITH p
-            OPTIONAL MATCH (p)<-[reaccion:REACCIONA]-(:Usuario)
-            RETURN count(reaccion) AS totalLikes
+            OPTIONAL MATCH (p)<-[reaccion:REACCIONA {tipo: 'LIKE'}]-(:Usuario)
+            RETURN count(reaccion) AS totalLikes, count(p) AS encontrados
             """;
         try (var session = driver.session()) {
             return session.executeWrite(
@@ -633,12 +638,84 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                                 tx.run(
                                         cypher,
                                         Values.parameters("userId", userId, "postId", postId));
-                        // Sin filas, el MATCH no encontró usuario o publicación. Responder 200 aquí
-                        // sería mentir: el cliente mostraría un like que no existe.
-                        if (!result.hasNext()) {
+                        Record fila = result.next();
+                        // La ausencia de usuario o publicación NO se detecta con hasNext(): una
+                        // agregación sin clave de agrupamiento devuelve UNA fila con cero cuando el
+                        // MATCH no produjo filas. El centinela es count(p): vale 0 solo cuando el
+                        // MATCH no encontró nada. Sin esto, un post inexistente respondía 200 con
+                        // totalLikes 0 y el cliente pintaba un like que nunca existió.
+                        if (fila.get("encontrados").asLong() == 0) {
                             throw new PostNoEncontradoException(postId);
                         }
-                        return (int) result.next().get("totalLikes").asLong();
+                        return (int) fila.get("totalLikes").asLong();
+                    });
+        }
+    }
+
+    @Override
+    public int registrarDislike(String userId, String postId) {
+        // Espejo exacto de registrarLike con tipo DISLIKE: MERGE idempotente y conteo filtrado
+        // por tipo para que los likes no inflen el total de dislikes.
+        String cypher =
+                """
+            MATCH (u:Usuario {id: $userId}), (p:Post {id: $postId})
+            MERGE (u)-[r:REACCIONA {tipo: 'DISLIKE'}]->(p)
+            ON CREATE SET r.fecha = timestamp()
+            WITH p
+            OPTIONAL MATCH (p)<-[reaccion:REACCIONA {tipo: 'DISLIKE'}]-(:Usuario)
+            RETURN count(reaccion) AS totalDislikes, count(p) AS encontrados
+            """;
+        try (var session = driver.session()) {
+            return session.executeWrite(
+                    tx -> {
+                        var result =
+                                tx.run(
+                                        cypher,
+                                        Values.parameters("userId", userId, "postId", postId));
+                        Record fila = result.next();
+                        // Mismo centinela que registrarLike: hasNext() nunca es false con una
+                        // agregación sin agrupamiento, así que no puede detectar el MATCH vacío.
+                        if (fila.get("encontrados").asLong() == 0) {
+                            throw new PostNoEncontradoException(postId);
+                        }
+                        return (int) fila.get("totalDislikes").asLong();
+                    });
+        }
+    }
+
+    @Override
+    public boolean retirarLike(String userId, String postId) {
+        return retirarReaccion(userId, postId, "LIKE");
+    }
+
+    @Override
+    public boolean retirarDislike(String userId, String postId) {
+        return retirarReaccion(userId, postId, "DISLIKE");
+    }
+
+    /**
+     * Borra la reacción del tipo indicado. El {@code DELETE} sobre un patrón sin coincidencias no
+     * falla: {@code relationshipsDeleted()} llega en 0 y se devuelve {@code false}, así que retirar
+     * dos veces o retirar un post inexistente no es un error.
+     */
+    private boolean retirarReaccion(String userId, String postId, String tipo) {
+        String cypher =
+                """
+            MATCH (u:Usuario {id: $userId})-[r:REACCIONA {tipo: $tipo}]->(p:Post {id: $postId})
+            DELETE r
+            """;
+        try (var session = driver.session()) {
+            return session.executeWrite(
+                    tx -> {
+                        var resumen =
+                                tx.run(
+                                                cypher,
+                                                Values.parameters(
+                                                        "userId", userId,
+                                                        "postId", postId,
+                                                        "tipo", tipo))
+                                        .consume();
+                        return resumen.counters().relationshipsDeleted() > 0;
                     });
         }
     }

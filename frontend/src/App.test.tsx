@@ -21,6 +21,9 @@ vi.mock('./features/auth/services/authApi', () => ({
 vi.mock('./features/feed/services/feedApi', () => ({
   fetchFeedBySocialGraph: vi.fn(),
   likePost: vi.fn(),
+  dislikePost: vi.fn(),
+  unlikePost: vi.fn(),
+  undislikePost: vi.fn(),
   submitPost: vi.fn(),
 }));
 

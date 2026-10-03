@@ -33,6 +33,22 @@ public class PostApplicationService implements CrearPostUseCase {
     }
 
     @Override
+    public int reaccionarDislike(String userId, String postId) {
+        // Espejo del like con tipo DISLIKE: el total devuelto es solo de dislikes.
+        return grafoPersistencePort.registrarDislike(userId, postId);
+    }
+
+    @Override
+    public boolean quitarLike(String userId, String postId) {
+        return grafoPersistencePort.retirarLike(userId, postId);
+    }
+
+    @Override
+    public boolean quitarDislike(String userId, String postId) {
+        return grafoPersistencePort.retirarDislike(userId, postId);
+    }
+
+    @Override
     public Object obtenerTendencias(String userId) {
         return grafoPersistencePort.obtenerTendenciasRedExtendida(userId);
     }

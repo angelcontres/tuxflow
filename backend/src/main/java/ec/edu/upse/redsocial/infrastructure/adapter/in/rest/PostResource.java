@@ -72,6 +72,78 @@ public class PostResource {
                 .build();
     }
 
+    @POST
+    @Path("/{postId}/dislike")
+    public Response reaccionarDislike(
+            @PathParam("postId") String postId, Map<String, String> body) {
+        String userId = body != null ? body.get("userId") : null;
+        // Misma validación que el like: sin usuario no hay relación que crear.
+        if (userId == null || userId.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("error", "El campo 'userId' es obligatorio"))
+                    .build();
+        }
+
+        int totalDislikes = crearPostUseCase.reaccionarDislike(userId, postId);
+        return Response.ok(
+                        Map.of(
+                                "mensaje",
+                                "Reacción registrada",
+                                "postId",
+                                postId,
+                                "dislikedByMe",
+                                true,
+                                "totalDislikes",
+                                totalDislikes))
+                .build();
+    }
+
+    @DELETE
+    @Path("/{postId}/like")
+    public Response quitarLike(
+            @PathParam("postId") String postId, @QueryParam("userId") String userId) {
+        // El userId viaja en la query porque el DELETE no lleva cuerpo. Un @QueryParam ausente
+        // llega como null, así que la validación es la misma que en los POST.
+        if (userId == null || userId.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("error", "El campo 'userId' es obligatorio"))
+                    .build();
+        }
+
+        crearPostUseCase.quitarLike(userId, postId);
+        return Response.ok(
+                        Map.of(
+                                "mensaje",
+                                "Reacción retirada",
+                                "postId",
+                                postId,
+                                "likedByMe",
+                                false))
+                .build();
+    }
+
+    @DELETE
+    @Path("/{postId}/dislike")
+    public Response quitarDislike(
+            @PathParam("postId") String postId, @QueryParam("userId") String userId) {
+        if (userId == null || userId.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("error", "El campo 'userId' es obligatorio"))
+                    .build();
+        }
+
+        crearPostUseCase.quitarDislike(userId, postId);
+        return Response.ok(
+                        Map.of(
+                                "mensaje",
+                                "Reacción retirada",
+                                "postId",
+                                postId,
+                                "dislikedByMe",
+                                false))
+                .build();
+    }
+
     @GET
     @Path("/tendencias/{userId}")
     public Response obtenerTendencias(@PathParam("userId") String userId) {

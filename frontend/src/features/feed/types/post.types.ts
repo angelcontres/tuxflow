@@ -8,6 +8,8 @@ export interface Post {
   autorAvatar?: string;
   totalLikes: number;
   likedByMe: boolean;
+  totalDislikes?: number;
+  dislikedByMe?: boolean;
 }
 
 /**
@@ -18,6 +20,20 @@ export interface LikePostResponse {
   postId: string;
   likedByMe: boolean;
   totalLikes: number;
+}
+
+/**
+ * Respuesta de cualquier operación de reacción (like, dislike o retirada). Cada endpoint devuelve
+ * solo lo que su operación establece con certeza y la tarjeta conserva su estado previo para el
+ * resto: el servidor no inventa el estado contrario porque con las firmas actuales no puede
+ * conocerlo sin una lectura extra.
+ */
+export interface ReactionResponse {
+  postId: string;
+  likedByMe?: boolean;
+  dislikedByMe?: boolean;
+  totalLikes?: number;
+  totalDislikes?: number;
 }
 
 export interface CreatePostPayload {

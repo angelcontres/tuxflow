@@ -178,4 +178,118 @@ class PostResourceTest {
         assertEquals("El recurso indicado no existe", entity.get("error"));
         assertTrue(!entity.get("error").contains("post-inexistente"));
     }
+
+    // --- Dislike idempotente y retirada de reacciones (TUX-68) ---
+
+    @Test
+    @DisplayName("POST /posts/{id}/dislike responde 200 con el total de dislikes del servidor")
+    void dislikeResponde200ConElTotal() {
+        when(crearPostUseCase.reaccionarDislike("carlos-patino", "post-b1")).thenReturn(3);
+
+        Response respuesta =
+                resource.reaccionarDislike("post-b1", Map.of("userId", "carlos-patino"));
+
+        assertEquals(200, respuesta.getStatus());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> entity = (Map<String, Object>) respuesta.getEntity();
+        assertEquals(3, entity.get("totalDislikes"));
+        assertEquals(true, entity.get("dislikedByMe"));
+    }
+
+    @Test
+    @DisplayName("Un dislike repetido también responde 200: registrar es idempotente")
+    void dislikeRepetidoResponde200() {
+        // La segunda llamada reutiliza la relación con el mismo tipo: el total no cambia.
+        when(crearPostUseCase.reaccionarDislike("carlos-patino", "post-b1")).thenReturn(3);
+
+        Response respuesta =
+                resource.reaccionarDislike("post-b1", Map.of("userId", "carlos-patino"));
+
+        assertEquals(200, respuesta.getStatus());
+        verify(crearPostUseCase).reaccionarDislike("carlos-patino", "post-b1");
+    }
+
+    @Test
+    @DisplayName("POST /posts/{id}/dislike responde 400 si falta el userId")
+    void dislikeSinUserIdResponde400() {
+        Response respuesta = resource.reaccionarDislike("post-b1", Map.of());
+
+        assertEquals(400, respuesta.getStatus());
+        @SuppressWarnings("unchecked")
+        Map<String, String> entity = (Map<String, String>) respuesta.getEntity();
+        assertEquals("El campo 'userId' es obligatorio", entity.get("error"));
+        verify(crearPostUseCase, never()).reaccionarDislike(any(), any());
+    }
+
+    @Test
+    @DisplayName("El dislike sobre una publicación ausente llega como 404")
+    void dislikeSobrePostInexistenteLanzaNotFound() {
+        when(crearPostUseCase.reaccionarDislike("carlos-patino", "post-inexistente"))
+                .thenThrow(new PostNoEncontradoException("post-inexistente"));
+
+        assertThrows(
+                PostNoEncontradoException.class,
+                () ->
+                        resource.reaccionarDislike(
+                                "post-inexistente", Map.of("userId", "carlos-patino")));
+    }
+
+    @Test
+    @DisplayName("DELETE /posts/{id}/like responde 200 con likedByMe en false")
+    void quitarLikeResponde200() {
+        when(crearPostUseCase.quitarLike("carlos-patino", "post-b1")).thenReturn(true);
+
+        Response respuesta = resource.quitarLike("post-b1", "carlos-patino");
+
+        assertEquals(200, respuesta.getStatus());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> entity = (Map<String, Object>) respuesta.getEntity();
+        assertEquals(false, entity.get("likedByMe"));
+    }
+
+    @Test
+    @DisplayName("DELETE /posts/{id}/dislike responde 200 con dislikedByMe en false")
+    void quitarDislikeResponde200() {
+        when(crearPostUseCase.quitarDislike("carlos-patino", "post-b1")).thenReturn(true);
+
+        Response respuesta = resource.quitarDislike("post-b1", "carlos-patino");
+
+        assertEquals(200, respuesta.getStatus());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> entity = (Map<String, Object>) respuesta.getEntity();
+        assertEquals(false, entity.get("dislikedByMe"));
+    }
+
+    @Test
+    @DisplayName("DELETE de una reacción que no existe responde 200 sin error")
+    void quitarReaccionInexistenteResponde200() {
+        // Retirar es idempotente: si no había nada que borrar, igual es 200 con la marca en
+        // false. La tarjeta entonces no necesita distinguir "quitado" de "ya estaba quitado".
+        when(crearPostUseCase.quitarLike("carlos-patino", "post-b1")).thenReturn(false);
+
+        Response respuesta = resource.quitarLike("post-b1", "carlos-patino");
+
+        assertEquals(200, respuesta.getStatus());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> entity = (Map<String, Object>) respuesta.getEntity();
+        assertEquals(false, entity.get("likedByMe"));
+    }
+
+    @Test
+    @DisplayName("DELETE /posts/{id}/like responde 400 si falta el userId")
+    void quitarLikeSinUserIdResponde400() {
+        Response respuesta = resource.quitarLike("post-b1", null);
+
+        assertEquals(400, respuesta.getStatus());
+        verify(crearPostUseCase, never()).quitarLike(any(), any());
+    }
+
+    @Test
+    @DisplayName("DELETE /posts/{id}/dislike responde 400 si falta el userId")
+    void quitarDislikeSinUserIdResponde400() {
+        Response respuesta = resource.quitarDislike("post-b1", "   ");
+
+        assertEquals(400, respuesta.getStatus());
+        verify(crearPostUseCase, never()).quitarDislike(any(), any());
+    }
 }

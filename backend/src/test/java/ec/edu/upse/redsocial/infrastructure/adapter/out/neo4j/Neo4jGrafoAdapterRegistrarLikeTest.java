@@ -55,18 +55,26 @@ class Neo4jGrafoAdapterRegistrarLikeTest {
 
     /** Simula una fila devuelta por el Cypher con el total de reacciones. */
     private void resultadoConTotal(long total) {
-        Record fila = mock(Record.class);
-        when(fila.get("totalLikes")).thenReturn(Values.value(total));
-        Result result = mock(Result.class);
-        when(result.hasNext()).thenReturn(true);
-        when(result.next()).thenReturn(fila);
-        when(tx.run(anyString(), any(Value.class))).thenReturn(result);
+        registrarFila(Values.value(total), Values.value(1));
     }
 
-    /** Simula un MATCH sin filas: el usuario o la publicación no existen. */
+    /**
+     * Reproduce lo que el driver hace de verdad cuando el MATCH no encuentra usuario ni post: la
+     * agregación sin clave de agrupamiento devuelve UNA fila con cero, no cero filas. Por eso
+     * hasNext() es true y el centinela es count(p).
+     */
     private void resultadoVacio() {
+        registrarFila(Values.value(0), Values.value(0));
+    }
+
+    private void registrarFila(Value totalLikes, Value encontrados) {
+        Record fila = mock(Record.class);
+        when(fila.get("totalLikes")).thenReturn(totalLikes);
+        when(fila.get("encontrados")).thenReturn(encontrados);
         Result result = mock(Result.class);
-        when(result.hasNext()).thenReturn(false);
+        // El driver SIEMPRE entrega una fila en esta consulta, incluso sin coincidencias.
+        when(result.hasNext()).thenReturn(true);
+        when(result.next()).thenReturn(fila);
         when(tx.run(anyString(), any(Value.class))).thenReturn(result);
     }
 

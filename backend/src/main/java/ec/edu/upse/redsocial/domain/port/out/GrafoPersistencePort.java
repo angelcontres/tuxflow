@@ -55,5 +55,29 @@ public interface GrafoPersistencePort {
      */
     int registrarLike(String userId, String postId);
 
+    /**
+     * Registra la relación {@code [:REACCIONA {tipo: 'DISLIKE'}]} de forma idempotente y devuelve
+     * el total de dislikes del post, espejo exacto de {@link #registrarLike}.
+     *
+     * @throws PostNoEncontradoException si el usuario o la publicación no existen
+     */
+    int registrarDislike(String userId, String postId);
+
+    /**
+     * Borra la relación {@code [:REACCIONA {tipo: 'LIKE'}]}. Idempotente: si no había reacción
+     * devuelve {@code false} sin lanzar excepción (también cuando el post no existe).
+     *
+     * @return {@code true} si se borró una reacción
+     */
+    boolean retirarLike(String userId, String postId);
+
+    /**
+     * Borra la relación {@code [:REACCIONA {tipo: 'DISLIKE'}]}. Idempotente: si no había reacción
+     * devuelve {@code false} sin lanzar excepción (también cuando el post no existe).
+     *
+     * @return {@code true} si se borró una reacción
+     */
+    boolean retirarDislike(String userId, String postId);
+
     List<String> obtenerSuscripcionesPushDeSeguidores(String autorId);
 }
