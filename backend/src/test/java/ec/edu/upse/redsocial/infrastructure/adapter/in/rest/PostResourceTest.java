@@ -160,7 +160,9 @@ class PostResourceTest {
         // El mapper de dominio traduce la excepción; el recurso no la captura para devolver 200.
         assertThrows(
                 PostNoEncontradoException.class,
-                () -> resource.reaccionarPost("post-inexistente", Map.of("userId", "carlos-patino")));
+                () ->
+                        resource.reaccionarPost(
+                                "post-inexistente", Map.of("userId", "carlos-patino")));
     }
 
     @Test

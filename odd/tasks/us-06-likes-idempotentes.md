@@ -74,9 +74,15 @@ El endpoint ya existía y el `MERGE` ya era correcto, pero la capa alrededor **m
 ## Checks
 
 ```bash
-cd backend  && mvn test
-cd frontend && pnpm run check   # format:check + lint + test + build
+source ~/.local/opt/activate-jdk21.sh
+export PATH="$HOME/.local/opt/apache-maven-3.9.6/bin:$PATH"
+
+cd backend  && mvn verify          # tests + spotless + spotbugs
+cd frontend && pnpm run check      # format:check + lint + test + build
 ```
+
+El `java` del PATH es el 25, que **no** sirve: el proyecto apunta a JDK 21 y con el 25 fallan los
+tests del adaptador (Mockito) y `spotless` (google-java-format). Hay que activar el 21 primero.
 
 ## Progreso
 
@@ -94,14 +100,15 @@ cd frontend && pnpm run check   # format:check + lint + test + build
 
 ### Evidencia de verificación (2026-10-02)
 
+Corrido con el JDK 21 del proyecto: `source ~/.local/opt/activate-jdk21.sh` (Temurin 21.0.12.1) y
+`PATH="$HOME/.local/opt/apache-maven-3.9.6/bin:$PATH"`.
+
 | Check | Resultado |
 |---|---|
+| `mvn verify` (backend) | **PASS** — **74 pruebas**, 0 fallos. Incluye `Neo4jGrafoAdapterRegistrarLikeTest` (5) y `PostResourceTest` (11). Pasa también `spotless:check` y `spotbugs:check` |
 | `pnpm run check` (frontend) | **PASS** — prettier, eslint, **110 pruebas** (100 previas + 10 de US-06), `tsc` + `vite build` |
-| `mvn test` (backend) | **PASS parcial** — 54 pruebas verdes (incluye `PostResourceTest`, 11 casos). **20 errores de Mockito**: los 4 tests de `Neo4jGrafoAdapter*` (3 preexistentes + el nuevo) fallan porque el inline mock maker no puede modificar clases en el JDK 25 de esta máquina. El proyecto apunta a JDK 21; en ese JDK los 3 preexistentes ya pasaban. **No verificado localmente**: `Neo4jGrafoAdapterRegistrarLikeTest` (5 casos) |
-| `mvn spotless:check` | **NO EJECUTABLE** — `google-java-format` 1.24 (fijado por Spotless 2.44.0) es incompatible con el JDK 25 de esta máquina (`NoSuchMethodError` en `com.sun.tools.javac.util.Log`). Se verificó el formato AOSP a mano contra `google-java-format` 1.30 en los archivos tocados: sin diferencias de ancho de línea ni de imports sin usar |
 
 ### Pendiente
 
 - Verificación manual en navegador y el cURL del backlog (`POST /api/posts/post-p1/like`), que
-  necesitan Neo4j en `:7474` y la app en `:8080`.
-- `Neo4jGrafoAdapterRegistrarLikeTest` necesita ejecutarse en JDK 21 para quedar confirmado.
+  necesitan Neo4j y la app en `:8080`.

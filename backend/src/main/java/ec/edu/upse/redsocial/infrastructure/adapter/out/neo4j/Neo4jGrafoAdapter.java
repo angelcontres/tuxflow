@@ -614,9 +614,9 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
 
     @Override
     public int registrarLike(String userId, String postId) {
-        // MERGE mantiene la idempotencia: repetir la petición reutiliza la relación existente y deja
-        // intacta su fecha. El conteo se lee despues del MERGE para que incluya la reacción recién
-        // creada, y la UI concilia su contador optimista con el total real del servidor.
+        // MERGE mantiene la idempotencia: repetir la petición reutiliza la relación existente
+        // y deja intacta su fecha. El conteo se lee despues del MERGE para que incluya la reacción
+        // recién creada, y la UI concilia su contador optimista con el total real del servidor.
         String cypher =
                 """
             MATCH (u:Usuario {id: $userId}), (p:Post {id: $postId})
