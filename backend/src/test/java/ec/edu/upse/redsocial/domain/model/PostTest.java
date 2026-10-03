@@ -44,6 +44,15 @@ class PostTest {
             assertEquals(0L, post.getTotalLikes());
             assertFalse(post.isLikedByMe());
         }
+
+        @Test
+        @DisplayName("una publicación nueva no tiene dislikes ni marca de dislike propio")
+        void newPostHasNoDislikes() {
+            Post post = new Post();
+
+            assertEquals(0L, post.getTotalDislikes());
+            assertFalse(post.isDislikedByMe());
+        }
     }
 
     @Nested
@@ -76,6 +85,17 @@ class PostTest {
 
             assertEquals(7L, post.getTotalLikes());
             assertTrue(post.isLikedByMe());
+        }
+
+        @Test
+        @DisplayName("conserva el total de dislikes y la marca de dislike propio")
+        void keepsDislikeTotals() {
+            Post post = new Post();
+            post.setTotalDislikes(2L);
+            post.setDislikedByMe(true);
+
+            assertEquals(2L, post.getTotalDislikes());
+            assertTrue(post.isDislikedByMe());
         }
     }
 

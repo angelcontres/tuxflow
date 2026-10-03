@@ -10,6 +10,8 @@ public class Post {
     private String autorAvatar;
     private long totalLikes;
     private boolean likedByMe;
+    private long totalDislikes;
+    private boolean dislikedByMe;
 
     public Post() {}
 
@@ -83,5 +85,21 @@ public class Post {
 
     public void setLikedByMe(boolean likedByMe) {
         this.likedByMe = likedByMe;
+    }
+
+    public long getTotalDislikes() {
+        return totalDislikes;
+    }
+
+    public void setTotalDislikes(long totalDislikes) {
+        this.totalDislikes = totalDislikes;
+    }
+
+    public boolean isDislikedByMe() {
+        return dislikedByMe;
+    }
+
+    public void setDislikedByMe(boolean dislikedByMe) {
+        this.dislikedByMe = dislikedByMe;
     }
 }
