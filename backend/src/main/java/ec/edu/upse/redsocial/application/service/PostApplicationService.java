@@ -14,6 +14,8 @@ public class PostApplicationService implements CrearPostUseCase {
     @Inject GrafoPersistencePort grafoPersistencePort;
 
     @Inject NotificationPushPort notificationPushPort;
+    
+    @Inject ec.edu.upse.redsocial.domain.port.in.InAppNotificationUseCase inAppNotificationUseCase;
 
     @Override
     public String crearPost(String autorId, String autorUsername, String texto, String mediaUrl) {
@@ -22,6 +24,9 @@ public class PostApplicationService implements CrearPostUseCase {
 
         // Notificación Web Push a seguidores mediante el puerto de salida
         notificationPushPort.notificarSeguidoresNuevoPost(autorId, autorUsername, texto, postId);
+        
+        // Notificación In-App
+        inAppNotificationUseCase.notificarSeguidoresNuevoPost(autorId, autorUsername, texto, postId);
 
         return postId;
     }

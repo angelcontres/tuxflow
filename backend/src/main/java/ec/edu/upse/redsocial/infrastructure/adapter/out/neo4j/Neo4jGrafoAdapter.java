@@ -813,4 +813,95 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                     });
         }
     }
+
+    @Override
+    public void guardarNotificacionInApp(String userId, ec.edu.upse.redsocial.domain.model.NotificacionInApp notificacion) {
+        String cypher =
+            """
+            MATCH (u:Usuario {id: $userId})
+            MERGE (n:NotificacionInApp {id: $id})
+            ON CREATE SET n.tipo = $tipo, n.titulo = $titulo, n.mensaje = $mensaje, n.leido = $leido, n.fechaCreacion = $fechaCreacion, n.url = $url
+            MERGE (u)-[:RECIBE]->(n)
+            """;
+        try (var session = driver.session()) {
+            session.executeWrite(tx -> {
+                tx.run(cypher, Values.parameters(
+                    "userId", userId,
+                    "id", notificacion.getId(),
+                    "tipo", notificacion.getTipo(),
+                    "titulo", notificacion.getTitulo(),
+                    "mensaje", notificacion.getMensaje(),
+                    "leido", notificacion.isLeido(),
+                    "fechaCreacion", notificacion.getFechaCreacion(),
+                    "url", notificacion.getUrl()
+                )).consume();
+                return null;
+            });
+        }
+    }
+
+    @Override
+    public List<ec.edu.upse.redsocial.domain.model.NotificacionInApp> obtenerNotificacionesInApp(String userId) {
+        String cypher = "MATCH (u:Usuario {id: $userId})-[:RECIBE]->(n:NotificacionInApp) RETURN n ORDER BY n.fechaCreacion DESC LIMIT 20";
+        try (var session = driver.session()) {
+            return session.executeRead(tx -> {
+                var res = tx.run(cypher, Values.parameters("userId", userId));
+                List<ec.edu.upse.redsocial.domain.model.NotificacionInApp> list = new ArrayList<>();
+                while (res.hasNext()) {
+                    var record = res.next();
+                    var nNode = record.get("n").asNode();
+                    var noti = new ec.edu.upse.redsocial.domain.model.NotificacionInApp();
+                    noti.setId(nNode.get("id").asString());
+                    noti.setTipo(nNode.get("tipo").isNull() ? null : nNode.get("tipo").asString());
+                    noti.setTitulo(nNode.get("titulo").isNull() ? null : nNode.get("titulo").asString());
+                    noti.setMensaje(nNode.get("mensaje").isNull() ? null : nNode.get("mensaje").asString());
+                    noti.setLeido(nNode.get("leido").asBoolean(false));
+                    noti.setFechaCreacion(nNode.get("fechaCreacion").asLong(0L));
+                    noti.setUrl(nNode.get("url").isNull() ? null : nNode.get("url").asString());
+                    list.add(noti);
+                }
+                return list;
+            });
+        }
+    }
+
+    @Override
+    public long obtenerConteoNoLeidas(String userId) {
+        String cypher = "MATCH (u:Usuario {id: $userId})-[:RECIBE]->(n:NotificacionInApp) WHERE n.leido = false RETURN count(n) AS conteo";
+        try (var session = driver.session()) {
+            return session.executeRead(tx -> {
+                var res = tx.run(cypher, Values.parameters("userId", userId));
+                if (res.hasNext()) {
+                    return res.next().get("conteo").asLong();
+                }
+                return 0L;
+            });
+        }
+    }
+
+    @Override
+    public void marcarComoLeida(String userId, String notificacionId) {
+        String cypher = "MATCH (u:Usuario {id: $userId})-[:RECIBE]->(n:NotificacionInApp {id: $notificacionId}) SET n.leido = true";
+        try (var session = driver.session()) {
+            session.executeWrite(tx -> {
+                tx.run(cypher, Values.parameters("userId", userId, "notificacionId", notificacionId)).consume();
+                return null;
+            });
+        }
+    }
+
+    @Override
+    public List<String> obtenerSeguidoresId(String autorId) {
+        String cypher = "MATCH (s:Usuario)-[:SIGUE]->(a:Usuario {id: $autorId}) RETURN s.id AS id";
+        try (var session = driver.session()) {
+            return session.executeRead(tx -> {
+                var res = tx.run(cypher, Values.parameters("autorId", autorId));
+                List<String> list = new ArrayList<>();
+                while (res.hasNext()) {
+                    list.add(res.next().get("id").asString());
+                }
+                return list;
+            });
+        }
+    }
 }
