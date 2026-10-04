@@ -38,7 +38,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ currentU
 
     eventSource.onerror = (error) => {
       console.error('SSE Error:', error);
-      eventSource.close();
+      // Removed eventSource.close() to allow native automatic reconnects
     };
 
     return () => {
