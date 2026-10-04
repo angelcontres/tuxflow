@@ -115,9 +115,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ currentU
           </div>
           <div className="max-h-96 overflow-y-auto">
             {notifications.length === 0 ? (
-              <div className="p-4 text-center text-sm text-slate-500">
-                No tienes notificaciones
-              </div>
+              <div className="p-4 text-center text-sm text-slate-500">No tienes notificaciones</div>
             ) : (
               notifications.map((notif) => (
                 <div

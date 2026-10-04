@@ -1,10 +1,6 @@
 import { api } from '../../../shared/api/client';
 
-export type NotificationPermissionState =
-  | 'granted'
-  | 'denied'
-  | 'default'
-  | 'unsupported';
+export type NotificationPermissionState = 'granted' | 'denied' | 'default' | 'unsupported';
 
 export const initWebPush = async (userId: string) => {
   try {
@@ -39,7 +35,8 @@ export const registerWebPush = async (vapidPublicKey: string): Promise<RegisterR
       return {
         state: 'denied',
         subscription: null,
-        message: 'Permiso de notificaciones denegado. Puedes habilitarlo desde los ajustes del navegador.',
+        message:
+          'Permiso de notificaciones denegado. Puedes habilitarlo desde los ajustes del navegador.',
       };
     }
     if (permission !== 'granted') {

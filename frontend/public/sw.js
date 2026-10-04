@@ -28,12 +28,7 @@ self.addEventListener('push', (event) => {
     },
   };
 
-  event.waitUntil(
-    self.registration.showNotification(
-      data.title || 'Nueva Notificación',
-      options,
-    ),
-  );
+  event.waitUntil(self.registration.showNotification(data.title || 'Nueva Notificación', options));
 });
 
 self.addEventListener('notificationclick', (event) => {
