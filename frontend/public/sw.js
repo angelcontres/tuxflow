@@ -6,10 +6,10 @@ self.addEventListener('push', (event) => {
       const parsed = event.data.json();
       data = { ...data, ...parsed };
     }
-  } catch (e) {
+  } catch {
     try {
       data.body = event.data ? event.data.text() : data.body;
-    } catch (err) {
+    } catch {
       // Ignorar
     }
   }
