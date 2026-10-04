@@ -31,7 +31,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ currentU
 
     const eventSource = new EventSource(`/api/in-app-notifications/stream?userId=${currentUserId}`);
 
-    eventSource.addEventListener('notification', (event) => {
+    eventSource.addEventListener('notification', () => {
       // The backend sends events named "notification"
       setUnreadCount((prev) => prev + 1);
     });
