@@ -16,14 +16,15 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ currentU
   useEffect(() => {
     const loadUnread = async () => {
       try {
-        const count = await fetchUnreadCount();
+        if (!currentUserId) return;
+        const count = await fetchUnreadCount(currentUserId);
         setUnreadCount(count);
       } catch (e) {
         console.error('Error fetching unread count', e);
       }
     };
     loadUnread();
-  }, []);
+  }, [currentUserId]);
 
   useEffect(() => {
     if (!currentUserId) return;
@@ -67,7 +68,8 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ currentU
 
     if (nextState) {
       try {
-        const history = await fetchHistorial();
+        if (!currentUserId) return;
+        const history = await fetchHistorial(currentUserId);
         setNotifications(history);
       } catch (e) {
         console.error('Error fetching history', e);
@@ -78,7 +80,8 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ currentU
   const handleNotificationClick = async (notif: NotificacionInApp) => {
     if (!notif.leido) {
       try {
-        await markAsRead(notif.id);
+        if (!currentUserId) return;
+        await markAsRead(notif.id, currentUserId);
         setUnreadCount((prev) => Math.max(0, prev - 1));
       } catch (e) {
         console.error('Error marking as read', e);
