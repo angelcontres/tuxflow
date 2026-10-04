@@ -34,17 +34,22 @@ public class InAppNotificationService implements InAppNotificationUseCase {
     public void notificarSeguidoresNuevoPost(String autorId, String autorUsername, String postTexto, String postId) {
         List<String> seguidores = grafoPersistencePort.obtenerSeguidoresId(autorId);
         for (String seguidorId : seguidores) {
-            NotificacionInApp n = new NotificacionInApp();
-            n.setId(UUID.randomUUID().toString());
-            n.setTipo("POST");
-            n.setTitulo(autorUsername);
-            n.setMensaje(postTexto);
-            n.setUrl("/posts/" + postId);
-            n.setLeido(false);
-            n.setFechaCreacion(System.currentTimeMillis());
-            
-            grafoPersistencePort.guardarNotificacionInApp(seguidorId, n);
-            sseManager.sendNotification(seguidorId, n);
+            emitirNotificacion(seguidorId, "POST", autorUsername, postTexto, "/posts/" + postId);
         }
+    }
+
+    @Override
+    public void emitirNotificacion(String destinatarioId, String tipo, String titulo, String mensaje, String url) {
+        NotificacionInApp n = new NotificacionInApp();
+        n.setId(UUID.randomUUID().toString());
+        n.setTipo(tipo);
+        n.setTitulo(titulo);
+        n.setMensaje(mensaje);
+        n.setUrl(url);
+        n.setLeido(false);
+        n.setFechaCreacion(System.currentTimeMillis());
+        
+        grafoPersistencePort.guardarNotificacionInApp(destinatarioId, n);
+        sseManager.sendNotification(destinatarioId, n);
     }
 }
