@@ -31,11 +31,10 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ currentU
 
     const eventSource = new EventSource(`/api/in-app-notifications/stream?userId=${currentUserId}`);
 
-    eventSource.onmessage = () => {
-      // Assuming event.data contains the new notification or a signal
-      // For now, just increment the unread count when any message arrives
+    eventSource.addEventListener('notification', (event) => {
+      // The backend sends events named "notification"
       setUnreadCount((prev) => prev + 1);
-    };
+    });
 
     eventSource.onerror = (error) => {
       console.error('SSE Error:', error);
