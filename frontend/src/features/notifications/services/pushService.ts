@@ -8,10 +8,10 @@ export type NotificationPermissionState =
 
 export const initWebPush = async (userId: string) => {
   try {
-    const { data } = await api.get<{ publicKey: string }>('/api/notifications/vapid-public-key');
+    const { data } = await api.get<{ publicKey: string }>('/notifications/vapid-public-key');
     const result = await registerWebPush(data.publicKey);
     if (result.state === 'granted' && result.subscription) {
-      await api.post('/api/notifications/subscribe', { userId, subscription: result.subscription });
+      await api.post('/notifications/subscribe', { userId, subscription: result.subscription });
     }
   } catch (err) {
     console.error('Error initializing web push:', err);
