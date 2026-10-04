@@ -8,5 +8,6 @@ public interface InAppNotificationUseCase {
     long obtenerConteoNoLeidas(String userId);
     void marcarLeida(String userId, String notificacionId);
     void notificarSeguidoresNuevoPost(String autorId, String autorUsername, String postTexto, String postId);
+    void notificarNuevaReaccion(String actorId, String postId, String tipoReaccion);
     void emitirNotificacion(String destinatarioId, String tipo, String titulo, String mensaje, String url);
 }

@@ -904,4 +904,18 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
             });
         }
     }
+
+    @Override
+    public String obtenerAutorDePost(String postId) {
+        String cypher = "MATCH (u:Usuario)-[:PUBLICA]->(p:Post {id: $postId}) RETURN u.id AS id";
+        try (var session = driver.session()) {
+            return session.executeRead(tx -> {
+                var res = tx.run(cypher, Values.parameters("postId", postId));
+                if (res.hasNext()) {
+                    return res.next().get("id").asString();
+                }
+                return null;
+            });
+        }
+    }
 }

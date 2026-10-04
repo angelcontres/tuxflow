@@ -36,13 +36,23 @@ public class PostApplicationService implements CrearPostUseCase {
         // El like es idempotente y excluyente con el dislike: repetir la llamada no duplica la
         // relación y borra la contraria. El estado devuelto permite que la tarjeta concilie ambos
         // contadores con el dato real del grafo.
-        return grafoPersistencePort.registrarLike(userId, postId);
+        EstadoReaccion estado = grafoPersistencePort.registrarLike(userId, postId);
+        
+        // Notificación In-App al autor del post
+        inAppNotificationUseCase.notificarNuevaReaccion(userId, postId, "LIKE");
+        
+        return estado;
     }
 
     @Override
     public EstadoReaccion reaccionarDislike(String userId, String postId) {
         // Espejo del like con tipo DISLIKE: el estado devuelto trae ambos totales.
-        return grafoPersistencePort.registrarDislike(userId, postId);
+        EstadoReaccion estado = grafoPersistencePort.registrarDislike(userId, postId);
+        
+        // Notificación In-App al autor del post
+        inAppNotificationUseCase.notificarNuevaReaccion(userId, postId, "DISLIKE");
+        
+        return estado;
     }
 
     @Override

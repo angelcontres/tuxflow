@@ -106,4 +106,5 @@ public interface GrafoPersistencePort {
     long obtenerConteoNoLeidas(String userId);
     void marcarComoLeida(String userId, String notificacionId);
     List<String> obtenerSeguidoresId(String autorId);
+    String obtenerAutorDePost(String postId);
 }

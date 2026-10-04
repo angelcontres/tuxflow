@@ -33,9 +33,25 @@ public class InAppNotificationService implements InAppNotificationUseCase {
     @Override
     public void notificarSeguidoresNuevoPost(String autorId, String autorUsername, String postTexto, String postId) {
         List<String> seguidores = grafoPersistencePort.obtenerSeguidoresId(autorId);
+        String titulo = autorUsername + " ha posteado";
         for (String seguidorId : seguidores) {
-            emitirNotificacion(seguidorId, "POST", autorUsername, postTexto, "/posts/" + postId);
+            emitirNotificacion(seguidorId, "POST", titulo, postTexto, "/posts/" + postId);
         }
+    }
+
+    @Override
+    public void notificarNuevaReaccion(String actorId, String postId, String tipoReaccion) {
+        String autorId = grafoPersistencePort.obtenerAutorDePost(postId);
+        if (autorId == null || autorId.equals(actorId)) {
+            return; // No notificar si el post no existe o si es una auto-reacción
+        }
+        
+        grafoPersistencePort.obtenerUsuarioPorId(actorId).ifPresent(actor -> {
+            String accion = tipoReaccion.equalsIgnoreCase("LIKE") ? "like" : "dislike";
+            String titulo = actor.getUsername() + " ha dado " + accion + " a tu post";
+            String mensaje = "Mira la reacción en tu post.";
+            emitirNotificacion(autorId, tipoReaccion.toUpperCase(), titulo, mensaje, "/posts/" + postId);
+        });
     }
 
     @Override
