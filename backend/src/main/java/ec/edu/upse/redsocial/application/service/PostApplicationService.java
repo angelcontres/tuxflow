@@ -21,7 +21,7 @@ public class PostApplicationService implements CrearPostUseCase {
         grafoPersistencePort.crearPost(autorId, postId, texto, mediaUrl);
 
         // Notificación Web Push a seguidores mediante el puerto de salida
-        notificationPushPort.notificarSeguidoresNuevoPost(autorId, autorUsername, texto);
+        notificationPushPort.notificarSeguidoresNuevoPost(autorId, autorUsername, texto, postId);
 
         return postId;
     }

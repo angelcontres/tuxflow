@@ -92,4 +92,12 @@ public interface GrafoPersistencePort {
     EstadoReaccion retirarDislike(String userId, String postId);
 
     List<String> obtenerSuscripcionesPushDeSeguidores(String autorId);
+
+    default void eliminarSuscripcionPush(String usuarioId, String pushSubscriptionJson) {
+        // Implementación por defecto: no-op hasta completar infraestructura
+    }
+
+    default void guardarSuscripcionPush(String usuarioId, String pushSubscriptionJson) {
+        // Implementación por defecto: no-op hasta completar infraestructura
+    }
 }
