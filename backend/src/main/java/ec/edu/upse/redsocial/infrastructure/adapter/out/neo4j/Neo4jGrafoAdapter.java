@@ -755,8 +755,8 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
         String cypher =
                 """
             MATCH (seguidor:Usuario)-[:SIGUE]->(autor:Usuario {id: $autorId})
-            WHERE seguidor.pushSubscriptionJson IS NOT NULL
-            RETURN seguidor.pushSubscriptionJson AS pushJson
+            UNWIND coalesce(seguidor.pushSubscriptions, []) AS pushJson
+            RETURN pushJson
             """;
         try (var session = driver.session()) {
             return session.executeRead(
@@ -767,6 +767,49 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                             list.add(res.next().get("pushJson").asString());
                         }
                         return list;
+                    });
+        }
+    }
+
+    @Override
+    public void eliminarSuscripcionPush(String usuarioId, String pushSubscriptionJson) {
+        if (usuarioId == null || pushSubscriptionJson == null || pushSubscriptionJson.isBlank()) {
+            return;
+        }
+        String cypher =
+                """
+            MATCH (u:Usuario {id: $usuarioId})
+            SET u.pushSubscriptions = [sub IN coalesce(u.pushSubscriptions, []) WHERE sub <> $subJson]
+            """;
+        try (var session = driver.session()) {
+            session.executeWrite(
+                    tx -> {
+                        tx.run(
+                                cypher,
+                                Values.parameters("usuarioId", usuarioId, "subJson", pushSubscriptionJson))
+                                .consume();
+                        return null;
+                    });
+        }
+    }
+
+    @Override
+    public void guardarSuscripcionPush(String usuarioId, String pushSubscriptionJson) {
+        if (usuarioId == null || pushSubscriptionJson == null || pushSubscriptionJson.isBlank()) {
+            return;
+        }
+        String cypher =
+                """
+            MATCH (u:Usuario {id: $usuarioId})
+            WHERE NOT $subJson IN coalesce(u.pushSubscriptions, [])
+            SET u.pushSubscriptions = coalesce(u.pushSubscriptions, []) + $subJson
+            """;
+        try (var session = driver.session()) {
+            session.executeWrite(
+                    tx -> {
+                        tx.run(cypher, Values.parameters("usuarioId", usuarioId, "subJson", pushSubscriptionJson))
+                                .consume();
+                        return null;
                     });
         }
     }

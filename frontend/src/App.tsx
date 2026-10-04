@@ -11,6 +11,7 @@ import { fetchFeedBySocialGraph } from './features/feed/services/feedApi';
 import { fetchSeguidos, fetchSugerenciasGrafo } from './features/network/services/networkApi';
 import { Post } from './features/feed/types/post.types';
 import { FilaRed, SugerenciaUsuario, Usuario } from './features/network/types/network.types';
+import { initWebPush } from './features/notifications/services/pushService';
 
 export function fusionarRed(seguidos: Usuario[], sugerencias: SugerenciaUsuario[]): FilaRed[] {
   const filas: FilaRed[] = [];
@@ -114,6 +115,12 @@ export const App: React.FC = () => {
     }
     loadAllData();
   }, [isAuthenticated, currentUserId, loadAllData]);
+
+  useEffect(() => {
+    if (isAuthenticated && currentUserId) {
+      initWebPush(currentUserId);
+    }
+  }, [isAuthenticated, currentUserId]);
 
   const handleLogin = (userId: string, username: string) => {
     setCurrentUserId(userId);
