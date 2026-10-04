@@ -14,7 +14,7 @@ public class PostApplicationService implements CrearPostUseCase {
     @Inject GrafoPersistencePort grafoPersistencePort;
 
     @Inject NotificationPushPort notificationPushPort;
-    
+
     @Inject ec.edu.upse.redsocial.domain.port.in.InAppNotificationUseCase inAppNotificationUseCase;
 
     @Override
@@ -24,9 +24,10 @@ public class PostApplicationService implements CrearPostUseCase {
 
         // Notificación Web Push a seguidores mediante el puerto de salida
         notificationPushPort.notificarSeguidoresNuevoPost(autorId, autorUsername, texto, postId);
-        
+
         // Notificación In-App
-        inAppNotificationUseCase.notificarSeguidoresNuevoPost(autorId, autorUsername, texto, postId);
+        inAppNotificationUseCase.notificarSeguidoresNuevoPost(
+                autorId, autorUsername, texto, postId);
 
         return postId;
     }
@@ -37,10 +38,10 @@ public class PostApplicationService implements CrearPostUseCase {
         // relación y borra la contraria. El estado devuelto permite que la tarjeta concilie ambos
         // contadores con el dato real del grafo.
         EstadoReaccion estado = grafoPersistencePort.registrarLike(userId, postId);
-        
+
         // Notificación In-App al autor del post
         inAppNotificationUseCase.notificarNuevaReaccion(userId, postId, "LIKE");
-        
+
         return estado;
     }
 
@@ -48,10 +49,10 @@ public class PostApplicationService implements CrearPostUseCase {
     public EstadoReaccion reaccionarDislike(String userId, String postId) {
         // Espejo del like con tipo DISLIKE: el estado devuelto trae ambos totales.
         EstadoReaccion estado = grafoPersistencePort.registrarDislike(userId, postId);
-        
+
         // Notificación In-App al autor del post
         inAppNotificationUseCase.notificarNuevaReaccion(userId, postId, "DISLIKE");
-        
+
         return estado;
     }
 

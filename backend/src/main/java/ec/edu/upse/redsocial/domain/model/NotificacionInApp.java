@@ -11,24 +11,59 @@ public class NotificacionInApp {
 
     public NotificacionInApp() {}
 
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
+    public String getId() {
+        return id;
+    }
 
-    public String getTipo() { return tipo; }
-    public void setTipo(String tipo) { this.tipo = tipo; }
+    public void setId(String id) {
+        this.id = id;
+    }
 
-    public String getTitulo() { return titulo; }
-    public void setTitulo(String titulo) { this.titulo = titulo; }
+    public String getTipo() {
+        return tipo;
+    }
 
-    public String getMensaje() { return mensaje; }
-    public void setMensaje(String mensaje) { this.mensaje = mensaje; }
+    public void setTipo(String tipo) {
+        this.tipo = tipo;
+    }
 
-    public boolean isLeido() { return leido; }
-    public void setLeido(boolean leido) { this.leido = leido; }
+    public String getTitulo() {
+        return titulo;
+    }
 
-    public long getFechaCreacion() { return fechaCreacion; }
-    public void setFechaCreacion(long fechaCreacion) { this.fechaCreacion = fechaCreacion; }
+    public void setTitulo(String titulo) {
+        this.titulo = titulo;
+    }
 
-    public String getUrl() { return url; }
-    public void setUrl(String url) { this.url = url; }
+    public String getMensaje() {
+        return mensaje;
+    }
+
+    public void setMensaje(String mensaje) {
+        this.mensaje = mensaje;
+    }
+
+    public boolean isLeido() {
+        return leido;
+    }
+
+    public void setLeido(boolean leido) {
+        this.leido = leido;
+    }
+
+    public long getFechaCreacion() {
+        return fechaCreacion;
+    }
+
+    public void setFechaCreacion(long fechaCreacion) {
+        this.fechaCreacion = fechaCreacion;
+    }
+
+    public String getUrl() {
+        return url;
+    }
+
+    public void setUrl(String url) {
+        this.url = url;
+    }
 }

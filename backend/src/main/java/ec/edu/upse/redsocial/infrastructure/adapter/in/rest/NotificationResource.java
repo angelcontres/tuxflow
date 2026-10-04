@@ -42,10 +42,12 @@ public class NotificationResource {
                     .build();
         }
 
-        Map<String, Object> subMap = subscriptionObj instanceof Map 
-                ? (Map<String, Object>) subscriptionObj 
-                : new com.fasterxml.jackson.databind.ObjectMapper().convertValue(subscriptionObj, Map.class);
-                
+        Map<String, Object> subMap =
+                subscriptionObj instanceof Map
+                        ? (Map<String, Object>) subscriptionObj
+                        : new com.fasterxml.jackson.databind.ObjectMapper()
+                                .convertValue(subscriptionObj, Map.class);
+
         if (!subMap.containsKey("endpoint") || !subMap.containsKey("keys")) {
             return Response.status(Response.Status.BAD_REQUEST)
                     .entity(Map.of("error", "La suscripción debe contener 'endpoint' y 'keys'"))
@@ -53,9 +55,11 @@ public class NotificationResource {
         }
 
         try {
-            String subscriptionJson = subscriptionObj instanceof String
-                    ? (String) subscriptionObj
-                    : new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(subscriptionObj);
+            String subscriptionJson =
+                    subscriptionObj instanceof String
+                            ? (String) subscriptionObj
+                            : new com.fasterxml.jackson.databind.ObjectMapper()
+                                    .writeValueAsString(subscriptionObj);
             grafoPersistencePort.guardarSuscripcionPush(userId, subscriptionJson);
             return Response.ok(Map.of("mensaje", "Suscripción registrada correctamente")).build();
         } catch (Exception e) {

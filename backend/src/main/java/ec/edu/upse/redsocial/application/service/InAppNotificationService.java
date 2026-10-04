@@ -31,7 +31,8 @@ public class InAppNotificationService implements InAppNotificationUseCase {
     }
 
     @Override
-    public void notificarSeguidoresNuevoPost(String autorId, String autorUsername, String postTexto, String postId) {
+    public void notificarSeguidoresNuevoPost(
+            String autorId, String autorUsername, String postTexto, String postId) {
         List<String> seguidores = grafoPersistencePort.obtenerSeguidoresId(autorId);
         String titulo = autorUsername + " ha posteado";
         for (String seguidorId : seguidores) {
@@ -45,17 +46,28 @@ public class InAppNotificationService implements InAppNotificationUseCase {
         if (autorId == null || autorId.equals(actorId)) {
             return; // No notificar si el post no existe o si es una auto-reacción
         }
-        
-        grafoPersistencePort.obtenerUsuarioPorId(actorId).ifPresent(actor -> {
-            String accion = tipoReaccion.equalsIgnoreCase("LIKE") ? "like" : "dislike";
-            String titulo = actor.getUsername() + " ha dado " + accion + " a tu post";
-            String mensaje = "Mira la reacción en tu post.";
-            emitirNotificacion(autorId, tipoReaccion.toUpperCase(), titulo, mensaje, "/posts/" + postId);
-        });
+
+        grafoPersistencePort
+                .obtenerUsuarioPorId(actorId)
+                .ifPresent(
+                        actor -> {
+                            String accion =
+                                    tipoReaccion.equalsIgnoreCase("LIKE") ? "like" : "dislike";
+                            String titulo =
+                                    actor.getUsername() + " ha dado " + accion + " a tu post";
+                            String mensaje = "Mira la reacción en tu post.";
+                            emitirNotificacion(
+                                    autorId,
+                                    tipoReaccion.toUpperCase(),
+                                    titulo,
+                                    mensaje,
+                                    "/posts/" + postId);
+                        });
     }
 
     @Override
-    public void emitirNotificacion(String destinatarioId, String tipo, String titulo, String mensaje, String url) {
+    public void emitirNotificacion(
+            String destinatarioId, String tipo, String titulo, String mensaje, String url) {
         NotificacionInApp n = new NotificacionInApp();
         n.setId(UUID.randomUUID().toString());
         n.setTipo(tipo);
@@ -64,7 +76,7 @@ public class InAppNotificationService implements InAppNotificationUseCase {
         n.setUrl(url);
         n.setLeido(false);
         n.setFechaCreacion(System.currentTimeMillis());
-        
+
         grafoPersistencePort.guardarNotificacionInApp(destinatarioId, n);
         sseManager.sendNotification(destinatarioId, n);
     }

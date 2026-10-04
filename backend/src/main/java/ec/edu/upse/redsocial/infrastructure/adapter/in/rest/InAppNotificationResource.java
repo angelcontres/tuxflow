@@ -41,7 +41,10 @@ public class InAppNotificationResource {
     @GET
     @Path("/stream")
     @Produces(MediaType.SERVER_SENT_EVENTS)
-    public void stream(@QueryParam("userId") String userId, @Context SseEventSink eventSink, @Context Sse sse) {
+    public void stream(
+            @QueryParam("userId") String userId,
+            @Context SseEventSink eventSink,
+            @Context Sse sse) {
         sseManager.register(userId, eventSink, sse);
     }
 }

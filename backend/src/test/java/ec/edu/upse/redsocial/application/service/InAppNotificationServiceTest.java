@@ -56,15 +56,16 @@ class InAppNotificationServiceTest {
     @Test
     void debeNotificarAutorAlRecibirReaccionValida() {
         when(grafoPersistencePort.obtenerAutorDePost("post-1")).thenReturn("autor-1");
-        
+
         Usuario liker = new Usuario("user-1", "carlosfpatino", "carlos@test.com", "pass", "avatar");
         when(grafoPersistencePort.obtenerUsuarioPorId("user-1")).thenReturn(Optional.of(liker));
 
         inAppNotificationService.notificarNuevaReaccion("user-1", "post-1", "LIKE");
 
         // Verifica que se guarda en BD
-        verify(grafoPersistencePort).guardarNotificacionInApp(eq("autor-1"), any(NotificacionInApp.class));
-        
+        verify(grafoPersistencePort)
+                .guardarNotificacionInApp(eq("autor-1"), any(NotificacionInApp.class));
+
         // Verifica que se emite SSE
         verify(sseManager).sendNotification(eq("autor-1"), any(NotificacionInApp.class));
     }
