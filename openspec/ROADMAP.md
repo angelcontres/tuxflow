@@ -2,7 +2,7 @@
 
 > **Punto de entrada para sesiones nuevas.** Este archivo fija el orden, las decisiones ya cerradas y los hechos verificados del código, para que nadie los vuelva a discutir ni los redescubra.
 >
-> Fecha: 2026-09-25 · Actualizado: 2026-09-26 (grafo de dependencias completo) · Artefactos SDD: `openspec/changes/` · Tickets: Linear `TUX-52`..`TUX-62` (`US-01`..`US-11`)
+> Fecha: 2026-09-25 · Actualizado: 2026-10-02 (US-12 aplicada) · Artefactos SDD: `openspec/changes/` · Tickets: Linear `TUX-52`..`TUX-64` (`US-01`..`US-12`)
 
 ---
 
@@ -74,6 +74,7 @@ mirar en el código para comprobarla.
 | **US-09** | TUX-57 | 3 | US-02 | `seguidoresEnComun` requiere `SIGUE`. |
 | **US-10** | TUX-61 | 3 | US-02, US-03 | Comparte archivo con ambas: `UserSuggestionsCard.tsx`. |
 | **US-11** | TUX-62 | 3 | US-04, US-05, US-06 | Cuenta `REACCIONA` sobre `Post` y filtra por `fechaCreacion`. |
+| **US-12** | TUX-64 | 5 | US-01, US-02, US-09 | Lee `[:PUBLICA]` y `[:SIGUE]` por un identificador que no es el de la sesión, y monta dentro los paneles de US-09 y US-10 que ambas asumían. |
 
 ### El único conflicto de merge real
 
@@ -158,6 +159,11 @@ y **no** coincide con Linear. Al leer cualquiera de los dos documentos, verifica
 | Sprint 3 | TUX-60 | TUX-09 | US-08 | 5 | Should | Notificaciones Web Push (VAPID) |
 | Sprint 3 | TUX-61 | TUX-10 | US-10 | 3 | Could | Camino más corto (Shortest Path 6 grados) |
 | Sprint 3 | TUX-62 | TUX-11 | US-11 | 3 | Could | Tendencias y viralidad en red extendida |
+| Sprint 3 | TUX-64 | — | US-12 | 5 | Should | Perfil de usuario ajeno: posts, seguidores y distancia |
+
+> US-12 no tiene card en `docs/backlog-programadores.md`: nació de
+> `docs/propuesta-us-12-perfil-ajeno.md`, que proponía `TUX-63` y avisaba de que había que verificar
+> la numeración en Linear. La tarjeta real resultó ser `TUX-64`.
 
 > `TUX-57` y `TUX-58` estaban intercambiados en este roadmap hasta el 2026-09-26. Verificado contra Linear:
 > `TUX-58` es *"US-03: Smart contact suggestions (2nd degree)"* y `TUX-57` es *"US-09: Followers and mutual
@@ -216,6 +222,8 @@ Comprobados en `backend/src/main/java/ec/edu/upse/redsocial/`:
 | Tendencias no devuelven nada | `Neo4jGrafoAdapter:158` | Entero comparado con fecha con hora. `US-11`. |
 | Conteo de tendencias multiplica por caminos | `Neo4jGrafoAdapter:155` | `count(reactor)` cuenta filas, no reaccores. `US-11`. |
 | `asList(v -> v.asString())` sin protección | `Neo4jGrafoAdapter` | Nodo sin nombre rompe la consulta. `US-09`, `US-10`. |
+| `nombre` sin guarda de null | `Neo4jGrafoAdapter` | `obtenerSugerenciasUsuarios` y `obtenerSeguidos` devolvían el texto literal `"null"`: en el driver 5.24.0 `NullValue.asString()` no lanza. **Corregido en US-12**; la copia de US-09 en `obtenerSeguidosEnComun` ya lo tenía. |
+| Serialización de `Usuario` de dominio | `UserGraphResource` | `/follows` y `/comunes` devolvían el modelo crudo, con `password` y `pushSubscriptionJson`. **Corregido en US-12** con `UsuarioPublicoResponse`. |
 | `currentUserId` fijo en código | `frontend/src/App.tsx:13` | `'carlos-patino'`. `US-01`. |
 | `emisorId` vacío en el chat | `frontend/src/features/chat/services/chatSocket.ts:36` | `US-07`, después de `US-01`. |
 | Sin restricción de unicidad en reacciones | backend | Permite reaccionar dos veces; rompe el conteo de `US-11`. `US-06`. |

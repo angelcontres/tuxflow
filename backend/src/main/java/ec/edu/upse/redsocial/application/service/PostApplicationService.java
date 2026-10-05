@@ -1,11 +1,13 @@
 package ec.edu.upse.redsocial.application.service;
 
 import ec.edu.upse.redsocial.domain.model.EstadoReaccion;
+import ec.edu.upse.redsocial.domain.model.Post;
 import ec.edu.upse.redsocial.domain.port.in.CrearPostUseCase;
 import ec.edu.upse.redsocial.domain.port.out.GrafoPersistencePort;
 import ec.edu.upse.redsocial.domain.port.out.NotificationPushPort;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.util.List;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -53,5 +55,10 @@ public class PostApplicationService implements CrearPostUseCase {
     @Override
     public Object obtenerTendencias(String userId) {
         return grafoPersistencePort.obtenerTendenciasRedExtendida(userId);
+    }
+
+    @Override
+    public List<Post> obtenerPostsDeUsuario(String autorId, String viewerId) {
+        return grafoPersistencePort.obtenerPostsDeUsuario(autorId, viewerId);
     }
 }

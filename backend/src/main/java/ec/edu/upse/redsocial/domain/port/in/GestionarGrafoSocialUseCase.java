@@ -34,5 +34,8 @@ public interface GestionarGrafoSocialUseCase {
 
     List<Usuario> obtenerSeguidos(String userId);
 
+    // Las personas que siguen a este perfil, no las que sigue
+    List<Usuario> obtenerSeguidores(String userId);
+
     Map<String, Object> obtenerCaminoMasCorto(String origen, String destino);
 }

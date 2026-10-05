@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 
 import ec.edu.upse.redsocial.domain.model.Usuario;
 import ec.edu.upse.redsocial.domain.port.in.GestionarGrafoSocialUseCase;
+import ec.edu.upse.redsocial.infrastructure.adapter.in.rest.dto.UsuarioPublicoResponse;
 import ec.edu.upse.redsocial.infrastructure.adapter.in.rest.dto.UsuarioRequest;
 import ec.edu.upse.redsocial.infrastructure.adapter.in.rest.dto.UsuarioResponse;
 import jakarta.ws.rs.core.Response;
@@ -124,7 +125,92 @@ class UserGraphResourceTest {
         Response respuesta = resource.obtenerSeguidos("u1");
 
         assertEquals(200, respuesta.getStatus());
-        assertEquals(seguidos, respuesta.getEntity());
+        @SuppressWarnings("unchecked")
+        List<UsuarioPublicoResponse> entity = (List<UsuarioPublicoResponse>) respuesta.getEntity();
+        assertEquals(2, entity.size());
+        assertEquals("u2", entity.get(0).getId());
+        assertEquals("ana_upse", entity.get(0).getUsername());
+        assertEquals("Ana", entity.get(0).getNombre());
+        assertEquals("https://minio.upse.edu.ec/leo.png", entity.get(1).getAvatarUrl());
+    }
+
+    @Test
+    @DisplayName("GET /{userId}/follows no devuelve el Usuario de dominio, sino el DTO sin correo")
+    void obtenerSeguidosNoExponeElModeloDeDominio() {
+        // Antes este endpoint respondía List<Usuario>, el modelo de dominio, que lleva password y
+        // pushSubscriptionJson. Con esta consulta no se llenan, así que salían en null y no había
+        // fuga: lo frágil era el patrón, y el perfil ajeno lo vuelve visible. La forma de la
+        // respuesta es lo que queda fijado aquí.
+        Usuario conCredenciales = new Usuario("u2", "ana_upse", "ana@upse.edu.ec", "Ana", null);
+        conCredenciales.setPassword("secreto");
+        conCredenciales.setPushSubscriptionJson("{\"endpoint\":\"https://fcm/x\"}");
+        when(gestionarGrafoSocialUseCase.obtenerSeguidos("u1"))
+                .thenReturn(List.of(conCredenciales));
+
+        Response respuesta = resource.obtenerSeguidos("u1");
+
+        @SuppressWarnings("unchecked")
+        List<UsuarioPublicoResponse> entity = (List<UsuarioPublicoResponse>) respuesta.getEntity();
+        assertEquals(UsuarioPublicoResponse.class, entity.get(0).getClass());
+        assertFalse(
+                respuesta.getEntity().toString().contains("secreto"),
+                "La respuesta de una lista de seguidos no debe contener la contraseña");
+        assertFalse(
+                respuesta.getEntity().toString().contains("fcm"),
+                "La respuesta de una lista de seguidos no debe contener la suscripción push");
+        assertFalse(
+                respuesta.getEntity().toString().contains("@upse.edu.ec"),
+                "La lista de personas que sigue otra persona no necesita el correo de nadie");
+    }
+
+    @Test
+    @DisplayName("GET /{userId}/followers responde 200 con la lista de seguidores del caso de uso")
+    void obtenerSeguidoresResponde200ConLaLista() {
+        List<Usuario> seguidores =
+                List.of(
+                        new Usuario(
+                                "carlos-patino", "carlos", "carlos@upse.edu.ec", "Carlos", null),
+                        new Usuario("elena-vega", "elena", "elena@upse.edu.ec", "Elena", null));
+        when(gestionarGrafoSocialUseCase.obtenerSeguidores("beatriz-silva")).thenReturn(seguidores);
+
+        Response respuesta = resource.obtenerSeguidores("beatriz-silva");
+
+        assertEquals(200, respuesta.getStatus());
+        @SuppressWarnings("unchecked")
+        List<UsuarioPublicoResponse> entity = (List<UsuarioPublicoResponse>) respuesta.getEntity();
+        assertEquals(2, entity.size());
+        assertEquals("carlos-patino", entity.get(0).getId());
+        assertEquals("Carlos", entity.get(0).getNombre());
+    }
+
+    @Test
+    @DisplayName("GET /{userId}/followers sin seguidores responde 200 con la lista vacía")
+    void obtenerSeguidoresSinSeguidoresResponde200ConListaVacia() {
+        // Sin seguidores es un resultado legítimo, no un fallo: responde 200 con [].
+        when(gestionarGrafoSocialUseCase.obtenerSeguidores("elena-vega")).thenReturn(List.of());
+
+        Response respuesta = resource.obtenerSeguidores("elena-vega");
+
+        assertEquals(200, respuesta.getStatus());
+        assertEquals(List.of(), respuesta.getEntity());
+    }
+
+    @Test
+    @DisplayName("GET /{userId}/followers no expone el Usuario de dominio")
+    void obtenerSeguidoresNoExponeElModeloDeDominio() {
+        Usuario conCredenciales = new Usuario("u2", "ana", "ana@upse.edu.ec", "Ana", null);
+        conCredenciales.setPassword("secreto");
+        conCredenciales.setPushSubscriptionJson("{\"endpoint\":\"https://fcm/x\"}");
+        when(gestionarGrafoSocialUseCase.obtenerSeguidores("u1"))
+                .thenReturn(List.of(conCredenciales));
+
+        Response respuesta = resource.obtenerSeguidores("u1");
+
+        @SuppressWarnings("unchecked")
+        List<UsuarioPublicoResponse> entity = (List<UsuarioPublicoResponse>) respuesta.getEntity();
+        assertEquals(UsuarioPublicoResponse.class, entity.get(0).getClass());
+        assertFalse(respuesta.getEntity().toString().contains("secreto"));
+        assertFalse(respuesta.getEntity().toString().contains("fcm"));
     }
 
     @Test
@@ -140,7 +226,29 @@ class UserGraphResourceTest {
         Response respuesta = resource.obtenerSeguidosEnComun("carlos-patino", "angel-villon");
 
         assertEquals(200, respuesta.getStatus());
-        assertEquals(comunes, respuesta.getEntity());
+        @SuppressWarnings("unchecked")
+        List<UsuarioPublicoResponse> entity = (List<UsuarioPublicoResponse>) respuesta.getEntity();
+        assertEquals(2, entity.size());
+        assertEquals("beatriz-silva", entity.get(0).getId());
+        assertEquals("Beatriz Silva", entity.get(0).getNombre());
+    }
+
+    @Test
+    @DisplayName("GET /comunes no expone el Usuario de dominio")
+    void obtenerSeguidosEnComunNoExponeElModeloDeDominio() {
+        Usuario conCredenciales = new Usuario("u1", "ana", "ana@upse.edu.ec", "Ana", null);
+        conCredenciales.setPassword("secreto");
+        conCredenciales.setPushSubscriptionJson("{\"endpoint\":\"https://fcm/x\"}");
+        when(gestionarGrafoSocialUseCase.obtenerSeguidosEnComun("carlos-patino", "angel-villon"))
+                .thenReturn(List.of(conCredenciales));
+
+        Response respuesta = resource.obtenerSeguidosEnComun("carlos-patino", "angel-villon");
+
+        @SuppressWarnings("unchecked")
+        List<UsuarioPublicoResponse> entity = (List<UsuarioPublicoResponse>) respuesta.getEntity();
+        assertEquals(UsuarioPublicoResponse.class, entity.get(0).getClass());
+        assertFalse(respuesta.getEntity().toString().contains("secreto"));
+        assertFalse(respuesta.getEntity().toString().contains("fcm"));
     }
 
     @Test
