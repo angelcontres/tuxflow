@@ -1,6 +1,7 @@
 package ec.edu.upse.redsocial.infrastructure.adapter.in.rest;
 
 import ec.edu.upse.redsocial.domain.exception.AutorNoEncontradoException;
+import ec.edu.upse.redsocial.domain.model.EstadoReaccion;
 import ec.edu.upse.redsocial.domain.port.in.CrearPostUseCase;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
@@ -49,9 +50,123 @@ public class PostResource {
     @POST
     @Path("/{postId}/like")
     public Response reaccionarPost(@PathParam("postId") String postId, Map<String, String> body) {
-        String userId = body.get("userId");
-        crearPostUseCase.reaccionarPost(userId, postId);
-        return Response.ok(Map.of("mensaje", "Reacción registrada")).build();
+        String userId = body != null ? body.get("userId") : null;
+        // Sin usuario no hay forma de crear la relación. Un 200 aquí sería un like que nunca
+        // existió.
+        if (userId == null || userId.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("error", "El campo 'userId' es obligatorio"))
+                    .build();
+        }
+
+        EstadoReaccion estado = crearPostUseCase.reaccionarPost(userId, postId);
+        // Con mutualidad el registro excluye la reacción contraria, así que ambas banderas se
+        // conocen con certeza sin lectura extra: el like quedó activo y el dislike no existe.
+        return Response.ok(
+                        Map.of(
+                                "mensaje",
+                                "Reacción registrada",
+                                "postId",
+                                postId,
+                                "likedByMe",
+                                true,
+                                "dislikedByMe",
+                                false,
+                                "totalLikes",
+                                estado.totalLikes(),
+                                "totalDislikes",
+                                estado.totalDislikes()))
+                .build();
+    }
+
+    @POST
+    @Path("/{postId}/dislike")
+    public Response reaccionarDislike(
+            @PathParam("postId") String postId, Map<String, String> body) {
+        String userId = body != null ? body.get("userId") : null;
+        // Misma validación que el like: sin usuario no hay relación que crear.
+        if (userId == null || userId.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("error", "El campo 'userId' es obligatorio"))
+                    .build();
+        }
+
+        EstadoReaccion estado = crearPostUseCase.reaccionarDislike(userId, postId);
+        return Response.ok(
+                        Map.of(
+                                "mensaje",
+                                "Reacción registrada",
+                                "postId",
+                                postId,
+                                "likedByMe",
+                                false,
+                                "dislikedByMe",
+                                true,
+                                "totalLikes",
+                                estado.totalLikes(),
+                                "totalDislikes",
+                                estado.totalDislikes()))
+                .build();
+    }
+
+    @DELETE
+    @Path("/{postId}/like")
+    public Response quitarLike(
+            @PathParam("postId") String postId, @QueryParam("userId") String userId) {
+        // El userId viaja en la query porque el DELETE no lleva cuerpo. Un @QueryParam ausente
+        // llega como null, así que la validación es la misma que en los POST.
+        if (userId == null || userId.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("error", "El campo 'userId' es obligatorio"))
+                    .build();
+        }
+
+        EstadoReaccion estado = crearPostUseCase.quitarLike(userId, postId);
+        // La retirada no toca la reacción contraria y el registro ya es excluyente, así que el
+        // dislike tampoco existe: ambas banderas van en false con los totales recalculados.
+        return Response.ok(
+                        Map.of(
+                                "mensaje",
+                                "Reacción retirada",
+                                "postId",
+                                postId,
+                                "likedByMe",
+                                false,
+                                "dislikedByMe",
+                                false,
+                                "totalLikes",
+                                estado.totalLikes(),
+                                "totalDislikes",
+                                estado.totalDislikes()))
+                .build();
+    }
+
+    @DELETE
+    @Path("/{postId}/dislike")
+    public Response quitarDislike(
+            @PathParam("postId") String postId, @QueryParam("userId") String userId) {
+        if (userId == null || userId.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("error", "El campo 'userId' es obligatorio"))
+                    .build();
+        }
+
+        EstadoReaccion estado = crearPostUseCase.quitarDislike(userId, postId);
+        return Response.ok(
+                        Map.of(
+                                "mensaje",
+                                "Reacción retirada",
+                                "postId",
+                                postId,
+                                "likedByMe",
+                                false,
+                                "dislikedByMe",
+                                false,
+                                "totalLikes",
+                                estado.totalLikes(),
+                                "totalDislikes",
+                                estado.totalDislikes()))
+                .build();
     }
 
     @GET

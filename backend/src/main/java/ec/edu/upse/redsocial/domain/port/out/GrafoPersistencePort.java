@@ -1,5 +1,7 @@
 package ec.edu.upse.redsocial.domain.port.out;
 
+import ec.edu.upse.redsocial.domain.exception.PostNoEncontradoException;
+import ec.edu.upse.redsocial.domain.model.EstadoReaccion;
 import ec.edu.upse.redsocial.domain.model.Post;
 import ec.edu.upse.redsocial.domain.model.SugerenciaUsuario;
 import ec.edu.upse.redsocial.domain.model.Usuario;
@@ -51,11 +53,54 @@ public interface GrafoPersistencePort {
     void crearPost(String autorId, String postId, String texto, String mediaUrl);
 
     // Publicaciones de un autor, de la más nueva a la más antigua. `viewerId` es opcional: sin él
-    // la
-    // respuesta no trae `likedByMe` porque no hay quién mirar.
+    // la respuesta no trae `likedByMe` porque no hay quién mirar.
     List<Post> obtenerPostsDeUsuario(String userId, String viewerId);
 
-    void alternarLike(String userId, String postId);
+    /**
+     * Registra la relación {@code [:REACCIONA {tipo: 'LIKE'}]} de forma idempotente y devuelve el
+     * estado completo de reacciones del post, para que la UI pueda conciliar ambos contadores con
+     * la realidad.
+     *
+     * <p>Like y dislike son mutuamente excluyentes por par (usuario, post): registrar el like
+     * elimina en la misma transacción cualquier dislike previo de ese usuario hacia ese post.
+     * Repetir la operación no crea una segunda relación ni cambia la fecha original.
+     *
+     * @return los totales de likes y dislikes tras registrar la nueva reacción
+     * @throws PostNoEncontradoException si el usuario o la publicación no existen
+     */
+    EstadoReaccion registrarLike(String userId, String postId);
+
+    /**
+     * Registra la relación {@code [:REACCIONA {tipo: 'DISLIKE'}]} de forma idempotente y devuelve
+     * el estado completo de reacciones del post, espejo exacto de {@link #registrarLike}.
+     *
+     * <p>Registrar el dislike elimina en la misma transacción cualquier like previo de ese usuario
+     * hacia ese post.
+     *
+     * @return los totales de likes y dislikes tras registrar la nueva reacción
+     * @throws PostNoEncontradoException si el usuario o la publicación no existen
+     */
+    EstadoReaccion registrarDislike(String userId, String postId);
+
+    /**
+     * Borra la relación {@code [:REACCIONA {tipo: 'LIKE'}]} y devuelve el estado completo de
+     * reacciones del post. Idempotente: si no había reacción devuelve el estado sin cambios y sin
+     * lanzar excepción (también cuando el post no existe).
+     *
+     * <p>La retirada no toca la reacción contraria: como registro y limpieza ya son excluyentes, no
+     * hay nada que tocar.
+     *
+     * @return los totales de likes y dislikes tras borrar la reacción
+     */
+    EstadoReaccion retirarLike(String userId, String postId);
+
+    /**
+     * Borra la relación {@code [:REACCIONA {tipo: 'DISLIKE'}]} y devuelve el estado completo de
+     * reacciones del post. Idempotente, con la misma garantía que {@link #retirarLike}.
+     *
+     * @return los totales de likes y dislikes tras borrar la reacción
+     */
+    EstadoReaccion retirarDislike(String userId, String postId);
 
     List<String> obtenerSuscripcionesPushDeSeguidores(String autorId);
 }

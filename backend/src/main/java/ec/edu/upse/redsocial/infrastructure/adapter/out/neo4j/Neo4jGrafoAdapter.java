@@ -1,6 +1,8 @@
 package ec.edu.upse.redsocial.infrastructure.adapter.out.neo4j;
 
 import ec.edu.upse.redsocial.domain.exception.AutorNoEncontradoException;
+import ec.edu.upse.redsocial.domain.exception.PostNoEncontradoException;
+import ec.edu.upse.redsocial.domain.model.EstadoReaccion;
 import ec.edu.upse.redsocial.domain.model.Post;
 import ec.edu.upse.redsocial.domain.model.SugerenciaUsuario;
 import ec.edu.upse.redsocial.domain.model.Usuario;
@@ -26,7 +28,8 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
             MATCH (u:Usuario {id: $userId})
             MATCH (autor:Usuario)-[:PUBLICA]->(p:Post)
             WHERE autor = u OR (u)-[:SIGUE]->(autor)
-            OPTIONAL MATCH (p)<-[r:REACCIONA]-(:Usuario)
+            OPTIONAL MATCH (p)<-[rl:REACCIONA {tipo: 'LIKE'}]-(:Usuario)
+            OPTIONAL MATCH (p)<-[rd:REACCIONA {tipo: 'DISLIKE'}]-(:Usuario)
             RETURN p.id AS id,
                    p.texto AS texto,
                    p.mediaUrl AS mediaUrl,
@@ -34,8 +37,10 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                    autor.id AS autorId,
                    autor.username AS autorUsername,
                    autor.avatarUrl AS autorAvatar,
-                   count(r) AS totalLikes,
-                   EXISTS((u)-[:REACCIONA]->(p)) AS likedByMe
+                   count(DISTINCT rl) AS totalLikes,
+                   count(DISTINCT rd) AS totalDislikes,
+                   EXISTS((u)-[:REACCIONA {tipo: 'LIKE'}]->(p)) AS likedByMe,
+                   EXISTS((u)-[:REACCIONA {tipo: 'DISLIKE'}]->(p)) AS dislikedByMe
             ORDER BY p.fechaCreacion DESC
             LIMIT 20;
             """;
@@ -66,6 +71,8 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                                             : record.get("autorAvatar").asString());
                             p.setTotalLikes(record.get("totalLikes").asLong());
                             p.setLikedByMe(record.get("likedByMe").asBoolean());
+                            p.setTotalDislikes(record.get("totalDislikes").asLong());
+                            p.setDislikedByMe(record.get("dislikedByMe").asBoolean());
                             posts.add(p);
                         }
                         return posts;
@@ -699,38 +706,11 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
 
     @Override
     public List<Post> obtenerPostsDeUsuario(String userId, String viewerId) {
-        // La forma del ORDER BY se decide con el ROADMAP a la vista, no al revés.
-        //
-        // `crearPost` escribe `fechaCreacion: datetime().epochMillis`, o sea un entero en
-        // milisegundos, y eso es también lo que trae la semilla. Ordenar por un entero da el orden
-        // cronológico correcto, así que `ORDER BY p.fechaCreacion DESC` se queda como está y la
-        // lectura es `.asLong()`. El ROADMAP cerró esta decisión ("comparar contra su equivalente
-        // numérico, no migrar el campo a fecha con hora desde dentro de la historia"), y por eso
-        // aquí no se compara contra ninguna fecha con hora como hace obtenerTendenciasRedExtendida.
-        //
-        // El WHERE descarta las publicaciones sin fecha. No hay una cantidad razonable de
-        // publicaciones sin fecha en el grafo, pero si las hubiera no pueden ordenarse: meterlas
-        // detrás de las que sí lo tienen exige un `coalesce` con un número, y ese número tiene que
-        // ser inventado. Es preferible no mostrarlas antes que inventarles una posición.
-        //
-        // El LIMIT es un tope de seguridad, no una política de producto. La alternativa --devolver
-        // todas-- es la que no degrada: si el perfil limitara la lista, tendría que decirlo, y
-        // hacerlo bien pide paginación, que es otra historia. Con el tope, un perfil con treinta
-        // mil
-        // publicaciones devuelve una respuesta acotada en vez de agotar la memoria del servidor, y
-        // el número se documenta en design.md para que no se lea como una decisión de diseño.
-        //
-        // `viewerId` va en un OPTIONAL MATCH y no en un WHERE para que su ausencia no borre el
-        // post: sin visor, `visor` es null y EXISTS((null)-[:REACCIONA]->(p)) es false, que es
-        // exactamente lo que hay que devolver. El `count(DISTINCT reactor)` es el mismo cuidado que
-        // se aplicó en tendencias: `count(reactor)` cuenta filas, y con dos OPTIONAL MATCH seguidos
-        // el producto cartesiano multiplica el total de reacciones por el número de filas del
-        // visor.
         String cypher =
                 """
             MATCH (autor:Usuario {id: $userId})-[:PUBLICA]->(p:Post)
             WHERE p.fechaCreacion IS NOT NULL
-            OPTIONAL MATCH (reactor:Usuario)-[r:REACCIONA]->(p)
+            OPTIONAL MATCH (reactor:Usuario)-[:REACCIONA {tipo: 'LIKE'}]->(p)
             OPTIONAL MATCH (visor:Usuario {id: $viewerId})
             RETURN p.id AS id,
                    p.texto AS texto,
@@ -740,7 +720,7 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                    autor.username AS autorUsername,
                    autor.avatarUrl AS autorAvatar,
                    count(DISTINCT reactor) AS totalLikes,
-                   EXISTS((visor)-[:REACCIONA]->(p)) AS likedByMe
+                   EXISTS((visor)-[:REACCIONA {tipo: 'LIKE'}]->(p)) AS likedByMe
             ORDER BY p.fechaCreacion DESC
             LIMIT $limite
             """;
@@ -754,10 +734,6 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                                         Values.parameters(
                                                 "userId",
                                                 userId,
-                                                // Un visor vacío se envía como null y no como "",
-                                                // porque el MATCH de texto sobre una propiedad
-                                                // ausente tampoco da filas, pero null deja claro
-                                                // en el log que no se miró a nadie.
                                                 "viewerId",
                                                 viewerId == null || viewerId.isBlank()
                                                         ? null
@@ -773,14 +749,6 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
         }
     }
 
-    /**
-     * Mapea la fila de una publicación al modelo de dominio.
-     *
-     * <p>El mapeo es el mismo que en {@link #obtenerFeedCronologico} porque las dos consultas
-     * proyectan las mismas propiedades con los mismos alias. No se unifica en un método por la
-     * forma del RETURN -- cada consulta proyecta lo que necesita y así se lee cada una por separado
-     * -- pero la lectura de los valores es idéntica, incluido el {@code asLong()} de la fecha.
-     */
     private static Post mapearPostDeAutor(Record record) {
         Post p = new Post();
         p.setId(record.get("id").asString());
@@ -796,20 +764,134 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
         return p;
     }
 
-    @Override
-    public void alternarLike(String userId, String postId) {
-        String cypher =
-                """
+    /**
+     * Registro de like con limpieza del dislike contrario en la misma transacción. Es el Cypher
+     * verificado contra Neo4j real, literal y sin interpolar: así lo que corre en producción es
+     * exactamente lo que se probó en vivo.
+     */
+    private static final String CYPHER_REGISTRAR_LIKE =
+            """
             MATCH (u:Usuario {id: $userId}), (p:Post {id: $postId})
             MERGE (u)-[r:REACCIONA {tipo: 'LIKE'}]->(p)
             ON CREATE SET r.fecha = timestamp()
+            WITH u, p
+            OPTIONAL MATCH (u)-[d:REACCIONA {tipo: 'DISLIKE'}]->(p)
+            DELETE d
+            WITH p
+            OPTIONAL MATCH (p)<-[rl:REACCIONA {tipo: 'LIKE'}]-(:Usuario)
+            OPTIONAL MATCH (p)<-[rd:REACCIONA {tipo: 'DISLIKE'}]-(:Usuario)
+            RETURN count(DISTINCT rl) AS totalLikes, count(DISTINCT rd) AS totalDislikes, count(p) AS encontrados
+            """;
+
+    /** Espejo exacto del anterior con los tipos cruzados. */
+    private static final String CYPHER_REGISTRAR_DISLIKE =
+            """
+            MATCH (u:Usuario {id: $userId}), (p:Post {id: $postId})
+            MERGE (u)-[r:REACCIONA {tipo: 'DISLIKE'}]->(p)
+            ON CREATE SET r.fecha = timestamp()
+            WITH u, p
+            OPTIONAL MATCH (u)-[d:REACCIONA {tipo: 'LIKE'}]->(p)
+            DELETE d
+            WITH p
+            OPTIONAL MATCH (p)<-[rl:REACCIONA {tipo: 'LIKE'}]-(:Usuario)
+            OPTIONAL MATCH (p)<-[rd:REACCIONA {tipo: 'DISLIKE'}]-(:Usuario)
+            RETURN count(DISTINCT rl) AS totalLikes, count(DISTINCT rd) AS totalDislikes, count(p) AS encontrados
+            """;
+
+    @Override
+    public EstadoReaccion registrarLike(String userId, String postId) {
+        // Like y dislike son mutuamente excluyentes: el MERGE registra el like y el OPTIONAL
+        // MATCH + DELETE borra el dislike contrario del mismo usuario en la misma transacción.
+        // El conteo va después de ambas escrituras para que incluya la reacción recién creada.
+        return registrarReaccion(userId, postId, CYPHER_REGISTRAR_LIKE);
+    }
+
+    @Override
+    public EstadoReaccion registrarDislike(String userId, String postId) {
+        // Espejo exacto de registrarLike: registra el dislike y borra el like contrario.
+        return registrarReaccion(userId, postId, CYPHER_REGISTRAR_DISLIKE);
+    }
+
+    /**
+     * Registra la reacción con el Cypher indicado, borra la contraria del mismo usuario y devuelve
+     * el estado completo. El {@code count(DISTINCT ...)} es obligatorio porque los dos {@code
+     * OPTIONAL MATCH} encadenados sobre el mismo {@code p} multiplican filas (3 likes x 2 dislikes
+     * daban 6 sin {@code DISTINCT}).
+     */
+    private EstadoReaccion registrarReaccion(String userId, String postId, String cypher) {
+        try (var session = driver.session()) {
+            return session.executeWrite(
+                    tx -> {
+                        var result =
+                                tx.run(
+                                        cypher,
+                                        Values.parameters("userId", userId, "postId", postId));
+                        Record fila = result.next();
+                        // La ausencia de usuario o publicación NO se detecta con hasNext(): una
+                        // agregación sin clave de agrupamiento devuelve UNA fila con cero cuando el
+                        // MATCH no produjo filas. El centinela es count(p): vale 0 solo cuando el
+                        // MATCH no encontró nada. Sin esto, un post inexistente respondía 200 con
+                        // totales en 0 y el cliente pintaba una reacción que nunca existió.
+                        if (fila.get("encontrados").asLong() == 0) {
+                            throw new PostNoEncontradoException(postId);
+                        }
+                        return new EstadoReaccion(
+                                (int) fila.get("totalLikes").asLong(),
+                                (int) fila.get("totalDislikes").asLong());
+                    });
+        }
+    }
+
+    @Override
+    public EstadoReaccion retirarLike(String userId, String postId) {
+        return retirarReaccion(userId, postId, "LIKE");
+    }
+
+    @Override
+    public EstadoReaccion retirarDislike(String userId, String postId) {
+        return retirarReaccion(userId, postId, "DISLIKE");
+    }
+
+    /**
+     * Borra la reacción del tipo indicado y devuelve el estado completo con ambos totales. El
+     * {@code DELETE} y el conteo corren en la misma transacción. La retirada no toca la reacción
+     * contraria: como el registro ya es excluyente, no hay nada que tocar.
+     *
+     * <p>A diferencia del registro, aquí el centinela no lanza excepción: retirar lo que no existe
+     * (o sobre un post inexistente) es idempotente y responde con el estado en ceros.
+     */
+    private EstadoReaccion retirarReaccion(String userId, String postId, String tipo) {
+        String borrado =
+                """
+            MATCH (u:Usuario {id: $userId})-[r:REACCIONA {tipo: $tipo}]->(p:Post {id: $postId})
+            DELETE r
+            """;
+        String conteo =
+                """
+            MATCH (u:Usuario {id: $userId}), (p:Post {id: $postId})
+            WITH p
+            OPTIONAL MATCH (p)<-[rl:REACCIONA {tipo: 'LIKE'}]-(:Usuario)
+            OPTIONAL MATCH (p)<-[rd:REACCIONA {tipo: 'DISLIKE'}]-(:Usuario)
+            RETURN count(DISTINCT rl) AS totalLikes, count(DISTINCT rd) AS totalDislikes, count(p) AS encontrados
             """;
         try (var session = driver.session()) {
-            session.executeWrite(
+            return session.executeWrite(
                     tx -> {
-                        tx.run(cypher, Values.parameters("userId", userId, "postId", postId))
+                        tx.run(
+                                        borrado,
+                                        Values.parameters(
+                                                "userId", userId, "postId", postId, "tipo", tipo))
                                 .consume();
-                        return null;
+                        var resultado =
+                                tx.run(
+                                        conteo,
+                                        Values.parameters("userId", userId, "postId", postId));
+                        // Agregación sin agrupamiento: siempre hay una fila, incluso si el MATCH
+                        // no encontró nada (totales en cero). Por eso no hay 404 en la retirada.
+                        Record fila = resultado.next();
+                        return new EstadoReaccion(
+                                (int) fila.get("totalLikes").asLong(),
+                                (int) fila.get("totalDislikes").asLong());
                     });
         }
     }
