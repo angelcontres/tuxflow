@@ -51,6 +51,17 @@ as que no hay forma de pedir las de una persona y nada más.
 - **Entonces** la respuesta es `400` con un mensaje
 - **Y** no se consulta el grafo, porque un identificador en blanco no puede ser una respuesta legítima
 
+#### Scenario: La lista tiene un tope
+
+- **Dado** un autor con más publicaciones que el tope del endpoint
+- **Cuando** se piden sus publicaciones
+- **Entonces** la respuesta trae como máximo 200, de la más nueva a la más antigua
+- **Y** el tope no lo decide el cliente: no es un parámetro de la petición
+
+> La lista se corta sin avisar. Es un defecto conocido a cambio de que el servidor no se agote, y la
+> respuesta correcta sería paginar, que es una historia aparte. Se documenta aquí para que el recorte
+> no se lea como el comportamiento previsto.
+
 ### Requirement: El visor sólo cambia el estado de la reacción
 
 La respuesta debe poder decir si la reacción de cada publicación es de quien está mirando, sin que eso

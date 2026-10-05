@@ -199,6 +199,24 @@ describe('PerfilAjeno', () => {
   });
 
   describe('Seguidores', () => {
+    it('el autor de las publicaciones no se enlaza al perfil que ya se está viendo', async () => {
+      // El encabezado del perfil y el de cada publicación muestran el mismo `@beatriz`, así que
+      // cuenta por separado: el encabezado sí es un enlace al perfil ajeno que se está viendo.
+      // Las publicaciones de un perfil las escribió esa misma persona. Enlazarla a sí mismo
+      // recarga lo que ya está en pantalla y se lee como un enlace roto.
+      postsMock.mockResolvedValue([post({ id: 'post-b1', autorId: 'beatriz-silva' })]);
+
+      renderPerfil();
+
+      await screen.findByText('Bienvenidos a la Red Social');
+      // "@beatriz" aparece dos veces: el subtítulo del encabezado y el autor de la publicación.
+      // El del autor tiene que ser texto plano, sin el papel de botón que tendría si fuera un
+      // enlace, así que se comprueba que ninguno de los dos sea botón.
+      const apariciones = screen.getAllByText('@beatriz');
+      expect(apariciones).toHaveLength(2);
+      expect(apariciones.every((nodo) => nodo.tagName !== 'BUTTON')).toBe(true);
+    });
+
     it('lista a las personas que siguen al perfil', async () => {
       seguidoresMock.mockResolvedValue([
         beatriz({ id: 'carlos-patino', username: 'carlos', nombre: 'Carlos Patiño' }),

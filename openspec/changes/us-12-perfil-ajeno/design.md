@@ -42,10 +42,25 @@ ORDER BY p.fechaCreacion DESC
 
 Cuatro decisiones, todas con una alternativa que se descartó:
 
-**Sin `LIMIT`.** A diferencia del feed, que corta en 20, esta consulta devuelve todas las
-publicaciones del autor. El feed es una muestra de lo que pasa ahora; un perfil es el archivo de una
-persona. Poner un tope aquí haría que el perfil dejara de mostrar publicaciones sin que nada lo dijera,
-que es la clase de defecto que el repositorio ya documenta en otros endpoints.
+**`LIMIT $limite`, con 200.** A diferencia del feed, que corta en 20 porque es una muestra de lo que
+pasa ahora, un perfil es el archivo de una persona. Aun así hay tope, por dos razones: un perfil con
+treinta mil publicaciones no cabe cómodamente en memoria, y el servidor no se degrada por una
+pantalla. El número está por encima de lo que publica cualquier cuenta real de esta comunidad, así
+que en la práctica no se ve.
+
+La consecuencia es que la lista se corta sin avisar, y eso es un defecto conocido. La alternativa no es
+un contador del tipo "mostrando 200 de 3.000" --que además obligaría a un `count(*)` extra en cada
+petición-- sino scroll infinito: pedir otra página cuando el usuario llega al final. Eso está redactado
+en `docs/propuesta-us-13-scroll-infinito.md`.
+
+El punto que esa historia tiene que resolver y que aquí no se puede: **`fechaCreacion` no es única**.
+Dos publicaciones del mismo autor pueden caer en el mismo milisegundo, y la semilla las escribe a mano,
+así que un empate es fácil de construir. Un cursor de sólo fecha devolvería una repetida o perdería una,
+en silencio. El cursor tiene que ser el par `(fechaCreacion, id)`.
+
+El `LIMIT` va como parámetro y no como número escrito en el texto. Un número en el texto obligaría a
+editar la consulta para cambiarlo, y esa es la forma en que un tope se vuelve invisible para quien lee
+el código.
 
 **`WHERE p.fechaCreacion IS NOT NULL`.** Una publicación sin fecha no se puede ordenar. Meterla detrás
 con `coalesce` exige inventarle un número, y un número inventado es peor que una publicación que no
@@ -86,6 +101,10 @@ no tiene a nadie de esos dos entre sus seguidos.
 El `ORDER BY` es por `username` y no por `id` a propósito: las dos listas se muestran una al lado de la
 otra en el perfil, y ordenarlas por la misma columna las hace comparables. Sin el `ORDER BY`, Neo4j no
 garantiza orden y la lista cambiaría entre peticiones.
+
+El `LIMIT $limite` es 500, por el mismo motivo que en las publicaciones y con el mismo criterio: está
+por encima de lo que sigue cualquier persona real de una comunidad universitaria. Una cuenta con mil
+seguidores ya es una cuenta pública aquí.
 
 Comparte el mapeo con `obtenerSeguidos` mediante `mapearUsuarioDeRelacion`, con la guarda de `nombre`
 nulo. El `DESIGN D2` del proposal explica el mecanismo: en Neo4j asignar null a una propiedad la

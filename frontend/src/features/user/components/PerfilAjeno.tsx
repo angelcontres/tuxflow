@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { AlertCircle, ArrowLeft, Route, UserMinus, UserPlus, Users } from 'lucide-react';
 import { ConexionesComunesPanel } from '../../network/components/ConexionesComunesPanel';
+import { formatFecha } from '../../feed/utils/formatFecha';
 import {
   fetchCaminoCorto,
   fetchSeguidos,
@@ -394,7 +395,12 @@ export const PerfilAjeno: React.FC<PerfilAjenoProps> = ({
         {publicaciones.tipo === 'listo' && publicaciones.datos.length > 0 && (
           <div>
             {publicaciones.datos.map((post) => (
-              <PostDelPerfil key={post.id} post={post} onOpenPerfil={onOpenPerfil} />
+              <PostDelPerfil
+                key={post.id}
+                post={post}
+                usuarioId={usuarioId}
+                onOpenPerfil={onOpenPerfil}
+              />
             ))}
           </div>
         )}
@@ -445,6 +451,8 @@ const PersonaFila: React.FC<PersonaFilaProps> = ({ persona, onOpenPerfil }) => {
 
 interface PostDelPerfilProps {
   post: Post;
+  /** Perfil que se está mirando, para no enlazar el autor consigo mismo. */
+  usuarioId: string;
   onOpenPerfil: (usuarioId: string) => void;
 }
 
@@ -455,9 +463,15 @@ interface PostDelPerfilProps {
  * está mirando para la reacción y trae acciones de compartir y comentar que en un perfil ajeno no
  * tienen a quién afectar. Lo que se conserva es lo que sí importa aquí: autor, fecha y contenido.
  */
-const PostDelPerfil: React.FC<PostDelPerfilProps> = ({ post, onOpenPerfil }) => {
+const PostDelPerfil: React.FC<PostDelPerfilProps> = ({ post, usuarioId, onOpenPerfil }) => {
   const [avatarCaido, setAvatarCaido] = useState<boolean>(false);
   const inicial = (post.autorUsername || '?').charAt(0).toUpperCase();
+
+  // Las publicaciones de este perfil las escribió esta misma persona, así que el autor ya está en
+  // pantalla. Enlazarlo a sí mismo recarga lo que se está viendo y parece un enlace roto; la
+  // comprobación es por identificador y no por nombre de usuario porque es el identificador lo que
+  // viaja en la ruta del endpoint.
+  const autorEsElPerfilActual = post.autorId === usuarioId;
 
   return (
     <article className="bg-white rounded-xl border border-slate-200 shadow-xs p-5 mb-4">
@@ -477,14 +491,24 @@ const PostDelPerfil: React.FC<PostDelPerfilProps> = ({ post, onOpenPerfil }) => 
           </div>
         )}
         <div className="min-w-0">
-          <button
-            type="button"
-            onClick={() => onOpenPerfil(post.autorId)}
-            className="font-semibold text-slate-900 text-sm hover:underline cursor-pointer truncate"
-          >
-            @{post.autorUsername}
-          </button>
-          <p className="text-[11px] text-slate-400">{formatearFecha(post.fechaCreacion)}</p>
+          {autorEsElPerfilActual ? (
+            <span className="font-semibold text-slate-900 text-sm truncate">
+              @{post.autorUsername}
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onOpenPerfil(post.autorId)}
+              className="font-semibold text-slate-900 text-sm hover:underline cursor-pointer truncate"
+            >
+              @{post.autorUsername}
+            </button>
+          )}
+          {/* `formatFecha` y no una copia local: la misma publicación tiene que leerse igual en el
+              feed y en un perfil ajeno. Una versión propia cambiaba "hace 3 días" por "04/08/2026"
+              según dónde se mirara, que es el tipo de inconsistencia que hace que dos pantallas de
+              lo mismo parezcan pantallas distintas. */}
+          <p className="text-[11px] text-slate-400">{formatFecha(post.fechaCreacion)}</p>
         </div>
       </div>
 
@@ -506,23 +530,3 @@ const PostDelPerfil: React.FC<PostDelPerfilProps> = ({ post, onOpenPerfil }) => 
     </article>
   );
 };
-
-/**
- * Fecha de publicación en texto.
- *
- * Se duplica la idea de `formatFecha` del feed a propósito en vez de importarla: ese módulo vive en
- * `features/feed` y también resuelve el formato de "hace X" a partir de una fecha relativa, que acá
- * no se necesita. Si mañana se unifican los dos formatos, el lugar es ese módulo, y no esta copia
- * que sólo existe porque importarlo cruzaría features por un dato de una línea.
- */
-function formatearFecha(epochMillis: number): string {
-  const fecha = new Date(epochMillis);
-  if (Number.isNaN(fecha.getTime())) {
-    return '';
-  }
-  return fecha.toLocaleDateString('es-EC', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
-}

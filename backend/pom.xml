@@ -119,6 +119,28 @@
             <scope>test</scope>
         </dependency>
 
+        <!--
+            Test: sustitutos de Mockito para @QuarkusTest.
+
+            Allows asserting on the response BODY of a route with the server up, without touching
+            the graph. @InjectMock fails without it, with an IllegalStateException that does not say
+            which dependency is missing.
+
+            Deliberately NOT active: the artifact is not in this machine's local repository and the
+            build runs without access to Maven Central, so enabling it leaves the project unable to
+            compile. With the block uncommented, `mvn verify` fails with "could not be resolved":
+            that is the cause, and the fix is to re-comment it or get network.
+
+            To restore body-level assertions in PerfilAjenoRutasIT, uncomment and re-run.
+        -->
+        <!--
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-junit5-mockito</artifactId>
+            <scope>test</scope>
+        </dependency>
+        -->
+
         <!-- Test: pruebas de REST sobre el recurso, sin levantar el servidor. -->
         <dependency>
             <groupId>io.rest-assured</groupId>

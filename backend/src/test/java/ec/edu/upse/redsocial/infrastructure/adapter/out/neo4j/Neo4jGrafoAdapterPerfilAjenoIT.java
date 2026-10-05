@@ -292,6 +292,23 @@ class Neo4jGrafoAdapterPerfilAjenoIT {
     }
 
     @Test
+    @DisplayName("la consulta con tope se ejecuta sin error y devuelve lo que hay")
+    void laConsultaConTopeFunciona() {
+        // El LIMIT es un parámetro, no un número escrito en el texto. Si alguien lo cambiara por
+        // una constante, esta prueba seguiría pasando pero el valor dejaría de ser ajustable, así
+        // que aquí se comprueba el resultado y no sólo que la consulta no falle.
+        List<Post> posts = adapter.obtenerPostsDeUsuario("beatriz-silva", null);
+
+        assertEquals(2, posts.size());
+    }
+
+    @Test
+    @DisplayName("la lista de seguidores con tope se ejecuta sin error")
+    void losSeguidoresConTopeFuncionan() {
+        assertEquals(1, adapter.obtenerSeguidores("beatriz-silva").size());
+    }
+
+    @Test
     @DisplayName("el driver acepta un parámetro nulo, que es lo que hace válido el visor ausente")
     void elDriverAceptaUnParametroNulo() {
         // `viewerId` viaja como null cuando no hay visor, y el MATCH sobre el no debe romper la

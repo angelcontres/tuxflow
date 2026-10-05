@@ -122,6 +122,26 @@ class Neo4jGrafoAdapterSeguidoresTest {
     }
 
     @Test
+    @DisplayName("la consulta lleva un tope, y el tope viaja como parámetro")
+    void llevaTopeDeSeguridad() {
+        filasDevueltas(
+                fila("carlos-patino", "carlos", "Carlos Patiño", null),
+                fila("paulo-orrala", "paulo", "Paulo Orrala", null));
+
+        adapter.obtenerSeguidores("beatriz-silva");
+
+        ArgumentCaptor<String> cypher = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Value> params = ArgumentCaptor.forClass(Value.class);
+        verify(tx).run(cypher.capture(), params.capture());
+
+        String consulta = cypher.getValue().replaceAll("\\s+", " ").trim();
+        assertTrue(consulta.contains("LIMIT $limite"), "La consulta no lleva tope: " + consulta);
+
+        long limite = ((Number) params.getValue().asMap().get("limite")).longValue();
+        assertEquals(500, limite, "El tope de seguidores cambió sin que nadie lo decidiera");
+    }
+
+    @Test
     @DisplayName("un seguidor sin nombre llega con nombre null, no con el texto \"null\"")
     void seguidorSinNombreNoSeConvierteEnElTextoNull() {
         // La misma guarda que ya aplica obtenerSeguidosEnComun. guardarUsuario borra la propiedad

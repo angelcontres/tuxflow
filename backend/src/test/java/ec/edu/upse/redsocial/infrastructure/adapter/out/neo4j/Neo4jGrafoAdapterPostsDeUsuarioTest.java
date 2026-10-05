@@ -211,6 +211,31 @@ class Neo4jGrafoAdapterPostsDeUsuarioTest {
     }
 
     @Test
+    @DisplayName(
+            "la consulta lleva un tope, y el tope es un parámetro y no una constante en el texto")
+    void llevaTopeDeSeguridad() {
+        filasDevueltas(
+                fila("post-b1", "texto", "", 1727260000000L, "beatriz", null, 0, false),
+                fila("post-b2", "texto", "", 1727270000000L, "beatriz", null, 0, false));
+
+        adapter.obtenerPostsDeUsuario("beatriz-silva", null);
+
+        ArgumentCaptor<String> cypher = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Value> params = ArgumentCaptor.forClass(Value.class);
+        verify(tx).run(cypher.capture(), params.capture());
+
+        String consulta = cypher.getValue().replaceAll("\\s+", " ").trim();
+        assertTrue(consulta.contains("LIMIT $limite"), "La consulta no lleva tope: " + consulta);
+
+        // Como parámetro y no como número escrito en el Cypher: un número en el texto obligaría a
+        // editar la consulta para cambiarlo, y esa es la forma en que un tope se convierte en
+        // invisible para quien lee.
+        long limite = ((Number) params.getValue().asMap().get("limite")).longValue();
+        assertTrue(limite > 0, "El tope debe ser positivo: " + limite);
+        assertEquals(200, limite, "El tope de publicaciones cambió sin que nadie lo decidiera");
+    }
+
+    @Test
     @DisplayName("sin visor, el parámetro se envía como null y no como texto vacío")
     void sinVisorEnviaNullYNoCadenaVacia() {
         filasDevueltas(

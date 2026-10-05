@@ -222,12 +222,18 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
             MATCH (s:Usuario)-[:SIGUE]->(u:Usuario {id: $userId})
             RETURN s.id AS id, s.username AS username, s.nombre AS nombre, s.avatarUrl AS avatarUrl
             ORDER BY s.username ASC
+            LIMIT $limite
             """;
 
         try (var session = driver.session()) {
             return session.executeRead(
                     tx -> {
-                        var result = tx.run(cypher, Values.parameters("userId", userId));
+                        var result =
+                                tx.run(
+                                        cypher,
+                                        Values.parameters(
+                                                "userId", userId,
+                                                "limite", LIMITE_SEGUIDORES_POR_PERFIL));
                         List<Usuario> usuarios = new ArrayList<>();
                         while (result.hasNext()) {
                             Record record = result.next();
@@ -237,6 +243,15 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                     });
         }
     }
+
+    /**
+     * Tope de seguridad de los seguidores que devuelve un perfil.
+     *
+     * <p>El caso que justifica el tope es distinto al de las publicaciones: la comunidad es de una
+     * universidad, así que una persona con más de mil seguidores ya es una persona pública. Sin
+     * tope, esa cuenta convierte el perfil en una respuesta de megabytes.
+     */
+    static final long LIMITE_SEGUIDORES_POR_PERFIL = 500;
 
     /**
      * Mapea una fila de seguido o de seguidor al modelo de dominio.
@@ -269,6 +284,17 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
      * identificador viaja en el mismo elemento, así que no se pierde información.
      */
     private static final String USERNAME_POR_DEFECTO = "desconocido";
+
+    /**
+     * Tope de seguridad de las publicaciones que devuelve un perfil.
+     *
+     * <p>No es una política de producto: es el punto en el que un perfil deja de ser razonable. Con
+     * treinta mil publicaciones la respuesta sin tope no cabe cómodamente en memoria y el servidor
+     * se degrada por una pantalla. Está por encima de lo que publica cualquier cuenta real de esta
+     * comunidad, así que en la práctica no se ve, y si algún día se ve la respuesta correcta es
+     * paginar, no subir el número.
+     */
+    static final long LIMITE_PUBLICACIONES_POR_PERFIL = 200;
 
     // --- 4. Grado de Separación y Camino Más Corto (Shortest Path) ---
     @Override
@@ -687,6 +713,13 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
         // detrás de las que sí lo tienen exige un `coalesce` con un número, y ese número tiene que
         // ser inventado. Es preferible no mostrarlas antes que inventarles una posición.
         //
+        // El LIMIT es un tope de seguridad, no una política de producto. La alternativa --devolver
+        // todas-- es la que no degrada: si el perfil limitara la lista, tendría que decirlo, y
+        // hacerlo bien pide paginación, que es otra historia. Con el tope, un perfil con treinta
+        // mil
+        // publicaciones devuelve una respuesta acotada en vez de agotar la memoria del servidor, y
+        // el número se documenta en design.md para que no se lea como una decisión de diseño.
+        //
         // `viewerId` va en un OPTIONAL MATCH y no en un WHERE para que su ausencia no borre el
         // post: sin visor, `visor` es null y EXISTS((null)-[:REACCIONA]->(p)) es false, que es
         // exactamente lo que hay que devolver. El `count(DISTINCT reactor)` es el mismo cuidado que
@@ -709,6 +742,7 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                    count(DISTINCT reactor) AS totalLikes,
                    EXISTS((visor)-[:REACCIONA]->(p)) AS likedByMe
             ORDER BY p.fechaCreacion DESC
+            LIMIT $limite
             """;
 
         try (var session = driver.session()) {
@@ -727,7 +761,9 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                                                 "viewerId",
                                                 viewerId == null || viewerId.isBlank()
                                                         ? null
-                                                        : viewerId));
+                                                        : viewerId,
+                                                "limite",
+                                                LIMITE_PUBLICACIONES_POR_PERFIL));
                         List<Post> posts = new ArrayList<>();
                         while (result.hasNext()) {
                             posts.add(mapearPostDeAutor(result.next()));

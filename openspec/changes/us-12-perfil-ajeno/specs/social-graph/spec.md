@@ -30,6 +30,17 @@ red de alguien necesita las dos.
 - **Cuando** se pide `GET /api/users/{id}/followers`
 - **Entonces** la respuesta es `200` con la lista vacía, no un error
 
+#### Scenario: La lista de seguidores tiene un tope
+
+- **Dado** un perfil con más seguidores que el tope del endpoint
+- **Cuando** se pide `GET /api/users/{id}/followers`
+- **Entonces** la respuesta trae como máximo 500
+- **Y** el tope no lo decide el cliente: no es un parámetro de la petición
+
+> Igual que las publicaciones, la lista se corta sin avisar. Una cuenta con más de 500 seguidores ya es
+> una cuenta pública en una comunidad universitaria, así que el recorte no debería verse. Si se ve, la
+> respuesta es paginar.
+
 ### Requirement: Ninguna lista de personas expone datos de sesión
 
 Las listas de seguidores, seguidos y conexiones en común se componen de datos de otras personas. Ninguna
@@ -211,3 +222,12 @@ parecerlo.
 - **Dado** que el perfil muestra sus seguidores
 - **Cuando** se pulsa uno de ellos
 - **Entonces** se abre el perfil de esa persona
+
+#### Scenario: El autor no se enlaza al perfil que ya se está viendo
+
+- **Dado** que se está mirando el perfil de `beatriz-silva`
+- **Y** sus publicaciones las escribió ella
+- **Entonces** el `@beatriz` de cada publicación es texto, no un enlace
+- **Y** no recargar el perfil es lo esperado: el enlace llevaría a la pantalla que ya se está viendo
+
+- **Y** si una publicación viniera de otra persona, su autor sí sería un enlace a su perfil
