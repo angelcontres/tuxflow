@@ -76,6 +76,37 @@ class Neo4jGrafoAdapterPostsDeUsuarioTest {
             String autorAvatar,
             long totalLikes,
             boolean likedByMe) {
+        return fila(
+                id,
+                textoPost,
+                mediaUrl,
+                fecha,
+                autorUsername,
+                autorAvatar,
+                totalLikes,
+                likedByMe,
+                0,
+                false);
+    }
+
+    /**
+     * Fila con las cuatro piezas de reacción.
+     *
+     * <p>Se separó la firma porque US-06 añadió dislike: una prueba que sólo pasara likes no
+     * detectaría que la consulta dejó de proyectar los dislikes, y el síntoma --una publicación con
+     * diez dislikes reportando cero-- no se ve en ningún otro sitio.
+     */
+    private Record fila(
+            String id,
+            String textoPost,
+            String mediaUrl,
+            Long fecha,
+            String autorUsername,
+            String autorAvatar,
+            long totalLikes,
+            boolean likedByMe,
+            long totalDislikes,
+            boolean dislikedByMe) {
         Record record = mock(Record.class);
         when(record.get("id")).thenReturn(texto(id));
         when(record.get("texto")).thenReturn(texto(textoPost));
@@ -86,6 +117,8 @@ class Neo4jGrafoAdapterPostsDeUsuarioTest {
         when(record.get("autorAvatar")).thenReturn(texto(autorAvatar));
         when(record.get("totalLikes")).thenReturn(numero(totalLikes));
         when(record.get("likedByMe")).thenReturn(Values.value(likedByMe));
+        when(record.get("totalDislikes")).thenReturn(numero(totalDislikes));
+        when(record.get("dislikedByMe")).thenReturn(Values.value(dislikedByMe));
         return record;
     }
 
@@ -208,6 +241,69 @@ class Neo4jGrafoAdapterPostsDeUsuarioTest {
         Map<String, Object> enviados = params.getValue().asMap();
         assertEquals("beatriz-silva", enviados.get("userId"));
         assertEquals("carlos-patino", enviados.get("viewerId"));
+    }
+
+    @Test
+    @DisplayName("los dislikes se copian de la fila, no se quedan en cero por defecto")
+    void copiaLosDislikesDeLaFila() {
+        // Regresión del merge con US-06. `Post` ganó `totalDislikes` y `dislikedByMe`, y esta
+        // consulta no los proyectaba: el modelo los deja en 0 y false, así que el perfil respondía
+        // "cero dislikes" para una publicación que tenía diez. El feed sí los proyectaba, con lo
+        // que el mismo tipo de Post viajaba distinto según de dónde saliera.
+        filasDevueltas(
+                fila(
+                        "post-b1",
+                        "Muy discutida",
+                        "",
+                        1727270000000L,
+                        "beatriz",
+                        null,
+                        4,
+                        true,
+                        10,
+                        false),
+                fila(
+                        "post-b2",
+                        "Rechazada por mi",
+                        "",
+                        1727260000000L,
+                        "beatriz",
+                        null,
+                        0,
+                        false,
+                        3,
+                        true));
+
+        List<Post> resultado = adapter.obtenerPostsDeUsuario("beatriz-silva", "carlos-patino");
+
+        assertEquals(10, resultado.get(0).getTotalDislikes());
+        assertFalse(resultado.get(0).isDislikedByMe());
+        assertEquals(3, resultado.get(1).getTotalDislikes());
+        assertTrue(resultado.get(1).isDislikedByMe());
+    }
+
+    @Test
+    @DisplayName("la consulta separa like de dislike por tipo, como hace el feed")
+    void laConsultaFiltraPorTipoDeReaccion() {
+        filasDevueltas(
+                fila("post-b1", "texto", "", 1727270000000L, "beatriz", null, 4, true, 10, false),
+                fila("post-b2", "texto", "", 1727260000000L, "beatriz", null, 0, false, 3, true));
+
+        adapter.obtenerPostsDeUsuario("beatriz-silva", "carlos-patina");
+
+        ArgumentCaptor<String> cypher = ArgumentCaptor.forClass(String.class);
+        verify(tx).run(cypher.capture(), any(Value.class));
+
+        String consulta = cypher.getValue().replaceAll("\\s+", " ").trim();
+        // Sin el filtro por tipo, los diez dislikes de la primera publicación contarían como likes.
+        assertTrue(
+                consulta.contains("[:REACCIONA {tipo: 'LIKE'}]"),
+                "El like no filtra por tipo: " + consulta);
+        assertTrue(
+                consulta.contains("[:REACCIONA {tipo: 'DISLIKE'}]"),
+                "El dislike no filtra por tipo: " + consulta);
+        assertTrue(consulta.contains("AS totalDislikes"), consulta);
+        assertTrue(consulta.contains("AS dislikedByMe"), consulta);
     }
 
     @Test

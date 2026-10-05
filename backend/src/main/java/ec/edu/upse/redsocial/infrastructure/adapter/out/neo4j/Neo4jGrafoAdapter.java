@@ -706,11 +706,39 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
 
     @Override
     public List<Post> obtenerPostsDeUsuario(String userId, String viewerId) {
+        // --- Por qué esta consulta se parece a obtenerFeedCronologico y no al revés ---
+        //
+        // `fechaCreacion` se escribe como `datetime().epochMillis`, o sea un entero en
+        // milisegundos, y eso es también lo que trae la semilla. Ordenar por un entero da el orden
+        // cronológico correcto, así que `ORDER BY p.fechaCreacion DESC` se queda como está y la
+        // lectura es `.asLong()`. El ROADMAP cerró esta decisión ("comparar contra su equivalente
+        // numérico, no migrar el campo a fecha con hora desde dentro de la historia").
+        //
+        // El WHERE descarta las publicaciones sin fecha: no pueden ordenarse, y meterlas detrás
+        // con un `coalesce` exige inventarles una posición.
+        //
+        // Los dos OPTIONAL MATCH de reacción, uno por tipo, son obligatorios desde que US-06 hizo
+        // que like y dislike sean excluyentes. Con un solo `[:REACCIONA]` sin filtrar, una
+        // publicación con diez dislikes reportaría diez likes, y el perfil respondería con la
+        // reacción equivocada. Es la misma forma que usa el feed, a propósito: las dos consultas
+        // devuelven el mismo tipo `Post`, así que tienen que projectar los mismos campos.
+        //
+        // `count(DISTINCT ...)` y no `count(...)`: hay dos OPTIONAL MATCH seguidos, así que el
+        // producto cartesiano está presente y contar filas multiplicaría los totales.
+        //
+        // El visor va en un OPTIONAL MATCH y no en un WHERE: si fuera un WHERE, la consulta no
+        // devolvería filas sin visor y el cURL del ticket, que no lo manda, respondería siempre
+        // vacío. Con `visor` null, `EXISTS((visor)-[...]->(p))` es false, que es la respuesta
+        // honesta para "no se está mirando desde nadie".
+        //
+        // El LIMIT es un tope de seguridad, no una política de producto. Está por encima de lo que
+        // publica cualquier cuenta real de esta comunidad, así que en la práctica no se ve.
         String cypher =
                 """
             MATCH (autor:Usuario {id: $userId})-[:PUBLICA]->(p:Post)
             WHERE p.fechaCreacion IS NOT NULL
-            OPTIONAL MATCH (reactor:Usuario)-[:REACCIONA {tipo: 'LIKE'}]->(p)
+            OPTIONAL MATCH (reactorLike:Usuario)-[:REACCIONA {tipo: 'LIKE'}]->(p)
+            OPTIONAL MATCH (reactorDislike:Usuario)-[:REACCIONA {tipo: 'DISLIKE'}]->(p)
             OPTIONAL MATCH (visor:Usuario {id: $viewerId})
             RETURN p.id AS id,
                    p.texto AS texto,
@@ -719,8 +747,10 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                    autor.id AS autorId,
                    autor.username AS autorUsername,
                    autor.avatarUrl AS autorAvatar,
-                   count(DISTINCT reactor) AS totalLikes,
-                   EXISTS((visor)-[:REACCIONA {tipo: 'LIKE'}]->(p)) AS likedByMe
+                   count(DISTINCT reactorLike) AS totalLikes,
+                   count(DISTINCT reactorDislike) AS totalDislikes,
+                   EXISTS((visor)-[:REACCIONA {tipo: 'LIKE'}]->(p)) AS likedByMe,
+                   EXISTS((visor)-[:REACCIONA {tipo: 'DISLIKE'}]->(p)) AS dislikedByMe
             ORDER BY p.fechaCreacion DESC
             LIMIT $limite
             """;
@@ -760,7 +790,9 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
         p.setAutorAvatar(
                 record.get("autorAvatar").isNull() ? null : record.get("autorAvatar").asString());
         p.setTotalLikes(record.get("totalLikes").asLong());
+        p.setTotalDislikes(record.get("totalDislikes").asLong());
         p.setLikedByMe(record.get("likedByMe").asBoolean());
+        p.setDislikedByMe(record.get("dislikedByMe").asBoolean());
         return p;
     }
 

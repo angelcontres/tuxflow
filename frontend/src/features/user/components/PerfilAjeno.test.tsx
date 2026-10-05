@@ -10,6 +10,8 @@ import {
   followUserInGraph,
   unfollowUserInGraph,
 } from '../../network/services/networkApi';
+// El perfil pinta el `PostCard` del feed, así que sus servicios de reacción entran en esta prueba.
+import { likePost } from '../../feed/services/feedApi';
 import type { Post } from '../types/post.types';
 import type { Usuario } from '../types/user.types';
 
@@ -27,6 +29,14 @@ vi.mock('../../network/services/networkApi', () => ({
   unfollowUserInGraph: vi.fn(),
 }));
 
+vi.mock('../../feed/services/feedApi', () => ({
+  likePost: vi.fn(),
+  dislikePost: vi.fn(),
+  unlikePost: vi.fn(),
+  undislikePost: vi.fn(),
+  submitPost: vi.fn(),
+}));
+
 const usuarioMock = vi.mocked(fetchUsuario);
 const postsMock = vi.mocked(fetchPostsDeUsuario);
 const seguidoresMock = vi.mocked(fetchSeguidores);
@@ -35,6 +45,7 @@ const caminoMock = vi.mocked(fetchCaminoCorto);
 const comunesMock = vi.mocked(fetchConexionesComunes);
 const followMock = vi.mocked(followUserInGraph);
 const unfollowMock = vi.mocked(unfollowUserInGraph);
+const likeMock = vi.mocked(likePost);
 
 const AVATAR = 'https://cdn.example/beatriz.png';
 
@@ -99,6 +110,16 @@ describe('PerfilAjeno', () => {
     conDatosPorDefecto();
     followMock.mockResolvedValue(undefined);
     unfollowMock.mockResolvedValue(undefined);
+    // `PostCard` pide el estado completo de la reacción después del clic optimista, y la respuesta
+    // del servidor manda sobre el incremento local. El total tiene que ser coherente con el que
+    // devolvió la consulta, o la tarjeta se corrige a un número que no corresponde a nada.
+    likeMock.mockResolvedValue({
+      postId: 'post-b1',
+      likedByMe: true,
+      dislikedByMe: false,
+      totalLikes: 4,
+      totalDislikes: 0,
+    });
   });
 
   describe('Datos del perfil', () => {
@@ -184,6 +205,35 @@ describe('PerfilAjeno', () => {
         await screen.findByText('Esta persona todavía no ha publicado nada.'),
       ).toBeInTheDocument();
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('permite dar like desde el perfil, como en cualquier red social', async () => {
+      // Antes este perfil pintaba su propia copia de la tarjeta, sin reacciones: se podía ver
+      // cuántos likes tenía cada publicación, pero no se podía reaccionar desde el perfil de
+      // nadie. Reutilizar `PostCard` quita esa divergencia y además trae el dislike y el
+      // resaltado de hashtags que la copia no tenía.
+      postsMock.mockResolvedValue([post({ id: 'post-b1', totalLikes: 3, likedByMe: false })]);
+      const user = userEvent.setup();
+
+      renderPerfil();
+
+      await user.click(await screen.findByRole('button', { name: '3' }));
+
+      expect(likeMock).toHaveBeenCalledWith('post-b1', 'carlos-patino');
+      expect(likeMock).toHaveBeenCalledWith('post-b1', 'carlos-patino');
+      expect(await screen.findByRole('button', { name: '4' })).toBeInTheDocument();
+    });
+
+    it('muestra el dislike que el backend ahora trae, en vez de ocultarlo', async () => {
+      postsMock.mockResolvedValue([post({ id: 'post-b1', totalLikes: 3, totalDislikes: 10 })]);
+
+      renderPerfil();
+
+      // El botón de dislike lleva `aria-label`, así que su nombre accesible no es el contador: se
+      // busca por la etiqueta y se comprueba el número dentro. Con la copia anterior el perfil no
+      // pintaba reacciones, así que diez dislikes existentes eran invisibles desde aquí.
+      const dislike = await screen.findByRole('button', { name: 'No me gusta' });
+      expect(dislike).toHaveTextContent('10');
     });
 
     it('muestra un fallo de carga sin tapar el perfil, que ya se pudo leer', async () => {

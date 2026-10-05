@@ -183,9 +183,17 @@ public class PostResource {
      * perfil pinta las mismas tarjetas que el feed, y un tipo distinto obligaría a duplicar el
      * mapeo y a mantenerlo en paralelo.
      *
-     * <p>{@code viewerId} es un parámetro de consulta opcional y sólo cambia {@code likedByMe}. Sin
-     * él se llama exactamente como en el cURL del ticket y todas las publicaciones llegan con la
-     * reacción sin marcar, que es la respuesta honesta para "no se está mirando desde nadie".
+     * <p>Por lo mismo, la consulta tiene que projectar <b>todos</b> los campos de reacción del
+     * modelo, los cuatro: {@code totalLikes}, {@code totalDislikes}, {@code likedByMe} y {@code
+     * dislikedByMe}. Dejar alguno sin llenar no es que quede en null sino en su valor por defecto,
+     * así que la respuesta afirmaría "esta publicación tiene cero dislikes" cuando puede tener
+     * diez. Es el mismo motivo por el que no hay un DTO propio: si el modelo crece, esta consulta
+     * tiene que crecer con él.
+     *
+     * <p>{@code viewerId} es un parámetro de consulta opcional y sólo cambia las dos banderas de
+     * reacción propias. Sin él se llama exactamente como en el cURL del ticket y todas las
+     * publicaciones llegan con las reacciones sin marcar, que es la respuesta honesta para "no se
+     * está mirando desde nadie". Los totales vienen igual, porque no dependen del visor.
      */
     @GET
     @Path("/autor/{userId}")

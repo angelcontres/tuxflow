@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { AlertCircle, ArrowLeft, Route, UserMinus, UserPlus, Users } from 'lucide-react';
 import { ConexionesComunesPanel } from '../../network/components/ConexionesComunesPanel';
-import { formatFecha } from '../../feed/utils/formatFecha';
+import { PostCard } from '../../feed/components/PostCard';
 import {
   fetchCaminoCorto,
   fetchSeguidos,
@@ -394,13 +394,13 @@ export const PerfilAjeno: React.FC<PerfilAjenoProps> = ({
 
         {publicaciones.tipo === 'listo' && publicaciones.datos.length > 0 && (
           <div>
+            {/* El `PostCard` del feed, no una copia. Antes este perfil pintaba su propia versión
+                sin reacciones y sin resaltado de hashtags, con el resultado de que la misma
+                publicación se leía distinta según dónde se mirara y no se podía dar like desde el
+                perfil de alguien. En cualquier red social se reacciona desde el perfil, y reutilizar
+                el componente evita que las dos vistas vuelvan a divergir. */}
             {publicaciones.datos.map((post) => (
-              <PostDelPerfil
-                key={post.id}
-                post={post}
-                usuarioId={usuarioId}
-                onOpenPerfil={onOpenPerfil}
-              />
+              <PostCard key={post.id} post={post} currentUserId={viewerId} />
             ))}
           </div>
         )}
@@ -446,87 +446,5 @@ const PersonaFila: React.FC<PersonaFilaProps> = ({ persona, onOpenPerfil }) => {
         <p className="text-[11px] text-slate-500">@{persona.username}</p>
       </div>
     </button>
-  );
-};
-
-interface PostDelPerfilProps {
-  post: Post;
-  /** Perfil que se está mirando, para no enlazar el autor consigo mismo. */
-  usuarioId: string;
-  onOpenPerfil: (usuarioId: string) => void;
-}
-
-/**
- * Publicación dentro del perfil ajeno.
- *
- * Reutiliza el formato del feed sin importar `PostCard` entero: aquel pide el identificador de quien
- * está mirando para la reacción y trae acciones de compartir y comentar que en un perfil ajeno no
- * tienen a quién afectar. Lo que se conserva es lo que sí importa aquí: autor, fecha y contenido.
- */
-const PostDelPerfil: React.FC<PostDelPerfilProps> = ({ post, usuarioId, onOpenPerfil }) => {
-  const [avatarCaido, setAvatarCaido] = useState<boolean>(false);
-  const inicial = (post.autorUsername || '?').charAt(0).toUpperCase();
-
-  // Las publicaciones de este perfil las escribió esta misma persona, así que el autor ya está en
-  // pantalla. Enlazarlo a sí mismo recarga lo que se está viendo y parece un enlace roto; la
-  // comprobación es por identificador y no por nombre de usuario porque es el identificador lo que
-  // viaja en la ruta del endpoint.
-  const autorEsElPerfilActual = post.autorId === usuarioId;
-
-  return (
-    <article className="bg-white rounded-xl border border-slate-200 shadow-xs p-5 mb-4">
-      <div className="flex items-center gap-3 mb-3">
-        {post.autorAvatar && !avatarCaido ? (
-          <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-200 shrink-0">
-            <img
-              src={post.autorAvatar}
-              alt={`Avatar de @${post.autorUsername}`}
-              className="w-full h-full object-cover"
-              onError={() => setAvatarCaido(true)}
-            />
-          </div>
-        ) : (
-          <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
-            {inicial}
-          </div>
-        )}
-        <div className="min-w-0">
-          {autorEsElPerfilActual ? (
-            <span className="font-semibold text-slate-900 text-sm truncate">
-              @{post.autorUsername}
-            </span>
-          ) : (
-            <button
-              type="button"
-              onClick={() => onOpenPerfil(post.autorId)}
-              className="font-semibold text-slate-900 text-sm hover:underline cursor-pointer truncate"
-            >
-              @{post.autorUsername}
-            </button>
-          )}
-          {/* `formatFecha` y no una copia local: la misma publicación tiene que leerse igual en el
-              feed y en un perfil ajeno. Una versión propia cambiaba "hace 3 días" por "04/08/2026"
-              según dónde se mirara, que es el tipo de inconsistencia que hace que dos pantallas de
-              lo mismo parezcan pantallas distintas. */}
-          <p className="text-[11px] text-slate-400">{formatFecha(post.fechaCreacion)}</p>
-        </div>
-      </div>
-
-      <div className="text-sm text-slate-800 leading-relaxed mb-3 break-words">{post.texto}</div>
-
-      {post.mediaUrl && (
-        <div className="rounded-xl overflow-hidden border border-slate-100 bg-slate-50 mb-3 max-h-[450px] flex items-center justify-center">
-          <img
-            src={post.mediaUrl}
-            alt="Contenido multimedia"
-            className="w-full max-h-[450px] object-cover"
-            loading="lazy"
-            onError={(e) => {
-              (e.target as HTMLElement).style.display = 'none';
-            }}
-          />
-        </div>
-      )}
-    </article>
   );
 };
