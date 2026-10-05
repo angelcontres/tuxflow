@@ -388,15 +388,33 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
     // --- 5. Tendencias en la Red Extendida (Posts con más interacción a 1 y 2 saltos) ---
     @Override
     public List<Map<String, Object>> obtenerTendenciasRedExtendida(String userId) {
+        // El umbral de siete días está en la forma que funciona, y la forma obvia no funciona.
+        //
+        // `p.fechaCreacion` es un entero (epochMillis), así que hay que compararlo contra un
+        // entero.
+        // La comparación original era contra `datetime()`, que es una fecha con hora, y por eso la
+        // condición era siempre falsa y el endpoint no devolvía nada.
+        //
+        // Corregir sólo eso NO alcanza, y este es el motivo de que el arreglo sea menos obvio de lo
+        // que parece. `duration('P7D').milliseconds` vale **cero**: Neo4j separa la duración en
+        // meses/días y segundos/nanos, y `.milliseconds` sólo lee la parte sub-día. Los siete días
+        // están en `.days`, así que la conversión correcta multiplica por los milisegundos de un
+        // día. Medido contra Neo4j 5.20:
+        //
+        //     duration('P7D').milliseconds   ->  0             resta nada
+        //     duration('P7D').days           ->  7             el dato real
+        //
+        // Con `.milliseconds` el síntoma es idéntico al original: sigue devolviendo vacío, y lo
+        // peor es que el Cypher parece correcto al leerlo.
         String cypher =
                 """
             MATCH (u:Usuario {id: $userId})-[:SIGUE*1..2]->(autor:Usuario)-[:PUBLICA]->(p:Post)
-            WHERE p.fechaCreacion >= datetime() - duration('P7D')
-            MATCH (reactor:Usuario)-[:REACCIONA]->(p)
+            WHERE p.fechaCreacion >= datetime().epochMillis - duration('P7D').days * 86400000
+            MATCH (reactor:Usuario)-[:REACCIONA {tipo: 'LIKE'}]->(p)
             RETURN p.id AS id,
                    p.texto AS texto,
                    autor.username AS autor,
-                   count(reactor) AS totalReacciones
+                   count(DISTINCT reactor) AS totalReacciones
             ORDER BY totalReacciones DESC
             LIMIT 10;
             """;
