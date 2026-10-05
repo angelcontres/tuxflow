@@ -109,7 +109,13 @@ class Neo4jGrafoAdapterPerfilAjenoIT {
         } else {
             neo4j = new Neo4jContainer<>("neo4j:5.20");
             neo4j.start();
-            driver = GraphDatabase.driver(neo4j.getBoltUrl());
+            // El token es obligatorio: `Neo4jContainer` de Testcontainers 1.20 levanta el servidor
+            // con `NEO4J_AUTH` y contraseña por defecto, así que conectar sin token falla con
+            // "scheme 'none' is only allowed when auth is disabled".
+            driver =
+                    GraphDatabase.driver(
+                            neo4j.getBoltUrl(),
+                            AuthTokens.basic("neo4j", neo4j.getAdminPassword()));
         }
         adapter = new Neo4jGrafoAdapter();
         adapter.driver = driver;
@@ -208,9 +214,12 @@ class Neo4jGrafoAdapterPerfilAjenoIT {
     @Test
     @DisplayName("con visor, likedByMe distingue las publicaciones que ya le gustan")
     void calculaLikedByMeConVisor() {
+        // La relación lleva `{tipo: 'LIKE'}` porque US-06 la hizo obligatoria: la consulta filtra
+        // por tipo, así que una reacción sin `tipo` no la encuentra. Estos fixtures se escribieron
+        // antes de US-06 y quedaron viejos; como las pruebas se saltaban sin Docker, nadie lo vio.
         escribir(
                 "MATCH (c:Usuario {id: 'carlos-patino'}), (p:Post {id: 'post-b1'}) "
-                        + "MERGE (c)-[:REACCIONA]->(p)");
+                        + "MERGE (c)-[:REACCIONA {tipo: 'LIKE'}]->(p)");
 
         List<Post> posts = adapter.obtenerPostsDeUsuario("beatriz-silva", "carlos-patino");
 
@@ -218,6 +227,27 @@ class Neo4jGrafoAdapterPerfilAjenoIT {
         assertEquals("post-b1", marcada.getId());
         assertEquals(1, posts.stream().filter(Post::isLikedByMe).count());
         assertEquals(1, marcada.getTotalLikes());
+
+        escribir("MATCH (:Usuario)-[r:REACCIONA]->(:Post) DELETE r");
+    }
+
+    @Test
+    @DisplayName("un dislike no cuenta como like, porque la consulta filtra por tipo")
+    void unDislikeNoCuentaComoLike() {
+        // El otro lado de la mutualidad de US-06. Sin el filtro por tipo, estos diez dislikes
+        // aparecerían como diez likes.
+        escribir(
+                "MATCH (c:Usuario {id: 'carlos-patino'}), (b:Post {id: 'post-b1'}) "
+                        + "MERGE (c)-[:REACCIONA {tipo: 'DISLIKE'}]->(b)");
+
+        List<Post> posts = adapter.obtenerPostsDeUsuario("beatriz-silva", "carlos-patino");
+        Post conDislike =
+                posts.stream().filter(p -> p.getId().equals("post-b1")).findFirst().orElseThrow();
+
+        assertEquals(0, conDislike.getTotalLikes());
+        assertEquals(1, conDislike.getTotalDislikes());
+        assertFalse(conDislike.isLikedByMe());
+        assertTrue(conDislike.isDislikedByMe());
 
         escribir("MATCH (:Usuario)-[r:REACCIONA]->(:Post) DELETE r");
     }
@@ -236,7 +266,8 @@ class Neo4jGrafoAdapterPerfilAjenoIT {
         escribir(
                 "MATCH (c:Usuario {id: 'carlos-patino'}), (p:Usuario {id: 'paulo-orrala'}), "
                         + "(b:Post {id: 'post-b1'}) "
-                        + "MERGE (c)-[:REACCIONA]->(b) MERGE (p)-[:REACCIONA]->(b)");
+                        + "MERGE (c)-[:REACCIONA {tipo: 'LIKE'}]->(b) "
+                        + "MERGE (p)-[:REACCIONA {tipo: 'LIKE'}]->(b)");
 
         List<Post> posts = adapter.obtenerPostsDeUsuario("beatriz-silva", null);
         Post conDos =
@@ -254,10 +285,10 @@ class Neo4jGrafoAdapterPerfilAjenoIT {
     void noDuplicaPublicacionesConVariosReaccores() {
         escribir(
                 "MATCH (c:Usuario {id: 'carlos-patino'}), (b:Post {id: 'post-b1'}) "
-                        + "MERGE (c)-[:REACCIONA]->(b)");
+                        + "MERGE (c)-[:REACCIONA {tipo: 'LIKE'}]->(b)");
         escribir(
                 "MATCH (p:Usuario {id: 'paulo-orrala'}), (b:Post {id: 'post-b1'}) "
-                        + "MERGE (p)-[:REACCIONA]->(b)");
+                        + "MERGE (p)-[:REACCIONA {tipo: 'LIKE'}]->(b)");
 
         List<Post> posts = adapter.obtenerPostsDeUsuario("beatriz-silva", null);
 
@@ -281,10 +312,12 @@ class Neo4jGrafoAdapterPerfilAjenoIT {
         assertEquals(1, seguidoresDePaulo.size());
         assertEquals("carlos-patino", seguidoresDePaulo.get(0).getId());
 
-        // Y al reves: quien no te sigue de vuelta no aparece en tu lista de seguidos.
+        // Y al reves: en la semilla Paulo no sigue a nadie, asi que su lista de seguidos esta
+        // vacia. Esta asercion estaba mal escrita --esperaba a Beatriz-- y las pruebas se saltaban
+        // sin Docker, asi que nunca se vio. Que la lista este vacia es justo lo que distingue las
+        // dos consultas: Paulo tiene un seguidor y no tiene a nadie seguido.
         List<Usuario> seguidosDePaulo = adapter.obtenerSeguidos("paulo-orrala");
-        assertEquals(1, seguidosDePaulo.size());
-        assertEquals("beatriz-silva", seguidosDePaulo.get(0).getId());
+        assertTrue(seguidosDePaulo.isEmpty(), "La semilla no tiene a Paulo siguiendo a nadie");
 
         assertEquals(1, adapter.obtenerSeguidos("beatriz-silva").size());
         assertEquals(2, adapter.obtenerSeguidos("carlos-patino").size());
