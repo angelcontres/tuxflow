@@ -14,6 +14,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.neo4j.driver.AuthTokens;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.GraphDatabase;
 import org.neo4j.driver.Session;
@@ -32,6 +33,10 @@ import org.testcontainers.containers.Neo4jContainer;
  * <p>Requiere Docker. Si no está disponible, cada prueba se salta con {@code @BeforeEach}/{@code
  * requireGrafo}, en vez de romper el build en una máquina sin Docker.
  *
+ * <p>Se puede apuntar a un Neo4j ya levantado con {@code -Dneo4j.test.uri=bolt://...}, y en ese
+ * caso no hace falta Docker. Es lo que permite ejecutar estas pruebas en un agente donde
+ * Testcontainers no negocia con el socket, y en un CI con un servicio Neo4j ya provisionado.
+ *
  * <p>El contenedor se levanta y se apaga a mano en lugar de con la extensión
  * {@code @Testcontainers}: la extensión de Testcontainers para JUnit 5 no está en el repositorio
  * local de esta máquina, y el build corre sin acceso a Maven Central. Con {@code @BeforeAll} y
@@ -40,12 +45,24 @@ import org.testcontainers.containers.Neo4jContainer;
  */
 class Neo4jGrafoAdapterPerfilAjenoIT {
 
+    /** URI de un Neo4j externo. Si no está, se levanta un contenedor. */
+    private static final String URI_EXTERNA =
+            System.getProperty("neo4j.test.uri", System.getenv("NEO4J_TEST_URI"));
+
+    private static final String USUARIO_EXTERNO = System.getProperty("neo4j.test.user", "neo4j");
+
+    private static final String CLAVE_EXTERNA =
+            System.getProperty("neo4j.test.password", "password123");
+
     private static Neo4jContainer<?> neo4j;
     private static Driver driver;
     private static Neo4jGrafoAdapter adapter;
 
-    /** Si no hay Docker, ninguna prueba de esta clase tiene sentido. */
-    private static boolean dockerDisponible() {
+    /** Si no hay Docker y no hay URI externa, ninguna prueba de esta clase tiene sentido. */
+    private static boolean hayGrafoDisponible() {
+        if (hayUriExterna()) {
+            return true;
+        }
         try {
             return DockerClientFactory.instance().isDockerAvailable();
         } catch (RuntimeException e) {
@@ -53,6 +70,10 @@ class Neo4jGrafoAdapterPerfilAjenoIT {
             // prueba: es una maquina que no puede correr esta capa.
             return false;
         }
+    }
+
+    private static boolean hayUriExterna() {
+        return URI_EXTERNA != null && !URI_EXTERNA.isBlank();
     }
 
     /**
@@ -64,8 +85,9 @@ class Neo4jGrafoAdapterPerfilAjenoIT {
      */
     @BeforeEach
     void exigirGrafo() {
-        Assumptions.assumeTrue(dockerDisponible(), "Requiere Docker para levantar un Neo4j");
-        Assumptions.assumeTrue(driver != null, "El contenedor de Neo4j no llego a levantarse");
+        Assumptions.assumeTrue(
+                hayGrafoDisponible(), "Requiere Docker o -Dneo4j.test.uri para levantar un Neo4j");
+        Assumptions.assumeTrue(driver != null, "El grafo de Neo4j no llego a levantarse");
     }
 
     /**
@@ -77,14 +99,27 @@ class Neo4jGrafoAdapterPerfilAjenoIT {
      */
     @BeforeAll
     static void prepararGrafo() {
-        if (!dockerDisponible()) {
+        if (!hayGrafoDisponible()) {
             return;
         }
-        neo4j = new Neo4jContainer<>("neo4j:5.20");
-        neo4j.start();
-        driver = GraphDatabase.driver(neo4j.getBoltUrl());
+        if (hayUriExterna()) {
+            driver =
+                    GraphDatabase.driver(
+                            URI_EXTERNA, AuthTokens.basic(USUARIO_EXTERNO, CLAVE_EXTERNA));
+        } else {
+            neo4j = new Neo4jContainer<>("neo4j:5.20");
+            neo4j.start();
+            driver = GraphDatabase.driver(neo4j.getBoltUrl());
+        }
         adapter = new Neo4jGrafoAdapter();
         adapter.driver = driver;
+
+        // El grafo se limpia antes de sembrar: si se apunta a un Neo4j externo puede venir con
+        // datos,
+        // y las pruebas cuentan filas.
+        try (Session session = driver.session()) {
+            session.executeWrite(tx -> tx.run("MATCH (n) DETACH DELETE n").consume());
+        }
 
         try (Session session = driver.session()) {
             session.executeWrite(
