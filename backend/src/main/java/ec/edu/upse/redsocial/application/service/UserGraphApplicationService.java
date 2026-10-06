@@ -75,6 +75,11 @@ public class UserGraphApplicationService implements GestionarGrafoSocialUseCase 
     }
 
     @Override
+    public List<Usuario> obtenerSeguidores(String userId) {
+        return grafoPersistencePort.obtenerSeguidores(userId);
+    }
+
+    @Override
     public List<Usuario> obtenerSeguidosEnComun(String userA, String userB) {
         return grafoPersistencePort.obtenerSeguidosEnComun(userA, userB);
     }

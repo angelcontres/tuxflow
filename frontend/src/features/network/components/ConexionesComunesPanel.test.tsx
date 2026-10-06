@@ -174,6 +174,103 @@ describe('ConexionesComunesPanel', () => {
     });
   });
 
+  describe('Montado dentro del perfil ajeno (US-12)', () => {
+    function renderFijado(otroUsuarioId: string, otroUsername = 'beatriz') {
+      return render(
+        <ConexionesComunesPanel
+          currentUserId="carlos-patino"
+          currentUsername="carlos"
+          otroUsuarioId={otroUsuarioId}
+          otroUsername={otroUsername}
+        />,
+      );
+    }
+
+    it('consulta solo, sin pedir que se escriba el identificador', async () => {
+      // La deuda que el design de US-09 declara: al existir el perfil ajeno, "con quién comparo"
+      // ya no lo responde el usuario escribiéndolo.
+      fetchMock.mockResolvedValue([conexion()]);
+
+      renderFijado('beatriz-silva');
+
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('carlos-patino', 'beatriz-silva'));
+      expect(screen.queryByLabelText('Identificador de la otra persona')).not.toBeInTheDocument();
+    });
+
+    it('omite el campo de texto cuando la otra persona está fijada', () => {
+      fetchMock.mockResolvedValue([]);
+
+      renderFijado('beatriz-silva');
+
+      expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    });
+
+    it('nombra a la otra persona y no al usuario activo en el rótulo', async () => {
+      fetchMock.mockResolvedValue([conexion()]);
+
+      renderFijado('beatriz-silva', 'beatriz');
+
+      expect(await screen.findByText(/1 conexion\(es\) en comun con @beatriz/)).toBeInTheDocument();
+    });
+
+    it('no confunde la lista vacía con un fallo', async () => {
+      fetchMock.mockResolvedValue([]);
+
+      renderFijado('beatriz-silva');
+
+      expect(await screen.findByText('No tienen conexiones en común.')).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('muestra el fallo de la consulta automática', async () => {
+      fetchMock.mockRejectedValue(new Error('Network Error'));
+
+      renderFijado('beatriz-silva');
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'No pudimos consultar las conexiones en común',
+      );
+    });
+
+    it('vuelve a consultar al pedir actualizar, sin escribir nada', async () => {
+      fetchMock.mockResolvedValue([]);
+      renderFijado('beatriz-silva');
+      await screen.findByText('No tienen conexiones en común.');
+
+      fetchMock.mockResolvedValue([conexion()]);
+      await userEvent.click(screen.getByRole('button', { name: 'Actualizar' }));
+
+      expect(await screen.findByText('Beatriz Silva')).toBeInTheDocument();
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('cambia de comparación cuando el perfil abierto es otra persona', async () => {
+      fetchMock.mockResolvedValue([]);
+      const vista = renderFijado('beatriz-silva');
+      await screen.findByText('No tienen conexiones en común.');
+
+      vista.rerender(
+        <ConexionesComunesPanel
+          currentUserId="carlos-patino"
+          currentUsername="carlos"
+          otroUsuarioId="paulo-orrala"
+          otroUsername="paulo"
+        />,
+      );
+
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('carlos-patino', 'paulo-orrala'));
+    });
+
+    it('sigue usando el campo de texto cuando no hay nadie fijado', async () => {
+      fetchMock.mockResolvedValue([]);
+
+      renderPanel();
+
+      expect(screen.getByLabelText('Identificador de la otra persona')).toBeInTheDocument();
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
+
   describe('Fallo de la consulta', () => {
     it('muestra un mensaje visible en vez de una lista vacía', async () => {
       fetchMock.mockRejectedValue(new Error('Network Error'));

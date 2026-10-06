@@ -107,7 +107,20 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                             SugerenciaUsuario s = new SugerenciaUsuario();
                             s.setId(record.get("id").asString());
                             s.setUsername(record.get("username").asString());
-                            s.setNombre(record.get("nombre").asString());
+                            // Guarda de null, con el mismo criterio y el mismo motivo que en
+                            // obtenerSeguidosEnComun: guardarUsuario hace SET u.nombre = $nombre, y
+                            // en
+                            // Neo4j asignar null a una propiedad la elimina, así que el nodo llega
+                            // como NullValue. NullValue.asString() no lanza, devuelve el texto
+                            // literal
+                            // "null", y ese nombre inventado se renderizaría como si fuera real.
+                            // US-09
+                            // corrigió sólo la copia de obtenerSeguidosEnComun y dejó estas dos: el
+                            // perfil ajeno muestra nombres, así que el defecto pasó a ser visible.
+                            s.setNombre(
+                                    record.get("nombre").isNull()
+                                            ? null
+                                            : record.get("nombre").asString());
                             s.setAvatar(
                                     record.get("avatar").isNull()
                                             ? null
@@ -192,19 +205,81 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                         List<Usuario> usuarios = new ArrayList<>();
                         while (result.hasNext()) {
                             Record record = result.next();
-                            Usuario u = new Usuario();
-                            u.setId(record.get("id").asString());
-                            u.setUsername(record.get("username").asString());
-                            u.setNombre(record.get("nombre").asString());
-                            u.setAvatarUrl(
-                                    record.get("avatarUrl").isNull()
-                                            ? null
-                                            : record.get("avatarUrl").asString());
-                            usuarios.add(u);
+                            // Mapeo compartido con obtenerSeguidores: las dos consultas devuelven
+                            // las
+                            // mismas cuatro propiedades, y el nombre necesita guarda de null en las
+                            // dos.
+                            usuarios.add(mapearUsuarioDeRelacion(record));
                         }
                         return usuarios;
                     });
         }
+    }
+
+    // --- Seguidores de un perfil (la misma arista de [:SIGUE], leída al revés) ---
+    @Override
+    public List<Usuario> obtenerSeguidores(String userId) {
+        // La flecha entra por el usuario que se está mirando: (s)-[:SIGUE]->(u) son las personas
+        // que lo siguen. Invertirla devolvería a quién sigue, que es obtenerSeguidos, y con la
+        // semilla del proyecto las dos consultas devuelven conjuntos distintos (elena-vega sigue a
+        // carlos-patino, así que carlos tiene una seguidora y no tiene a nadie que él siga de
+        // ella).
+        String cypher =
+                """
+            MATCH (s:Usuario)-[:SIGUE]->(u:Usuario {id: $userId})
+            RETURN s.id AS id, s.username AS username, s.nombre AS nombre, s.avatarUrl AS avatarUrl
+            ORDER BY s.username ASC
+            LIMIT $limite
+            """;
+
+        try (var session = driver.session()) {
+            return session.executeRead(
+                    tx -> {
+                        var result =
+                                tx.run(
+                                        cypher,
+                                        Values.parameters(
+                                                "userId", userId,
+                                                "limite", LIMITE_SEGUIDORES_POR_PERFIL));
+                        List<Usuario> usuarios = new ArrayList<>();
+                        while (result.hasNext()) {
+                            Record record = result.next();
+                            usuarios.add(mapearUsuarioDeRelacion(record));
+                        }
+                        return usuarios;
+                    });
+        }
+    }
+
+    /**
+     * Tope de seguridad de los seguidores que devuelve un perfil.
+     *
+     * <p>El caso que justifica el tope es distinto al de las publicaciones: la comunidad es de una
+     * universidad, así que una persona con más de mil seguidores ya es una persona pública. Sin
+     * tope, esa cuenta convierte el perfil en una respuesta de megabytes.
+     */
+    static final long LIMITE_SEGUIDORES_POR_PERFIL = 500;
+
+    /**
+     * Mapea una fila de seguido o de seguidor al modelo de dominio.
+     *
+     * <p>El `nombre` lleva guarda de null porque en Neo4j asignar null a una propiedad la elimina:
+     * un usuario guardado sin nombre llega aquí como {@code NullValue}, y {@code
+     * NullValue.asString()} no lanza -- devuelve el texto literal {@code "null"} -- así que sin la
+     * guarda la API respondería 200 con un nombre inventado, que es peor que un 500 porque no se
+     * nota.
+     *
+     * <p>El identificador es la única propiedad garantizada: es la clave del {@code MERGE} de
+     * {@link #guardarUsuario}, así que siempre está.
+     */
+    private static Usuario mapearUsuarioDeRelacion(Record record) {
+        Usuario u = new Usuario();
+        u.setId(record.get("id").asString());
+        u.setUsername(record.get("username").asString());
+        u.setNombre(record.get("nombre").isNull() ? null : record.get("nombre").asString());
+        u.setAvatarUrl(
+                record.get("avatarUrl").isNull() ? null : record.get("avatarUrl").asString());
+        return u;
     }
 
     /**
@@ -216,6 +291,17 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
      * identificador viaja en el mismo elemento, así que no se pierde información.
      */
     private static final String USERNAME_POR_DEFECTO = "desconocido";
+
+    /**
+     * Tope de seguridad de las publicaciones que devuelve un perfil.
+     *
+     * <p>No es una política de producto: es el punto en el que un perfil deja de ser razonable. Con
+     * treinta mil publicaciones la respuesta sin tope no cabe cómodamente en memoria y el servidor
+     * se degrada por una pantalla. Está por encima de lo que publica cualquier cuenta real de esta
+     * comunidad, así que en la práctica no se ve, y si algún día se ve la respuesta correcta es
+     * paginar, no subir el número.
+     */
+    static final long LIMITE_PUBLICACIONES_POR_PERFIL = 200;
 
     // --- 4. Grado de Separación y Camino Más Corto (Shortest Path) ---
     @Override
@@ -302,15 +388,33 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
     // --- 5. Tendencias en la Red Extendida (Posts con más interacción a 1 y 2 saltos) ---
     @Override
     public List<Map<String, Object>> obtenerTendenciasRedExtendida(String userId) {
+        // El umbral de siete días está en la forma que funciona, y la forma obvia no funciona.
+        //
+        // `p.fechaCreacion` es un entero (epochMillis), así que hay que compararlo contra un
+        // entero.
+        // La comparación original era contra `datetime()`, que es una fecha con hora, y por eso la
+        // condición era siempre falsa y el endpoint no devolvía nada.
+        //
+        // Corregir sólo eso NO alcanza, y este es el motivo de que el arreglo sea menos obvio de lo
+        // que parece. `duration('P7D').milliseconds` vale **cero**: Neo4j separa la duración en
+        // meses/días y segundos/nanos, y `.milliseconds` sólo lee la parte sub-día. Los siete días
+        // están en `.days`, así que la conversión correcta multiplica por los milisegundos de un
+        // día. Medido contra Neo4j 5.20:
+        //
+        //     duration('P7D').milliseconds   ->  0             resta nada
+        //     duration('P7D').days           ->  7             el dato real
+        //
+        // Con `.milliseconds` el síntoma es idéntico al original: sigue devolviendo vacío, y lo
+        // peor es que el Cypher parece correcto al leerlo.
         String cypher =
                 """
             MATCH (u:Usuario {id: $userId})-[:SIGUE*1..2]->(autor:Usuario)-[:PUBLICA]->(p:Post)
-            WHERE p.fechaCreacion >= datetime() - duration('P7D')
-            MATCH (reactor:Usuario)-[:REACCIONA]->(p)
+            WHERE p.fechaCreacion >= datetime().epochMillis - duration('P7D').days * 86400000
+            MATCH (reactor:Usuario)-[:REACCIONA {tipo: 'LIKE'}]->(p)
             RETURN p.id AS id,
                    p.texto AS texto,
                    autor.username AS autor,
-                   count(reactor) AS totalReacciones
+                   count(DISTINCT reactor) AS totalReacciones
             ORDER BY totalReacciones DESC
             LIMIT 10;
             """;
@@ -616,6 +720,98 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                         return null;
                     });
         }
+    }
+
+    @Override
+    public List<Post> obtenerPostsDeUsuario(String userId, String viewerId) {
+        // --- Por qué esta consulta se parece a obtenerFeedCronologico y no al revés ---
+        //
+        // `fechaCreacion` se escribe como `datetime().epochMillis`, o sea un entero en
+        // milisegundos, y eso es también lo que trae la semilla. Ordenar por un entero da el orden
+        // cronológico correcto, así que `ORDER BY p.fechaCreacion DESC` se queda como está y la
+        // lectura es `.asLong()`. El ROADMAP cerró esta decisión ("comparar contra su equivalente
+        // numérico, no migrar el campo a fecha con hora desde dentro de la historia").
+        //
+        // El WHERE descarta las publicaciones sin fecha: no pueden ordenarse, y meterlas detrás
+        // con un `coalesce` exige inventarles una posición.
+        //
+        // Los dos OPTIONAL MATCH de reacción, uno por tipo, son obligatorios desde que US-06 hizo
+        // que like y dislike sean excluyentes. Con un solo `[:REACCIONA]` sin filtrar, una
+        // publicación con diez dislikes reportaría diez likes, y el perfil respondería con la
+        // reacción equivocada. Es la misma forma que usa el feed, a propósito: las dos consultas
+        // devuelven el mismo tipo `Post`, así que tienen que projectar los mismos campos.
+        //
+        // `count(DISTINCT ...)` y no `count(...)`: hay dos OPTIONAL MATCH seguidos, así que el
+        // producto cartesiano está presente y contar filas multiplicaría los totales.
+        //
+        // El visor va en un OPTIONAL MATCH y no en un WHERE: si fuera un WHERE, la consulta no
+        // devolvería filas sin visor y el cURL del ticket, que no lo manda, respondería siempre
+        // vacío. Con `visor` null, `EXISTS((visor)-[...]->(p))` es false, que es la respuesta
+        // honesta para "no se está mirando desde nadie".
+        //
+        // El LIMIT es un tope de seguridad, no una política de producto. Está por encima de lo que
+        // publica cualquier cuenta real de esta comunidad, así que en la práctica no se ve.
+        String cypher =
+                """
+            MATCH (autor:Usuario {id: $userId})-[:PUBLICA]->(p:Post)
+            WHERE p.fechaCreacion IS NOT NULL
+            OPTIONAL MATCH (reactorLike:Usuario)-[:REACCIONA {tipo: 'LIKE'}]->(p)
+            OPTIONAL MATCH (reactorDislike:Usuario)-[:REACCIONA {tipo: 'DISLIKE'}]->(p)
+            OPTIONAL MATCH (visor:Usuario {id: $viewerId})
+            RETURN p.id AS id,
+                   p.texto AS texto,
+                   p.mediaUrl AS mediaUrl,
+                   p.fechaCreacion AS fecha,
+                   autor.id AS autorId,
+                   autor.username AS autorUsername,
+                   autor.avatarUrl AS autorAvatar,
+                   count(DISTINCT reactorLike) AS totalLikes,
+                   count(DISTINCT reactorDislike) AS totalDislikes,
+                   EXISTS((visor)-[:REACCIONA {tipo: 'LIKE'}]->(p)) AS likedByMe,
+                   EXISTS((visor)-[:REACCIONA {tipo: 'DISLIKE'}]->(p)) AS dislikedByMe
+            ORDER BY p.fechaCreacion DESC
+            LIMIT $limite
+            """;
+
+        try (var session = driver.session()) {
+            return session.executeRead(
+                    tx -> {
+                        var result =
+                                tx.run(
+                                        cypher,
+                                        Values.parameters(
+                                                "userId",
+                                                userId,
+                                                "viewerId",
+                                                viewerId == null || viewerId.isBlank()
+                                                        ? null
+                                                        : viewerId,
+                                                "limite",
+                                                LIMITE_PUBLICACIONES_POR_PERFIL));
+                        List<Post> posts = new ArrayList<>();
+                        while (result.hasNext()) {
+                            posts.add(mapearPostDeAutor(result.next()));
+                        }
+                        return posts;
+                    });
+        }
+    }
+
+    private static Post mapearPostDeAutor(Record record) {
+        Post p = new Post();
+        p.setId(record.get("id").asString());
+        p.setTexto(record.get("texto").asString());
+        p.setMediaUrl(record.get("mediaUrl").isNull() ? null : record.get("mediaUrl").asString());
+        p.setFechaCreacion(record.get("fecha").asLong());
+        p.setAutorId(record.get("autorId").asString());
+        p.setAutorUsername(record.get("autorUsername").asString());
+        p.setAutorAvatar(
+                record.get("autorAvatar").isNull() ? null : record.get("autorAvatar").asString());
+        p.setTotalLikes(record.get("totalLikes").asLong());
+        p.setTotalDislikes(record.get("totalDislikes").asLong());
+        p.setLikedByMe(record.get("likedByMe").asBoolean());
+        p.setDislikedByMe(record.get("dislikedByMe").asBoolean());
+        return p;
     }
 
     /**

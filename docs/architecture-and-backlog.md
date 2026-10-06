@@ -130,8 +130,15 @@ La priorización se calculó combinando **MoSCoW** para el encuadre ágil de req
 | **US-08** | Alertas | Notificaciones Web Push (VAPID) ante publicaciones | **Should** | **32.0** | **5 SP** | Sprint 3 | `feature/US-08-push-notifications` |
 | **US-10** | Grafo | Camino más corto y grados de separación (Shortest Path) | **Could** | **20.0** | **3 SP** | Sprint 3 | `feature/US-10-shortest-path` |
 | **US-11** | Métricas | Tendencias y posts populares en red extendida | **Could** | **20.0** | **3 SP** | Sprint 3 | `feature/US-11-tendencias-red` |
+| **US-12** | Identidad | Perfil de usuario ajeno: posts, seguidores y distancia | **Should** | — | **5 SP** | Sprint 3 | `angelvilloon853/tux-64-us-12-ver-perfil-de-usuario-ajeno-posts-seguidores-y` |
 
-> **Capacidad Total del Proyecto:** 36 Story Points distribuidos en 3 Sprints balanceados.
+> **Capacidad Total del Proyecto:** 41 Story Points distribuidos en 3 Sprints balanceados.
+>
+> **Nota sobre US-12.** No tiene RICE calculado porque su tarjeta de Linear (`TUX-64`) no trae
+> puntuación. La estimación de 5 Story Points viene del razonamiento de la propia tarjeta: US-09 y
+> US-10 son de 3 SP cada una y ambas asumían un perfil ajeno que no existía, así que US-12 construye
+> lo que las dos dan por hecho y además agrega dos endpoints, un componente, navegación y el cierre
+> de la deuda del campo de texto de US-09.
 
 ---
 
@@ -192,7 +199,7 @@ flowchart TD
 
 ---
 
-## 6. Especificación BDD / Gherkin Completa (11 Historias de Usuario)
+## 6. Especificación BDD / Gherkin Completa (12 Historias de Usuario)
 
 ### US-01: Registro, Sesión y Perfil con Avatar en MinIO
 ```gherkin
@@ -410,6 +417,31 @@ Característica: Detección de contenido popular en la red cercana
     Y excluye publicaciones con antigüedad mayor a 7 días.
 ```
 
+### US-12: Perfil de Usuario Ajeno (Posts, Seguidores y Distancia)
+```gherkin
+Característica: Mirar el perfil de cualquier otra persona de la comunidad
+  Como usuario de la comunidad
+  Quiero abrir el perfil de cualquier otra persona
+  Para ver quién es, qué publica y cómo me conecto con ella, sin salir de mi sesión
+
+  Escenario: Abrir el perfil de otra persona desde la red
+    Dado que "carlos-patino" ha iniciado sesión
+    Y que existe el usuario "beatriz-silva"
+    Cuando abre el perfil de "beatriz-silva"
+    Entonces el frontend obtiene sus datos con GET /api/users/beatriz-silva
+    Y muestra nombre, @username y avatar, con la inicial como respaldo si no hay avatar
+    Y muestra sus publicaciones con GET /api/posts/autor/beatriz-silva
+    Y muestra el botón "Seguir" o "Dejar de seguir" según exista la relación [:SIGUE]
+    Y desde ese perfil se puede abrir el panel de conexiones en común con "carlos-patino"
+    Y desde ese perfil se puede calcular la distancia de separación con "carlos-patino"
+
+  Escenario: El estado del botón de seguir refleja la relación real
+    Dado que "carlos-patino" sigue a "beatriz-silva"
+    Cuando se abre el perfil de "beatriz-silva"
+    Entonces el botón dice "Dejar de seguir"
+    Y si la relación no se pudo comprobar, no se muestra ningún botón
+```
+
 ---
 
 ## 7. Matriz de Trazabilidad Técnica
@@ -424,6 +456,7 @@ Característica: Detección de contenido popular en la red cercana
 | **US-06** | `POST /api/posts/{id}/like` | `MERGE (u)-[r:REACCIONA]->(p)` | `GrafoPersistencePort.alternarLike()` | `features/feed/PostCard.tsx` |
 | **US-07** | `WS /chat/{userId}` | WebSocket dúplex TCP en memoria | `ChatWebSocket.java` (Session Map) | `features/chat/ChatWidget.tsx` |
 | **US-08** | Evento en `CrearPostUseCase` | Cypher seguidores con Push Subscription | `NotificationPushPort` (VAPID) | `features/notifications/pushService.ts` |
-| **US-09** | `GET /api/users/comunes` | Cypher #3 (Intersección de amigos) | `GrafoPersistencePort.obtenerSeguidoresEnComun()` | `features/network/MutualFriendsModal.tsx` |
-| **US-10** | `GET /api/users/camino-corto` | Cypher #4 (shortestPath 6 grados) | `GrafoPersistencePort.obtenerCaminoMasCorto()` | `features/network/DegreeSeparationModal.tsx` |
+| **US-09** | `GET /api/users/comunes` | Cypher #3 (Intersección de amigos) | `GrafoPersistencePort.obtenerSeguidosEnComun()` | `features/network/ConexionesComunesPanel.tsx` |
+| **US-10** | `GET /api/users/camino-corto` | Cypher #4 (shortestPath 6 grados) | `GrafoPersistencePort.obtenerCaminoMasCorto()` | `features/user/PerfilAjeno.tsx` + `features/network/UserSuggestionsCard.tsx` |
 | **US-11** | `GET /api/posts/tendencias/{id}` | Cypher #5 (Tendencias red 7 días) | `GrafoPersistencePort.obtenerTendenciasRedExtendida()` | `features/feed/TrendingSidebar.tsx` |
+| **US-12** | `GET /api/posts/autor/{id}` · `GET /api/users/{id}/followers` | `(autor)-[:PUBLICA]->(p:Post) ORDER BY p.fechaCreacion DESC` · `(s)-[:SIGUE]->(u:Usuario {id: $userId})` | `GrafoPersistencePort.obtenerPostsDeUsuario()` + `.obtenerSeguidores()` | `features/user/PerfilAjeno.tsx` |

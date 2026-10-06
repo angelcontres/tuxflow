@@ -109,12 +109,23 @@ MATCH (david:Usuario {id: 'david-mendoza'}), (elena:Usuario {id: 'elena-vega'})
 CREATE (david)-[:SIGUE {desde: 1727206000000}]->(elena);
 
 // 5. Publicaciones [:PUBLICA]
+//
+// OJO con las fechas: son relativas a `datetime()`, no valores fijos a mano.
+//
+// Estaban fijas (septiembre de 2024) y por eso cualquier consulta con ventana de tiempo devolvía
+// vacío en cuanto pasaban unos días: las publicaciones quedaban fuera del rango y no había forma de
+// distinguir "el filtro no funciona" de "no hay publicaciones nuevas". Con un desplazamiento fijo
+// respecto a ahora, la semilla sirve siempre para demostrar la ventana de siete días de
+// GET /api/posts/tendencias/{userId}.
+//
+// La unidad es el milisegundo: 1 hora = 3 600 000, 1 día = 86 400 000.
 MATCH (beatriz:Usuario {id: 'beatriz-silva'}), (paulo:Usuario {id: 'paulo-orrala'}), (david:Usuario {id: 'david-mendoza'})
 CREATE (pb1:Post {
     id: 'post-b1', 
     texto: '¡Bienvenidos a la Red Social Distribuida en UPSE! 🚀 Conexión Neo4j y MinIO lista.', 
     mediaUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800', 
-    fechaCreacion: 1727260000000
+    // Hace 2 horas: entra en la ventana de 7 días y es la más reaccionada.
+    fechaCreacion: datetime().epochMillis - 7200000
 })
 CREATE (beatriz)-[:PUBLICA]->(pb1)
 
@@ -122,7 +133,8 @@ CREATE (pp1:Post {
     id: 'post-p1', 
     texto: 'Microservicio Quarkus 3 corriendo en modo JVM con bajo consumo de memoria ⚡', 
     mediaUrl: '', 
-    fechaCreacion: 1727265000000
+    // Hace 1 día: también entra en la ventana, con menos reacciones.
+    fechaCreacion: datetime().epochMillis - 86400000
 })
 CREATE (paulo)-[:PUBLICA]->(pp1)
 
@@ -130,11 +142,13 @@ CREATE (pd1:Post {
     id: 'post-d1', 
     texto: 'Publicación de prueba creada por David (Carlos NO la verá en su feed)', 
     mediaUrl: '', 
-    fechaCreacion: 1727268000000
+    // Hace 30 días: FUERA de la ventana de 7 días, a propósito, para poder comprobar que el
+    // filtro descarta lo que debe descartar y no sólo que devuelve algo.
+    fechaCreacion: datetime().epochMillis - 2592000000
 })
 CREATE (david)-[:PUBLICA]->(pd1);
 
 // 6. Reacciones [:REACCIONA]
 MATCH (carlos:Usuario {id: 'carlos-patino'}), (angel:Usuario {id: 'angel-villon'}), (pb1:Post {id: 'post-b1'})
-CREATE (carlos)-[:REACCIONA {tipo: 'LIKE', fecha: 1727269000000}]->(pb1)
-CREATE (angel)-[:REACCIONA {tipo: 'LIKE', fecha: 1727269500000}]->(pb1);
+CREATE (carlos)-[:REACCIONA {tipo: 'LIKE', fecha: datetime().epochMillis - 7000000}]->(pb1)
+CREATE (angel)-[:REACCIONA {tipo: 'LIKE', fecha: datetime().epochMillis - 7100000}]->(pb1);

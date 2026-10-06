@@ -5,6 +5,7 @@ import { FeedList } from './features/feed/components/FeedList';
 import { UserSuggestionsCard } from './features/network/components/UserSuggestionsCard';
 import { ConexionesComunesPanel } from './features/network/components/ConexionesComunesPanel';
 import { ChatWidget } from './features/chat/components/ChatWidget';
+import { PerfilAjeno } from './features/user/components/PerfilAjeno';
 import { LoginScreen } from './features/auth/components/LoginScreen';
 import { clearToken, restoreSession } from './features/auth/services/authApi';
 import { fetchFeedBySocialGraph } from './features/feed/services/feedApi';
@@ -52,6 +53,13 @@ export const App: React.FC = () => {
   const [red, setRed] = useState<FilaRed[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [restoringSession, setRestoringSession] = useState<boolean>(true);
+  // Perfil ajeno que se está mirando (US-12), o null si no hay ninguno abierto.
+  //
+  // Estado local y no una ruta de URL: el proyecto no tiene router, y meter react-router por esto
+  // obligaría a rehacer el layout y el Navbar para resolver una navegación que hoy son dos vistas
+  // del mismo sitio. Cuando se necesite una URL compartible es el momento de introducirlo, y no
+  // antes.
+  const [perfilAjenoId, setPerfilAjenoId] = useState<string | null>(null);
 
   // Restaura la sesión con el token guardado. Sin esto, un refresh del
   // navegador (F5 o Ctrl+Shift+R) devolvía al usuario al login.
@@ -135,7 +143,16 @@ export const App: React.FC = () => {
     setCurrentUsername('');
     setPosts([]);
     setRed([]);
+    setPerfilAjenoId(null);
   };
+
+  const handleOpenPerfil = useCallback((usuarioId: string) => {
+    setPerfilAjenoId(usuarioId);
+  }, []);
+
+  const handleCerrarPerfil = useCallback(() => {
+    setPerfilAjenoId(null);
+  }, []);
 
   // Mientras se valida el token guardado no se muestra ni el login ni la app:
   // aparecería el login un instante y luego saltaría a la app.
@@ -162,21 +179,34 @@ export const App: React.FC = () => {
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 pt-6">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* COLUMNA PRINCIPAL: FORMULARIO DE POST Y FEED */}
+          {/* COLUMNA PRINCIPAL: PERFIL AJENO O, SI NO HAY NINGUNO, FORMULARIO Y FEED */}
           <section className="lg:col-span-7 space-y-4">
-            <CreatePostForm
-              currentUserId={currentUserId}
-              currentUsername={currentUsername}
-              onPostCreated={loadAllData}
-            />
-
-            {loading ? (
-              <div className="bg-white rounded-xl p-8 text-center border border-slate-200 shadow-xs">
-                <div className="animate-spin w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full mx-auto mb-3" />
-                <p className="text-xs text-slate-500 font-medium">Cargando publicaciones...</p>
-              </div>
+            {perfilAjenoId !== null ? (
+              <PerfilAjeno
+                usuarioId={perfilAjenoId}
+                viewerId={currentUserId}
+                viewerUsername={currentUsername}
+                onCerrar={handleCerrarPerfil}
+                onNetworkUpdated={loadAllData}
+                onOpenPerfil={handleOpenPerfil}
+              />
             ) : (
-              <FeedList posts={posts} currentUserId={currentUserId} />
+              <>
+                <CreatePostForm
+                  currentUserId={currentUserId}
+                  currentUsername={currentUsername}
+                  onPostCreated={loadAllData}
+                />
+
+                {loading ? (
+                  <div className="bg-white rounded-xl p-8 text-center border border-slate-200 shadow-xs">
+                    <div className="animate-spin w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full mx-auto mb-3" />
+                    <p className="text-xs text-slate-500 font-medium">Cargando publicaciones...</p>
+                  </div>
+                ) : (
+                  <FeedList posts={posts} currentUserId={currentUserId} />
+                )}
+              </>
             )}
           </section>
 
@@ -187,6 +217,7 @@ export const App: React.FC = () => {
               filas={red}
               currentUserId={currentUserId}
               onNetworkUpdated={loadAllData}
+              onOpenPerfil={handleOpenPerfil}
             />
 
             {/* Conexiones en común con otra persona */}

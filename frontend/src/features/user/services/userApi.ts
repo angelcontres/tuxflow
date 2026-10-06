@@ -1,4 +1,5 @@
 import { Usuario } from '../types/user.types';
+import { Post } from '../../feed/types/post.types';
 import { api } from '../../../shared/api/client';
 
 export const fetchUsuario = async (userId: string): Promise<Usuario> => {
@@ -20,5 +21,38 @@ export const uploadAvatar = async (file: File, userId?: string): Promise<{ avata
       'Content-Type': 'multipart/form-data',
     },
   });
+  return response.data;
+};
+
+/**
+ * Publicaciones de una persona, de la más nueva a la más antigua.
+ *
+ * El endpoint las devuelve ya ordenadas por fecha de creación, y el orden es parte de lo que el
+ * perfil promete, así que el cliente no reordena: una lista que se reordena en el navegador puede
+ * discrepar de la del servidor en cuanto las dos consultas se mezclan.
+ *
+ * `viewerId` es opcional y sólo cambia el campo `likedByMe` de cada publicación, que es lo que
+ * permite pintar la reacción ya puesta cuando el perfil ajeno ya tenía un like de esta sesión. Sin
+ * él, las publicaciones llegan sin la reacción marcada.
+ *
+ * El error se deja propagar: el componente que llama sabe distinguir "no publicó nada" (200 con
+ * lista vacía) de "no se pudo consultar", y no puede hacerlo si aquí se convierte todo en [].
+ */
+export const fetchPostsDeUsuario = async (userId: string, viewerId?: string): Promise<Post[]> => {
+  const response = await api.get<Post[]>(`/posts/autor/${userId}`, {
+    params: viewerId ? { viewerId } : undefined,
+  });
+  return response.data;
+};
+
+/**
+ * Personas que siguen a un perfil.
+ *
+ * Es la inversa de `fetchSeguidos`, y no su alias: mismo par de nodos, arista leída al revés. La
+ * respuesta no lleva el correo ni la suscripción de nadie, porque quien la pide está mirando la
+ * red de otra persona y no necesita ninguno de los dos.
+ */
+export const fetchSeguidores = async (userId: string): Promise<Usuario[]> => {
+  const response = await api.get<Usuario[]>(`/users/${userId}/followers`);
   return response.data;
 };
