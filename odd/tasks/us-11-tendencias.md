@@ -9,9 +9,9 @@
 
 ## Objetivo
 
-Ver las 10 publicaciones más populares creadas en los últimos 7 días dentro del círculo extendido a 1
-y 2 saltos, ordenadas por **puntuación neta (likes − dislikes)**, en `GET /api/posts/tendencias/{userId}`
-y en un widget de la barra lateral derecha.
+Ver las 5 publicaciones más populares (top 5, **D6**) creadas en los últimos 7 días dentro del
+círculo extendido a 1 y 2 saltos, ordenadas por **puntuación neta (likes − dislikes)**, en
+`GET /api/posts/tendencias/{userId}` y en un widget de la barra lateral derecha.
 
 ## Estado inicial verificado (rama limpia en `1a22b98`)
 
@@ -48,6 +48,10 @@ Falta:
 - **D5 — Entrega**: `single-pr` con `size:exception` registrado — `openspec/changes/us-11-tendencias/tasks.md`
   declara `Estrategia de entrega: single-pr · Límite de revisión: 800 líneas`. Pronóstico actual
   ~600 líneas autorizadas (< 800). Revocable por el usuario antes del primer commit si quiere split.
+- **D6 — Top 5 en lugar de top 10**, decidida por el usuario el 2026-10-06: el contenedor de la
+  tarjeta de tendencias debe llegar a 5 filas, no a 10 (`LIMIT 5` en la query). Supera el límite 10
+  que D1 preservaba del ticket; el comportamiento de la lista estática (sin refresco por like ni por
+  follow) también fue confirmado por el usuario como correcto.
 
 ## Tareas
 
@@ -55,7 +59,8 @@ Falta:
 
 - [x] B1.1 Adaptar la Cypher: `WITH DISTINCT` por reactor+tipo, `likes`, `dislikes`,
       `puntuacionNeta = likes − dislikes`, `totalReacciones = likes + dislikes`,
-      `ORDER BY puntuacionNeta DESC, totalReacciones DESC`, `LIMIT 10`.
+      `ORDER BY puntuacionNeta DESC, totalReacciones DESC`, `LIMIT 5` (D6; era 10 hasta el
+      2026-10-06, cambio con test RED → GREEN).
 - [x] B1.2 Añadir `AND autor <> u` (autor propio excluido) y `AND p.fechaCreacion IS NOT NULL`.
 - [x] B1.3 Proyectar los campos nuevos en el `Map` de retorno (longs).
 - [x] B1.4 `cd backend && mvn compile`
@@ -75,9 +80,10 @@ Falta:
 - [x] S1.2 Reacciones LIKES y DISLIKES sobre esos posts, con rankings variados para la neta.
 - [x] S1.3 Verificar que `carlos-patino` tiene posts en ventana con likes y dislikes.
       Evidencia (Neo4j 5.20 real, seed cargado con `docker/seed.sh --wipe`): 50 posts,
-      167 reacciones (123 likes / 44 dislikes); la query da exactamente el top 10 previsto
+      167 reacciones (123 likes / 44 dislikes); la query dio exactamente el top 10 previsto
       (t15, t43, t08/t31, t01, t02, b1/t03, t33, t21 — puestos 3-4 y 7-8 empatados a la par,
-      ambos siempre dentro); puesto 11 = t32 (neto 1, total 1) cortado por el LIMIT 10;
+      ambos siempre dentro); puesto 11 = t32 (neto 1, total 1) cortado por el `LIMIT 10` de
+      esa fecha (tras D6 el corte es el top 5, re-verificado en V.4);
       0 posts de angel/elena/carlos y 0 posts antiguos en la lista; t46/t47 sin reacciones
       ausentes. Verificación documentada al final del propio seed (sección 9).
 
@@ -117,6 +123,15 @@ Falta:
       resueltos por total 5>3) y sin `carlos-patino` como autor. Edades reales de Neo4j: los 10
       devueltos tienen ≤5 días (b1/t15/t43/t01/t02 = 0.1d); `post-t13` y `post-t27` (14 días,
       **neta 5** — empatarían con el puesto 1) existen y **no aparecen**: la ventana de 7 días filtra.
+- [x] V.4 Re-verificación tras **D6** (2026-10-06): foco `mvn -Dtest=Neo4jGrafoAdapterTendenciasTest
+      test` → 10/10 (incluye `elRankingSeRecortaACinco`, escrita en RED y pasada en GREEN) y
+      `mvn -B verify` → **BUILD SUCCESS** (Spotless aplicado al test nuevo, SpotBugs 0). Backend
+      reiniciado con el jar nuevo: `GET /api/posts/tendencias/carlos-patino` → **HTTP 200 con
+      exactamente 5 posts**, neta 4,4,4,4,3 — y el ranking completo a mano (`LIMIT 7`) confirma
+      que el set devuelto es el top 5 real. Nota: la base viva ya no es la del seed fresco
+      (aparece `elena` porque `paulo`/`david` la siguen ahora y varias reacciones cambiaron
+      durante las pruebas manuales de UI): el ranking se calcula en vivo por diseño, y el
+      `docker/neo4j-seed.cql` documenta la línea base de una carga limpia.
 
 ## Commits (unidades de trabajo, misma PR)
 
@@ -133,15 +148,20 @@ Falta:
   y los 9 tests de componente. Rollback: `TrendingSidebar.*`, `fetchTendencias` + `Tendencia`,
   el cableado en `App.tsx` y el ajuste del mock en `App.test.tsx`.
 - Docs (este archivo): commit aparte porque el documento registra los hashes anteriores.
+- `0615e3a` `feat(US-11): limita el ranking de tendencias a top 5 (D6)` — adapter + test
+  (RED → GREEN) + comentarios del seed + spec de OpenSpec: +39/−29 (68 autorizadas). Foco:
+  `mvn -Dtest=Neo4jGrafoAdapterTendenciasTest test` (10/10) y `mvn -B verify` (V.4, BUILD
+  SUCCESS). Rollback: `git revert 0615e3a`.
 
-**Recuento de entrega (D5)**: 636 líneas autorizadas (613+ / 23−) sobre 3 commits → excede 400,
-dentro del `size:exception` de 800 registrado en D5. Estrategia: **single-pr**, una sola PR con los
-3 commits de código + docs. RDD del clon está **off** (`gentle-ai review mode status`), por lo que
-no corrió review nativo: los checks son los funcionales anteriores.
+**Recuento de entrega (D5)**: 704 líneas autorizadas (652+ / 52−) sobre 4 commits de código +
+docs → excede 400, dentro del `size:exception` de 800 registrado en D5. Estrategia: **single-pr**,
+una sola PR con los 4 commits de código + docs. RDD del clon está **off**
+(`gentle-ai review mode status`), por lo que no corrió review nativo: los checks son los
+funcionales anteriores.
 
 ## Criterios de aceptación
 
-- El cURL devuelve publicaciones (no lista vacía) con el top 10 por puntuación neta de 7 días.
+- El cURL devuelve publicaciones (no lista vacía) con el **top 5** (D6) por puntuación neta de 7 días.
 - Los totales cuentan personas distintas, sin multiplicar por caminos.
 - El usuario no aparece como autor de su propia tendencia.
 - La barra lateral muestra tendencias sobre sugerencias, y vacío ≠ error.
