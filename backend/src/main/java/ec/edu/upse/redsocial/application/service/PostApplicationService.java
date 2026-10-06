@@ -17,13 +17,19 @@ public class PostApplicationService implements CrearPostUseCase {
 
     @Inject NotificationPushPort notificationPushPort;
 
+    @Inject ec.edu.upse.redsocial.domain.port.in.InAppNotificationUseCase inAppNotificationUseCase;
+
     @Override
     public String crearPost(String autorId, String autorUsername, String texto, String mediaUrl) {
         String postId = UUID.randomUUID().toString();
         grafoPersistencePort.crearPost(autorId, postId, texto, mediaUrl);
 
         // Notificación Web Push a seguidores mediante el puerto de salida
-        notificationPushPort.notificarSeguidoresNuevoPost(autorId, autorUsername, texto);
+        notificationPushPort.notificarSeguidoresNuevoPost(autorId, autorUsername, texto, postId);
+
+        // Notificación In-App
+        inAppNotificationUseCase.notificarSeguidoresNuevoPost(
+                autorId, autorUsername, texto, postId);
 
         return postId;
     }
@@ -33,13 +39,23 @@ public class PostApplicationService implements CrearPostUseCase {
         // El like es idempotente y excluyente con el dislike: repetir la llamada no duplica la
         // relación y borra la contraria. El estado devuelto permite que la tarjeta concilie ambos
         // contadores con el dato real del grafo.
-        return grafoPersistencePort.registrarLike(userId, postId);
+        EstadoReaccion estado = grafoPersistencePort.registrarLike(userId, postId);
+
+        // Notificación In-App al autor del post
+        inAppNotificationUseCase.notificarNuevaReaccion(userId, postId, "LIKE");
+
+        return estado;
     }
 
     @Override
     public EstadoReaccion reaccionarDislike(String userId, String postId) {
         // Espejo del like con tipo DISLIKE: el estado devuelto trae ambos totales.
-        return grafoPersistencePort.registrarDislike(userId, postId);
+        EstadoReaccion estado = grafoPersistencePort.registrarDislike(userId, postId);
+
+        // Notificación In-App al autor del post
+        inAppNotificationUseCase.notificarNuevaReaccion(userId, postId, "DISLIKE");
+
+        return estado;
     }
 
     @Override

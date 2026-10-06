@@ -53,6 +53,21 @@ vi.mock('./features/chat/services/chatSocket', () => ({
   chatSocketManager: { connect: vi.fn(), disconnect: vi.fn(), sendMessage: vi.fn() },
 }));
 
+// El centro de notificaciones abre un EventSource real, y jsdom no implementa
+// esa API: el useEffect revienta al montar y tumba el árbol entero. Esta
+// prueba es del feed, así que el canal en vivo no aporta nada y el componente
+// se aísla completo.
+vi.mock('./features/notifications/components/NotificationCenter', () => ({
+  NotificationCenter: () => null,
+}));
+
+// El registro de Web Push pide la clave VAPID al backend al montar la App. Se
+// aísla para no arrastrar el cliente HTTP real (que exige getToken del authApi
+// mockeado) ni el permiso de notificaciones del navegador.
+vi.mock('./features/notifications/services/pushService', () => ({
+  initWebPush: vi.fn().mockResolvedValue(undefined),
+}));
+
 const sesionMock = vi.mocked(restoreSession);
 const feedMock = vi.mocked(fetchFeedBySocialGraph);
 const likeMock = vi.mocked(likePost);
