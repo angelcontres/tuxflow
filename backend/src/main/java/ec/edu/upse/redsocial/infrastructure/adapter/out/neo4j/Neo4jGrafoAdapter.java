@@ -406,17 +406,45 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
         //
         // Con `.milliseconds` el síntoma es idéntico al original: sigue devolviendo vacío, y lo
         // peor es que el Cypher parece correcto al leerlo.
+        //
+        // El ranking NO es el de la Cypher 5 obligatoria del ticket, que ordena por total de
+        // reacciones: la decisión de producto (TUX-62) es la **puntuación neta**, likes menos
+        // dislikes, para que un post polémico no encabece la lista por volumen solo. Se conserva
+        // el esqueleto de la consulta obligatoria —mismo MATCH de 1 a 2 saltos, misma ventana—
+        // y `totalReacciones` viaja en el RETURN para el criterio de aceptación. El límite baja
+        // de 10 a 5 (decisión D6): la tarjeta de la barra lateral pinta un top 5.
+        //
+        // Dos salvaguardas sobre los datos:
+        //   * `WITH DISTINCT p, autor, reactor, r.tipo` es lo que impide que la multiplicidad de
+        //     caminos del `*1..2` duplique los totales: sin ese DISTINCT, un autor alcanzable por
+        //     dos rutas contaría cada reacción dos veces, y el error crecería justo con la
+        //     conectividad del autor.
+        //   * `autor <> u` excluye al usuario de su propia ventana. El recorrido arranca en el
+        //     usuario, así que cualquier ciclo lo vuelve alcanzable de sí mismo y sus propias
+        //     reacciones inflarían su propio ranking.
         String cypher =
                 """
             MATCH (u:Usuario {id: $userId})-[:SIGUE*1..2]->(autor:Usuario)-[:PUBLICA]->(p:Post)
-            WHERE p.fechaCreacion >= datetime().epochMillis - duration('P7D').days * 86400000
-            MATCH (reactor:Usuario)-[:REACCIONA {tipo: 'LIKE'}]->(p)
+            WHERE autor <> u
+              AND p.fechaCreacion IS NOT NULL
+              AND p.fechaCreacion >= datetime().epochMillis - duration('P7D').days * 86400000
+            MATCH (reactor:Usuario)-[r:REACCIONA]->(p)
+            WITH DISTINCT p, autor, reactor, r.tipo AS tipo
+            WITH p, autor,
+                 sum(CASE WHEN tipo = 'LIKE' THEN 1 ELSE 0 END) AS likes,
+                 sum(CASE WHEN tipo = 'DISLIKE' THEN 1 ELSE 0 END) AS dislikes
+            WITH p, autor, likes, dislikes,
+                 likes - dislikes AS puntuacionNeta,
+                 likes + dislikes AS totalReacciones
             RETURN p.id AS id,
                    p.texto AS texto,
                    autor.username AS autor,
-                   count(DISTINCT reactor) AS totalReacciones
-            ORDER BY totalReacciones DESC
-            LIMIT 10;
+                   likes,
+                   dislikes,
+                   totalReacciones,
+                   puntuacionNeta
+            ORDER BY puntuacionNeta DESC, totalReacciones DESC
+            LIMIT 5;
             """;
 
         try (var session = driver.session()) {
@@ -430,7 +458,10 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                             item.put("id", record.get("id").asString());
                             item.put("texto", record.get("texto").asString());
                             item.put("autor", record.get("autor").asString());
+                            item.put("likes", record.get("likes").asLong());
+                            item.put("dislikes", record.get("dislikes").asLong());
                             item.put("totalReacciones", record.get("totalReacciones").asLong());
+                            item.put("puntuacionNeta", record.get("puntuacionNeta").asLong());
                             trends.add(item);
                         }
                         return trends;

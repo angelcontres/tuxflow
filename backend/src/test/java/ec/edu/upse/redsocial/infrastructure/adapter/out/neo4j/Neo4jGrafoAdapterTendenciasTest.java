@@ -76,19 +76,22 @@ class Neo4jGrafoAdapterTendenciasTest {
         return Values.parameters("propiedad", (Object) contenido).get("propiedad").asLong();
     }
 
-    private Record fila(String id, String texto, String autor, long reacciones) {
+    private Record fila(String id, String texto, String autor, long likes, long dislikes) {
         Record record = mock(Record.class);
         when(record.get("id")).thenReturn(valor(id));
         when(record.get("texto")).thenReturn(valor(texto));
         when(record.get("autor")).thenReturn(valor(autor));
-        when(record.get("totalReacciones")).thenReturn(Values.value(reacciones));
+        when(record.get("likes")).thenReturn(Values.value(likes));
+        when(record.get("dislikes")).thenReturn(Values.value(dislikes));
+        when(record.get("totalReacciones")).thenReturn(Values.value(likes + dislikes));
+        when(record.get("puntuacionNeta")).thenReturn(Values.value(likes - dislikes));
         return record;
     }
 
     private String cypherDeTendencias() {
         filasDevueltas(
-                fila("post-1", "Popular", "beatriz", 9),
-                fila("post-2", "Menos popular", "paulo", 3));
+                fila("post-1", "Popular", "beatriz", 9, 0),
+                fila("post-2", "Menos popular", "paulo", 3, 0));
         adapter.obtenerTendenciasRedExtendida("carlos-patino");
 
         ArgumentCaptor<String> cypher = ArgumentCaptor.forClass(String.class);
@@ -135,37 +138,97 @@ class Neo4jGrafoAdapterTendenciasTest {
     }
 
     @Test
-    @DisplayName("las reacciones se cuentan por tipo y sin multiplicar por caminos")
-    void cuentaLasReaccionesComoPersonas() {
+    @DisplayName("el ranking es la puntuación neta, no el total de reacciones")
+    void elRankingEsLaPuntuacionNeta() {
         String consulta = cypherDeTendencias();
 
-        // US-06 hizo que like y dislike sean excluyentes: sin el filtro por tipo, un dislike cuenta
-        // como un like. Y con dos OPTIONAL MATCH, `count` a secas multiplicaría los totales.
+        // Decisión de producto de TUX-62: likes menos dislikes. Un post con muchos dislikes no
+        // debe encabezar la lista aunque su volumen de reacciones sea alto.
         assertTrue(
-                consulta.contains("{tipo: 'LIKE'}"),
-                "No filtra las reacciones por tipo: " + consulta);
+                consulta.contains("likes - dislikes AS puntuacionNeta"),
+                "No calcula la puntuación neta: " + consulta);
         assertTrue(
-                consulta.contains("count(DISTINCT reactor)"),
-                "Cuenta filas, no personas: " + consulta);
-        assertFalse(
-                consulta.contains("count(reactor)"),
-                "El conteo multiplica por caminos: " + consulta);
+                consulta.contains("ORDER BY puntuacionNeta DESC"),
+                "No ordena por la puntuación neta: " + consulta);
+        // El total de reacciones sigue viajando en el RETURN por el criterio de aceptación.
+        assertTrue(
+                consulta.contains("likes + dislikes AS totalReacciones"),
+                "No expone el total de reacciones: " + consulta);
     }
 
     @Test
-    @DisplayName("devuelve las tendencias con el total de reacciones de cada publicación")
+    @DisplayName("el ranking se recorta a los primeros 5")
+    void elRankingSeRecortaACinco() {
+        String consulta = cypherDeTendencias();
+
+        // Decisión D6 (usuario, 2026-10-06): la tarjeta de la barra lateral pinta un top 5,
+        // no el top 10 del ticket, para que el contenedor no crezca a diez filas.
+        assertTrue(
+                consulta.contains("LIMIT 5"),
+                "No recorta el ranking a los primeros 5: " + consulta);
+        assertFalse(consulta.contains("LIMIT 10"), "Sigue cortando en 10: " + consulta);
+    }
+
+    @Test
+    @DisplayName("el conteo no filtra por tipo ni multiplica por caminos")
+    void elConteoNoFiltraPorTipoNiMultiplica() {
+        String consulta = cypherDeTendencias();
+
+        // US-06 hizo que like y dislike sean excluyentes; la neta necesita AMBOS tipos, así que el
+        // filtro {tipo: 'LIKE'} de la consulta anterior desaparece y el tipo pasa a alimentar dos
+        // sumas condicionadas sobre filas ya desduplicadas.
+        assertFalse(
+                consulta.contains("{tipo: 'LIKE'}"),
+                "Filtra por tipo y descarta los dislikes: " + consulta);
+        assertTrue(
+                consulta.contains("WITH DISTINCT p, autor, reactor, r.tipo"),
+                "No desduplica reactor y tipo: la multiplicidad de caminos duplicaría los "
+                        + "totales: "
+                        + consulta);
+        assertFalse(
+                consulta.contains("count(reactor)"),
+                "Cuenta filas con caminos repetidos: " + consulta);
+    }
+
+    @Test
+    @DisplayName("el usuario no aparece como autor de su propia tendencia")
+    void excluyeAlUsuarioComoAutor() {
+        String consulta = cypherDeTendencias();
+
+        assertTrue(
+                consulta.contains("autor <> u"),
+                "No excluye al usuario de su propia ventana: " + consulta);
+    }
+
+    @Test
+    @DisplayName("las publicaciones sin fecha se excluyen en lugar de romper la ventana")
+    void excluyeLasPublicacionesSinFecha() {
+        String consulta = cypherDeTendencias();
+
+        assertTrue(
+                consulta.contains("p.fechaCreacion IS NOT NULL"),
+                "No descarta los posts sin fecha antes de comparar: " + consulta);
+    }
+
+    @Test
+    @DisplayName("devuelve las tendencias con likes, dislikes, total y puntuación neta")
     void devuelveLasTendenciasConSusTotales() {
         filasDevueltas(
-                fila("post-1", "Popular", "beatriz", 9),
-                fila("post-2", "Menos popular", "paulo", 3));
+                fila("post-1", "Popular", "beatriz", 9, 2),
+                fila("post-2", "Menos popular", "paulo", 3, 0));
 
         List<Map<String, Object>> resultado =
                 adapter.obtenerTendenciasRedExtendida("carlos-patino");
 
         assertEquals(2, resultado.size());
         assertEquals("post-1", resultado.get(0).get("id"));
-        assertEquals(9L, resultado.get(0).get("totalReacciones"));
         assertEquals("beatriz", resultado.get(0).get("autor"));
+        assertEquals(9L, resultado.get(0).get("likes"));
+        assertEquals(2L, resultado.get(0).get("dislikes"));
+        assertEquals(11L, resultado.get(0).get("totalReacciones"));
+        assertEquals(7L, resultado.get(0).get("puntuacionNeta"));
+        assertEquals("post-2", resultado.get(1).get("id"));
+        assertEquals(3L, resultado.get(1).get("puntuacionNeta"));
     }
 
     @Test
