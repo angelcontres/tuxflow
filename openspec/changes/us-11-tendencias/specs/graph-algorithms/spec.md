@@ -98,20 +98,20 @@ NO DEBE incluir publicaciones del propio usuario.
 
 ---
 
-### Requirement: Limitar el resultado a diez publicaciones ordenadas
+### Requirement: Limitar el resultado a cinco publicaciones ordenadas
 
-El sistema DEBE devolver como máximo diez publicaciones, ordenadas de mayor a menor total de
-reacciones.
+El sistema DEBE devolver como máximo cinco publicaciones, ordenadas por puntuación neta
+(likes − dislikes) de mayor a menor, con el total de reacciones como desempate.
 
-#### Scenario: Más de diez publicaciones candidatas
+#### Scenario: Más de cinco publicaciones candidatas
 
-- **WHEN** se solicitan las tendencias con más de diez publicaciones candidatas
-- **THEN** se devuelven como máximo diez
-- **AND** están ordenadas de mayor a menor total de reacciones
+- **WHEN** se solicitan las tendencias con más de cinco publicaciones candidatas
+- **THEN** se devuelven como máximo cinco
+- **AND** están ordenadas por puntuación neta DESC (desate por total de reacciones DESC)
 
-#### Scenario: Menos de diez publicaciones candidatas
+#### Scenario: Menos de cinco publicaciones candidatas
 
-- **WHEN** se solicitan las tendencias con menos de diez publicaciones candidatas
+- **WHEN** se solicitan las tendencias con menos de cinco publicaciones candidatas
 - **THEN** se devuelven todas las disponibles
 - **AND** no se inventan ni se completan resultados
 

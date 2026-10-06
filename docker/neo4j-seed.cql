@@ -155,9 +155,9 @@ CREATE (angel)-[:REACCIONA {tipo: 'LIKE', fecha: datetime().epochMillis - 710000
 
 // 7. Publicaciones de tendencias (US-11 / TUX-62): 47 posts más, para un total de 50.
 //
-// Por qué tantos: GET /api/posts/tendencias/{userId} devuelve TOP 10 con orden por
+// Por qué tantos: GET /api/posts/tendencias/{userId} devuelve TOP 5 con orden por
 // puntuación neta (likes - dislikes) y desempate por total de reacciones. Con tres posts
-// no hay forma de ver el ranking ni comprobar que el LIMIT 10 recorta. El diseño de los
+// no hay forma de ver el ranking ni comprobar que el LIMIT 5 recorta. El diseño de los
 // datos está pensado para la ventana de `carlos-patino`, cuyo grafo de 1 a 2 saltos es
 // {beatriz, paulo, david} (sigue a beatriz y paulo; beatriz y paulo siguen a david).
 //
@@ -296,25 +296,21 @@ CREATE (u)-[:REACCIONA {tipo: tipo, fecha: datetime().epochMillis - 7200000}]->(
 // ==============================================================================
 //
 // Resultado real de GET /api/posts/tendencias/carlos-patino tras cargar este seed
-// (Neo4j 5.20, orden por puntuación neta DESC y desempate por total DESC):
+// (Neo4j 5.20, orden por puntuación neta DESC, desempate por total DESC, LIMIT 5):
 //
 //   1. post-t15  david    5 likes  0 dislikes  neto 5   (1 h)
 //   2. post-t43  beatriz  4 likes  0 dislikes  neto 4   (1 h)
-//   3. post-t08  paulo    4 likes  1 dislike   neto 3   (5 d)   ---\
-//   4. post-t31  beatriz  4 likes  1 dislike   neto 3   (12 h)   | empate neto 3,
-//   5. post-t01  beatriz  3 likes  0 dislikes  neto 3   (1 h)   ---/ total 5: el orden
-//                                                                entre 3 y 4 puede
-//                                                                variar; el par entra
-//                                                                siempre completo.
-//   6. post-t02  paulo    3 likes  1 dislike   neto 2   (3 h)
-//   7. post-b1   beatriz  2 likes  0 dislikes  neto 2   (2 h)  ---| mismo neto 2 y
-//   8. post-t03  david    2 likes  0 dislikes  neto 2   (12 h) ---| total 2: orden
-//                                                                 libre, ambos dentro.
-//   9. post-t33  david    3 likes  2 dislikes  neto 1   (2 d)
-//  10. post-t21  david    2 likes  1 dislike   neto 1   (4 d)
+//   3. post-t31  beatriz  4 likes  1 dislike   neto 3   (12 h)  ---\ empate neto 3 y
+//   4. post-t08  paulo    4 likes  1 dislike   neto 3   (5 d)    | total 5: el orden
+//                                                                | entre 3 y 4 puede
+//   5. post-t01  beatriz  3 likes  0 dislikes  neto 3   (1 h)   ---/ variar; los tres
+//                                                                entran siempre (el
+//                                                                desempate pone a t01
+//                                                                después: total 3 < 5).
 //
-// El puesto 11 es post-t32 (neto 1, total 1): el corte del LIMIT 10 cae entre dos
-// posts de neto 1 con totales distintos (3 vs. 1), así que la lista es determinista.
+// El corte del LIMIT 5 cae entre post-t01 (neto 3) y post-t02 (neto 2): sin empate en la
+// frontera la lista es determinista. Cuando el límite era 10, el puesto 6 era post-t02
+// (neto 2) y el 11 post-t32 (neto 1, total 1); ambos quedan fuera ahora.
 //
 // Y lo que NO debe aparecer, comprobado con los mismos datos:
 //   * post-t13 / post-t27 (neto 5 pero de hace 14 días) y post-t14 / post-t26

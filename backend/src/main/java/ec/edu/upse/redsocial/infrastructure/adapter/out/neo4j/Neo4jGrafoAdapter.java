@@ -410,8 +410,9 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
         // El ranking NO es el de la Cypher 5 obligatoria del ticket, que ordena por total de
         // reacciones: la decisión de producto (TUX-62) es la **puntuación neta**, likes menos
         // dislikes, para que un post polémico no encabece la lista por volumen solo. Se conserva
-        // el esqueleto de la consulta obligatoria —mismo MATCH de 1 a 2 saltos, misma ventana,
-        // mismo LIMIT 10— y `totalReacciones` viaja en el RETURN para el criterio de aceptación.
+        // el esqueleto de la consulta obligatoria —mismo MATCH de 1 a 2 saltos, misma ventana—
+        // y `totalReacciones` viaja en el RETURN para el criterio de aceptación. El límite baja
+        // de 10 a 5 (decisión D6): la tarjeta de la barra lateral pinta un top 5.
         //
         // Dos salvaguardas sobre los datos:
         //   * `WITH DISTINCT p, autor, reactor, r.tipo` es lo que impide que la multiplicidad de
@@ -443,7 +444,7 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                    totalReacciones,
                    puntuacionNeta
             ORDER BY puntuacionNeta DESC, totalReacciones DESC
-            LIMIT 10;
+            LIMIT 5;
             """;
 
         try (var session = driver.session()) {

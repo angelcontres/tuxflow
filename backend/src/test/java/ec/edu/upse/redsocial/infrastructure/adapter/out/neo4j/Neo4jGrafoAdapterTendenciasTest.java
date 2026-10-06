@@ -157,6 +157,19 @@ class Neo4jGrafoAdapterTendenciasTest {
     }
 
     @Test
+    @DisplayName("el ranking se recorta a los primeros 5")
+    void elRankingSeRecortaACinco() {
+        String consulta = cypherDeTendencias();
+
+        // Decisión D6 (usuario, 2026-10-06): la tarjeta de la barra lateral pinta un top 5,
+        // no el top 10 del ticket, para que el contenedor no crezca a diez filas.
+        assertTrue(
+                consulta.contains("LIMIT 5"),
+                "No recorta el ranking a los primeros 5: " + consulta);
+        assertFalse(consulta.contains("LIMIT 10"), "Sigue cortando en 10: " + consulta);
+    }
+
+    @Test
     @DisplayName("el conteo no filtra por tipo ni multiplica por caminos")
     void elConteoNoFiltraPorTipoNiMultiplica() {
         String consulta = cypherDeTendencias();
