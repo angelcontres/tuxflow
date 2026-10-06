@@ -32,3 +32,18 @@ export interface CreatePostPayload {
   mediaUrl?: string;
   autorUsername?: string;
 }
+
+/**
+ * Fila de la lista de tendencias (US-11). El backend devuelve un Map de Cypher serializado como
+ * JSON, no una entidad Post: no hay fecha ni avatar, sí la puntuación neta (likes - dislikes) que
+ * ordena la lista y el total de reacciones que la desempata.
+ */
+export interface Tendencia {
+  id: string;
+  texto: string;
+  autor: string;
+  likes: number;
+  dislikes: number;
+  totalReacciones: number;
+  puntuacionNeta: number;
+}

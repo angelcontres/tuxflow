@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from './App';
 import { restoreSession } from './features/auth/services/authApi';
-import { fetchFeedBySocialGraph, likePost } from './features/feed/services/feedApi';
+import { fetchFeedBySocialGraph, fetchTendencias, likePost } from './features/feed/services/feedApi';
 import {
   fetchSeguidos,
   fetchSugerenciasGrafo,
@@ -30,6 +30,10 @@ vi.mock('./features/feed/services/feedApi', () => ({
   unlikePost: vi.fn(),
   undislikePost: vi.fn(),
   submitPost: vi.fn(),
+  // El widget de tendencias (US-11) monta con App: sin este stub devolviendo una
+  // promesa, resetAllMocks() en cada beforeEach lo deja en undefined y el render
+  // de App revienta con "Cannot read properties of undefined (reading 'then')".
+  fetchTendencias: vi.fn(),
 }));
 
 vi.mock('./features/network/services/networkApi', () => ({
@@ -55,6 +59,7 @@ vi.mock('./features/chat/services/chatSocket', () => ({
 
 const sesionMock = vi.mocked(restoreSession);
 const feedMock = vi.mocked(fetchFeedBySocialGraph);
+const tendenciasMock = vi.mocked(fetchTendencias);
 const likeMock = vi.mocked(likePost);
 const sugerenciasMock = vi.mocked(fetchSugerenciasGrafo);
 const seguidosMock = vi.mocked(fetchSeguidos);
@@ -137,6 +142,8 @@ function simularRedConUnfollowDeBeatriz(): void {
 describe('App (feed tras dejar de seguir)', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    // US-11: el widget de tendencias pide esto al montar con App.
+    tendenciasMock.mockResolvedValue([]);
     sesionMock.mockResolvedValue({
       id: 'carlos-patino',
       username: 'carlos',
@@ -225,6 +232,8 @@ describe('App (feed tras dejar de seguir)', () => {
 describe('App (navegación al perfil ajeno, US-12)', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    // US-11: el widget de tendencias pide esto al montar con App.
+    tendenciasMock.mockResolvedValue([]);
     sesionMock.mockResolvedValue({
       id: 'carlos-patino',
       username: 'carlos',

@@ -3,6 +3,7 @@ import { Navbar } from './shared/components/Navbar';
 import { CreatePostForm } from './features/feed/components/CreatePostForm';
 import { FeedList } from './features/feed/components/FeedList';
 import { UserSuggestionsCard } from './features/network/components/UserSuggestionsCard';
+import { TrendingSidebar } from './features/feed/components/TrendingSidebar';
 import { ConexionesComunesPanel } from './features/network/components/ConexionesComunesPanel';
 import { ChatWidget } from './features/chat/components/ChatWidget';
 import { PerfilAjeno } from './features/user/components/PerfilAjeno';
@@ -203,8 +204,11 @@ export const App: React.FC = () => {
             )}
           </section>
 
-          {/* BARRA LATERAL DERECHA: SESIÓN + SUGERENCIAS + CHAT */}
+          {/* BARRA LATERAL DERECHA: TENDENCIAS + SUGERENCIAS + CONEXIONES + CHAT */}
           <aside className="lg:col-span-5 space-y-6">
+            {/* Tendencias de la red extendida (US-11): va primero por decisión de producto */}
+            <TrendingSidebar currentUserId={currentUserId} />
+
             {/* Tu red: sugerencias + seguidos */}
             <UserSuggestionsCard
               filas={red}
