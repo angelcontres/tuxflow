@@ -1,8 +1,18 @@
 // Service Worker para Notificaciones Web Push (VAPID)
 self.addEventListener('push', (event) => {
-  const data = event.data
-    ? event.data.json()
-    : { title: 'Red Social Distribuida', body: '¡Tienes una nueva interacción!' };
+  let data = { title: 'Red Social Distribuida', body: '¡Tienes una nueva interacción!' };
+  try {
+    if (event.data) {
+      const parsed = event.data.json();
+      data = { ...data, ...parsed };
+    }
+  } catch {
+    try {
+      data.body = event.data ? event.data.text() : data.body;
+    } catch {
+      // Ignorar
+    }
+  }
 
   const options = {
     body: data.body || 'Nuevo contenido en tu red social',
@@ -12,6 +22,9 @@ self.addEventListener('push', (event) => {
     data: {
       dateOfArrival: Date.now(),
       primaryKey: 1,
+      postId: data.postId,
+      authorUsername: data.authorUsername,
+      url: data.postId ? `/posts/${data.postId}` : '/',
     },
   };
 
@@ -20,5 +33,18 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  event.waitUntil(clients.openWindow('/'));
+  const targetUrl = event.notification.data?.url || '/';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      for (const client of windowClients) {
+        if (client.url.includes(targetUrl.split('?')[0]) && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
+    }),
+  );
 });

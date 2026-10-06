@@ -1,14 +1,60 @@
-export const registerWebPush = async (vapidPublicKey: string): Promise<PushSubscription | null> => {
+import { api } from '../../../shared/api/client';
+
+export type NotificationPermissionState = 'granted' | 'denied' | 'default' | 'unsupported';
+
+export const initWebPush = async (userId: string) => {
+  try {
+    const { data } = await api.get<{ publicKey: string }>('/notifications/vapid-public-key');
+    const result = await registerWebPush(data.publicKey);
+    if (result.state === 'granted' && result.subscription) {
+      await api.post('/notifications/subscribe', { userId, subscription: result.subscription });
+    }
+  } catch (err) {
+    console.error('Error initializing web push:', err);
+  }
+};
+
+export interface RegisterResult {
+  state: NotificationPermissionState;
+  subscription: PushSubscription | null;
+  message: string;
+}
+
+export const registerWebPush = async (vapidPublicKey: string): Promise<RegisterResult> => {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-    console.warn('Web Push no soportado en este navegador');
-    return null;
+    return {
+      state: 'unsupported',
+      subscription: null,
+      message: 'Web Push no está soportado en este navegador',
+    };
   }
 
   try {
+    const permission = await Notification.requestPermission();
+    if (permission === 'denied') {
+      return {
+        state: 'denied',
+        subscription: null,
+        message:
+          'Permiso de notificaciones denegado. Puedes habilitarlo desde los ajustes del navegador.',
+      };
+    }
+    if (permission !== 'granted') {
+      return {
+        state: 'default',
+        subscription: null,
+        message: 'Permiso de notificaciones sin responder. Aún no se ha obtenido autorización.',
+      };
+    }
+
     const registration = await navigator.serviceWorker.ready;
     const existingSubscription = await registration.pushManager.getSubscription();
     if (existingSubscription) {
-      return existingSubscription;
+      return {
+        state: 'granted',
+        subscription: existingSubscription,
+        message: 'Suscripción Web Push ya registrada',
+      };
     }
 
     const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
@@ -17,11 +63,18 @@ export const registerWebPush = async (vapidPublicKey: string): Promise<PushSubsc
       applicationServerKey: convertedVapidKey,
     });
 
-    console.log('Suscripción Web Push obtenida:', subscription);
-    return subscription;
+    return {
+      state: 'granted',
+      subscription,
+      message: 'Suscripción Web Push obtenida correctamente',
+    };
   } catch (error) {
-    console.error('Fallo al suscribir a Web Push:', error);
-    return null;
+    const message = error instanceof Error ? error.message : 'Error desconocido';
+    return {
+      state: 'default',
+      subscription: null,
+      message: `Error al obtener la suscripción: ${message}`,
+    };
   }
 };
 

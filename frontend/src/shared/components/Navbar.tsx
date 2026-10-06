@@ -7,6 +7,7 @@ import {
   uploadAvatar,
 } from '../../features/user/services/userApi';
 import { getUserFacingError } from '../utils/errorMessage';
+import { NotificationCenter } from '../../features/notifications/components/NotificationCenter';
 
 interface NavbarProps {
   currentUserId: string;
@@ -152,6 +153,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Acciones de Usuario */}
           <div className="flex items-center gap-3">
+            <NotificationCenter currentUserId={currentUserId} />
             {/* Perfil del Usuario Activo */}
             <button
               onClick={() => {
