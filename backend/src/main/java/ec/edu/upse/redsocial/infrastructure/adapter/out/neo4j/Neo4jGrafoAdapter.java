@@ -1,8 +1,10 @@
 package ec.edu.upse.redsocial.infrastructure.adapter.out.neo4j;
 
 import ec.edu.upse.redsocial.domain.exception.AutorNoEncontradoException;
+import ec.edu.upse.redsocial.domain.exception.ParticipanteNoEncontradoException;
 import ec.edu.upse.redsocial.domain.exception.PostNoEncontradoException;
 import ec.edu.upse.redsocial.domain.model.EstadoReaccion;
+import ec.edu.upse.redsocial.domain.model.MensajeChat;
 import ec.edu.upse.redsocial.domain.model.Post;
 import ec.edu.upse.redsocial.domain.model.SugerenciaUsuario;
 import ec.edu.upse.redsocial.domain.model.Usuario;
@@ -963,6 +965,123 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                             list.add(res.next().get("pushJson").asString());
                         }
                         return list;
+                    });
+        }
+    }
+
+    // --- Chat 1 a 1: nodo :MensajeChat enlazado a emisor y destinatario (US-07) ---
+
+    /**
+     * Conserva el mensaje y lo enlaza a las dos personas que lo escribieron.
+     *
+     * <p>Las dos relaciones son explícitas y de roles distintos: {@code ENVIA} sale del emisor y
+     * {@code DIRIGIDO_A} llega al destinatario. Podría haberse guardado un par de propiedades
+     * {@code emisorId} y {@code destinatarioId} en el nodo y no haber creado ninguna arista, pero
+     * el grafo del proyecto se recorre con relaciones ({@code SIGUE}, {@code PUBLICA}, {@code
+     * REACCIONA}) y la estrategia declarada es index-free adjacency. Con propiedades sueltas,
+     * reconstruir una conversación obligaría a escanear todos los mensajes del sistema.
+     *
+     * <p>La marca de tiempo la fija el servidor como parámetro, no el reloj del navegador: el
+     * cliente envía la hora que tiene, y esa hora es la de su máquina.
+     */
+    @Override
+    public void guardarMensajeChat(MensajeChat mensaje) {
+        String cypher =
+                """
+            MATCH (emisor:Usuario {id: $emisorId}), (destinatario:Usuario {id: $destinatarioId})
+            CREATE (m:MensajeChat {
+                id: $id,
+                contenido: $contenido,
+                fechaEnvio: $fechaEnvio
+            })
+            CREATE (emisor)-[:ENVIA]->(m)
+            CREATE (m)-[:DIRIGIDO_A]->(destinatario)
+            RETURN m.id AS id
+            """;
+        try (var session = driver.session()) {
+            session.executeWrite(
+                    tx -> {
+                        var resultado =
+                                tx.run(
+                                        cypher,
+                                        Values.parameters(
+                                                "id",
+                                                mensaje.getId(),
+                                                "emisorId",
+                                                mensaje.getEmisorId(),
+                                                "destinatarioId",
+                                                mensaje.getDestinatarioId(),
+                                                "contenido",
+                                                mensaje.getContenido(),
+                                                "fechaEnvio",
+                                                mensaje.getTimestamp()));
+                        // Si alguno de los dos usuarios no existe, el MATCH no produce filas y el
+                        // CREATE se descarta en silencio. Sin este chequeo se respondería
+                        // "entregado" sobre un mensaje que nunca llegó a existir en el grafo.
+                        //
+                        // Se reporta el destinatario y no el emisor porque es el que puede estar
+                        // mal:
+                        // el emisor está conectado, así que existe, y un motivo que lo señale a él
+                        // mandaría al cliente a buscar un error donde no lo hay.
+                        if (!resultado.hasNext()) {
+                            throw new ParticipanteNoEncontradoException(
+                                    mensaje.getDestinatarioId());
+                        }
+                        return null;
+                    });
+        }
+    }
+
+    /**
+     * Historial de una pareja en ambos sentidos.
+     *
+     * <p>La pareja se filtra por las dos aristas a la vez y no por un par ordenado. Con {@code
+     * (emisor:Usuario {id: $usuarioA})}-[:ENVIA]->(m) y {@code (m)-[:DIRIGIDO_A]->(destinatario)}
+     * filtrando además {@code destinatario.id = $usuarioB}, la conversación saldría completa para
+     * uno de los dos participantes y vacía para el otro. No es un error visible: la consulta
+     * responde bien y el usuario ve una conversación sin burbujas.
+     *
+     * <p>Se reparten emisor y destinatario entre las variables para que la consulta no dependa de
+     * qué participante se nombró primero. El nombre de la variable no significa nada para Neo4j; lo
+     * que importa es que las dos aristas se comprueben juntas.
+     *
+     * <p>El orden va en la consulta y no en Java, siguiendo la convención del resto del archivo: en
+     * el momento de leer el resultado, los mensajes ya vienen en orden cronológico.
+     */
+    @Override
+    public List<MensajeChat> obtenerHistorialChat(String usuarioA, String usuarioB) {
+        String cypher =
+                """
+            MATCH (parte:Usuario)-[:ENVIA]->(m:MensajeChat)-[:DIRIGIDO_A]->(otra:Usuario)
+            WHERE (parte.id = $usuarioA AND otra.id = $usuarioB)
+               OR (parte.id = $usuarioB AND otra.id = $usuarioA)
+            RETURN m.id AS id,
+                   m.contenido AS contenido,
+                   m.fechaEnvio AS fecha,
+                   parte.id AS emisorId,
+                   otra.id AS destinatarioId
+            ORDER BY m.fechaEnvio ASC
+            """;
+        try (var session = driver.session()) {
+            return session.executeRead(
+                    tx -> {
+                        var resultado =
+                                tx.run(
+                                        cypher,
+                                        Values.parameters(
+                                                "usuarioA", usuarioA, "usuarioB", usuarioB));
+                        List<MensajeChat> mensajes = new ArrayList<>();
+                        while (resultado.hasNext()) {
+                            Record fila = resultado.next();
+                            MensajeChat mensaje = new MensajeChat();
+                            mensaje.setId(fila.get("id").asString());
+                            mensaje.setContenido(fila.get("contenido").asString());
+                            mensaje.setTimestamp(fila.get("fecha").asLong());
+                            mensaje.setEmisorId(fila.get("emisorId").asString());
+                            mensaje.setDestinatarioId(fila.get("destinatarioId").asString());
+                            mensajes.add(mensaje);
+                        }
+                        return mensajes;
                     });
         }
     }

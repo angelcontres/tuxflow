@@ -225,7 +225,8 @@ Comprobados en `backend/src/main/java/ec/edu/upse/redsocial/`:
 | `nombre` sin guarda de null | `Neo4jGrafoAdapter` | `obtenerSugerenciasUsuarios` y `obtenerSeguidos` devolvían el texto literal `"null"`: en el driver 5.24.0 `NullValue.asString()` no lanza. **Corregido en US-12**; la copia de US-09 en `obtenerSeguidosEnComun` ya lo tenía. |
 | Serialización de `Usuario` de dominio | `UserGraphResource` | `/follows` y `/comunes` devolvían el modelo crudo, con `password` y `pushSubscriptionJson`. **Corregido en US-12** con `UsuarioPublicoResponse`. |
 | `currentUserId` fijo en código | `frontend/src/App.tsx:13` | `'carlos-patino'`. `US-01`. |
-| `emisorId` vacío en el chat | `frontend/src/features/chat/services/chatSocket.ts:36` | `US-07`, después de `US-01`. |
+| `emisorId` vacío en el chat | `frontend/src/features/chat/services/chatSocket.ts:36` | **Corregido en US-07**: el cliente ya no lo envía y el servidor toma la identidad de la ruta de conexión, que es la única fuente fiable. |
+| Canal de chat sin autenticar | `backend/.../in/websocket/ChatWebSocket.java` | `US-07` abre `/chat/{userId}` creyendo el identificador de la ruta: cualquiera que lo adivine entra como ese usuario, lee su historial y le escribe. Es deuda de seguridad asumida de forma explícita, no un descuido: el ticket de US-07 la dejaba fuera y cerrar el canal exige un token de sesión para WebSocket que hoy no existe. |
 | Sin restricción de unicidad en reacciones | backend | Permite reaccionar dos veces; rompe el conteo de `US-11`. `US-06`. |
 | No se expone la clave pública VAPID | backend | `registerWebPush(vapidPublicKey)` nunca recibe valor. `US-08`. |
 | Llaves VAPID de ejemplo | arranque | No son claves válidas. `US-08`. |

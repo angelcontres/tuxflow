@@ -2,6 +2,7 @@ package ec.edu.upse.redsocial.domain.port.out;
 
 import ec.edu.upse.redsocial.domain.exception.PostNoEncontradoException;
 import ec.edu.upse.redsocial.domain.model.EstadoReaccion;
+import ec.edu.upse.redsocial.domain.model.MensajeChat;
 import ec.edu.upse.redsocial.domain.model.Post;
 import ec.edu.upse.redsocial.domain.model.SugerenciaUsuario;
 import ec.edu.upse.redsocial.domain.model.Usuario;
@@ -103,4 +104,30 @@ public interface GrafoPersistencePort {
     EstadoReaccion retirarDislike(String userId, String postId);
 
     List<String> obtenerSuscripcionesPushDeSeguidores(String autorId);
+
+    /**
+     * Conserva un mensaje de la conversación como nodo {@code :MensajeChat} enlazado a emisor y
+     * destinatario.
+     *
+     * <p>Los dos usuarios se localizan con {@code MATCH}, nunca con {@code MERGE}: un mensaje no
+     * crea las personas que lo escriben. Si alguno no existe, la consulta no devuelve filas y la
+     * operación falla en vez de inventar un usuario con el identificador que se le pasó.
+     *
+     * <p>El mensaje llega con identificador y marca de tiempo ya fijados por el servidor.
+     *
+     * @throws ParticipanteNoEncontradoException si el destinatario no existe en el grafo
+     */
+    void guardarMensajeChat(MensajeChat mensaje);
+
+    /**
+     * Mensajes intercambiados por una pareja, en ambos sentidos y del más antiguo al más reciente.
+     *
+     * <p>La pareja se trata como conjunto y no como par ordenado, porque una conversación no tiene
+     * dirección propia: filtrar por {@code emisor = A AND destinatario = B} devolvería el historial
+     * completo para uno de los dos participantes y vacío para el otro. Ese fallo es silencioso,
+     * porque la consulta responde bien y simplemente no hay burbujas que mostrar.
+     *
+     * @return los mensajes ordenados cronológicamente; lista vacía si la pareja nunca se escribió
+     */
+    List<MensajeChat> obtenerHistorialChat(String usuarioA, String usuarioB);
 }

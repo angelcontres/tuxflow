@@ -50,20 +50,31 @@ lo que aparenta**. Conviene separar las dos cosas antes de decidir alcance.
 
 1. Persistir cada mensaje en el grafo como nodo `MensajeChat`, con relaciones navegables hacia emisor y
    destinatario, y exponer un endpoint HTTP de historial de conversación.
-2. Validar en el backend los mensajes entrantes y cerrar la sesión cuando `@OnError` se dispara.
-3. Añadir reconexión automática con espera creciente al servicio del frontend, y exponer el estado real
+2. Validar en el backend los mensajes entrantes, acusar el resultado del envío al emisor y cerrar la
+   sesión cuando `@OnError` se dispara.
+3. Corregir el registro de sesiones, que hoy desregistra una pestaña cuando se cierra otra del mismo
+   usuario.
+4. Añadir reconexión automática con espera creciente al servicio del frontend, y exponer el estado real
    de la conexión.
-4. Convertir el distintivo de la cabecera en un indicador verde/rojo que refleje el estado real, y
-   marcar visualmente los mensajes que no pudieron entregarse.
+5. Convertir el widget en un componente flotante con indicador de estado real, y marcar visualmente
+   los mensajes que no pudieron entregarse.
+6. Cubrir el cambio con pruebas de las cuatro piezas nuevas: el Cypher, el servicio de aplicación, el
+   registro de sesiones y el comportamiento de reconexión en el cliente.
 
 ## Fuera de alcance
 
 - **Autenticación.** `currentUserId` sigue siendo un valor fijo en `App.tsx`. Este cambio lo consume
   como entrada y no inventa un mecanismo de sesión. La autenticación pertenece a `user-identity` y ya
-  está declarada como futura.
-- **Grupos, adjuntos y confirmaciones de entrega sobre el socket.** El canal es 1 a 1 y de texto plano, como dice el
+  está declarada como futura. Consecuencia asumida y registrada como deuda: el canal acepta que
+  cualquiera se anuncie como cualquier `userId`, igual que ya lo hacía antes de este change.
+- **Migrar a `quarkus-websockets-next`.** El proyecto usa la extensión JSR-356 `quarkus-websockets` y
+  el ticket pide `@ServerEndpoint`. Cambiar de extensión es una historia propia, con su propio
+  análisis de espacio de nombres y de ciclo de vida de sesión.
+- **Grupos, adjuntos e indicador de escritura.** El canal es 1 a 1 y de texto plano, como dice el
   ticket. Los adjuntos viajan por el camino de MinIO que ya existe para las publicaciones.
-- **Indicador de "escribiendo".** Es una mejora de experiencia, no un requisito del ticket.
+- **Un índice o restricción de unicidad para `:MensajeChat.id`.** El identificador lo genera el
+  servidor con `randomUUID()`, así que la colisión no es un riesgo realista. El dataset semilla es
+  compartido con otras historias y no se toca.
 
 ## Riesgos
 
@@ -72,8 +83,17 @@ lo que aparenta**. Conviene separar las dos cosas antes de decidir alcance.
 - **El historial cambia la naturaleza del endpoint.** Una conversación 1 a 1 no tiene clave única en un
   grafo: la consulta debe tratar la pareja como conjunto simétrico. Si se escribe en un solo sentido, el
   historial sale vacío para uno de los dos participantes.
-- **Tocar `App.tsx` afecta a las historias ya documentadas.** La montura del widget no se modifica; el
-  componente recibe `currentUserId` como propiedad y sigue igual.
+- **El registro de sesiones es un defecto latente, no un defecto visible.** `Map<String, Session>` con
+  `remove(userId)` sin condición desregistra la primera pestaña cuando se cierra la segunda. Pasa
+  desapercibido en las pruebas de dos identidades distintas, que es como se prueba el canal hoy. La
+  corrección cambia la estructura del registro, no solo su contenido.
+- **Tocar `App.tsx` sí ocurre, y rompe una restricción que este change se había puesto.** La
+  montura pasa del `<aside>` a un launcher flotante. El riesgo original era desplazar el layout que
+  US-09, US-10 y US-12 ya documentan; con el widget flotante ese layout deja de cambiar, y el
+  componente conserva su contrato de recibir `currentUserId` por propiedad.
+- **El alcance excede la estimación del ticket.** El ticket estima 5 Story Points y describe solo dos
+  tareas. Lo que la especificación canónica exige —persistencia, acuses, validación, historial— no cabe
+  en esa estimación. La historia se entrega con este alcance y la diferencia queda anotada, no oculta.
 
 ## Delta de especificación
 

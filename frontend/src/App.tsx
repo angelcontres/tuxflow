@@ -203,7 +203,7 @@ export const App: React.FC = () => {
             )}
           </section>
 
-          {/* BARRA LATERAL DERECHA: SESIÓN + SUGERENCIAS + CHAT */}
+          {/* BARRA LATERAL DERECHA: SESIÓN + SUGERENCIAS */}
           <aside className="lg:col-span-5 space-y-6">
             {/* Tu red: sugerencias + seguidos */}
             <UserSuggestionsCard
@@ -219,9 +219,6 @@ export const App: React.FC = () => {
               currentUsername={currentUsername}
             />
 
-            {/* Chat en Vivo por WebSocket */}
-            <ChatWidget currentUserId={currentUserId} />
-
             {/* Pie Informativo */}
             <footer className="text-center text-xs text-slate-400 py-2">
               <p>Red Social Distribuida</p>
@@ -230,6 +227,19 @@ export const App: React.FC = () => {
           </aside>
         </div>
       </main>
+
+      {/*
+        Chat en Vivo por WebSocket. Va fuera del `main` porque es flotante de verdad: se fija a la
+        esquina con `position: fixed`, así que su lugar en el DOM solo sirve para declarar que
+        pertenece a la app y no a la barra lateral. Dentro de ella seguiría leyéndose como una
+        tarjeta más del sidebar.
+
+        `key={currentUserId}` fuerza que React desmonte el widget al cambiar de usuario y monte otro
+        limpio. Sin la clave, el componente se reutilizaría con las props nuevas y su efecto de
+        conexión ni volvería a correr, dejando el socket del usuario anterior vivo durante toda la
+        sesión: los mensajes seguirían llegando al chat de quien ya cerró su sesión.
+      */}
+      <ChatWidget key={currentUserId} currentUserId={currentUserId} />
     </div>
   );
 };

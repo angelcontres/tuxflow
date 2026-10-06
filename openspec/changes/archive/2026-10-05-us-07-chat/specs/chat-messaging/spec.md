@@ -5,6 +5,8 @@
 
 ---
 
+## ADDED Requirements
+
 ### Requirement: Entregar mensajes en tiempo real entre dos usuarios conectados
 
 El sistema DEBE enrutar por el canal WebSocket cada mensaje recibido al canal del destinatario
@@ -25,6 +27,14 @@ a partir del cuerpo del mensaje.
 - **WHEN** envía un cuerpo con `emisorId` "paulo-orrala"
 - **THEN** el mensaje se entrega con `emisorId` "carlos-patino"
 - **AND** el valor del cuerpo se descarta
+
+#### Scenario: El frame que recibe el destinatario no lleva desenlace
+
+- **GIVEN** que "paulo-orrala" está conectado
+- **WHEN** "carlos-patino" le envía un mensaje
+- **THEN** el frame entregado a "paulo-orrala" no incluye el campo de estado
+- **AND** ese campo no aparece siquiera con valor nulo
+- **AND** el destinatario puede distinguirlo de un acuse por su ausencia
 
 ---
 
@@ -103,6 +113,26 @@ contenido vacío o en blanco. DEBE cerrar la sesión cuando se produzca un error
 
 ---
 
+### Requirement: Entregar a todas las sesiones del destinatario
+
+El sistema DEBE mantener un conjunto de sesiones por usuario, en lugar de una sola, y DEBE entregar el
+mensaje a todas las que estén abiertas. DEBE retirar del conjunto únicamente la sesión que se cierra, y
+eliminar la clave del usuario solo cuando no quede ninguna sesión abierta para él.
+
+#### Scenario: Dos pestañas del mismo usuario
+
+- **GIVEN** que "paulo-orrala" tiene el chat abierto en dos pestañas
+- **WHEN** se cierra una de las dos pestañas
+- **THEN** la otra pestaña sigue recibiendo mensajes
+- **AND** el usuario sigue registrado como conectado
+
+#### Scenario: Última pestaña cerrada
+
+- **WHEN** se cierra la última pestaña de un usuario
+- **THEN** ese usuario deja de estar registrado como conectado
+
+---
+
 ### Requirement: Recuperar la conexión sin intervención del usuario
 
 El cliente DEBE reintentar la conexión automáticamente cuando el socket se cierre, con espera creciente
@@ -143,3 +173,28 @@ mostrar un estado de conexión que no corresponda con el estado real.
 
 - **WHEN** el socket está cerrado
 - **THEN** el indicador no se presenta como conectado
+
+---
+
+### Requirement: Ofrecer el chat sin que el layout lo desplace
+
+La interfaz DEBE ofrecer el chat como componente flotante disponible sobre cualquier vista, y NO DEBE
+ocupar espacio fijo en la barra lateral. El componente DEBE seguir recibiendo el identificador del
+usuario conectado como propiedad.
+
+#### Scenario: El chat está disponible sobre el feed
+
+- **GIVEN** que el usuario está en la vista principal
+- **WHEN** abre el chat
+- **THEN** el panel aparece sobre la página sin desplazar el feed ni la barra lateral
+
+#### Scenario: El chat está disponible sobre un perfil ajeno
+
+- **GIVEN** que el usuario está viendo el perfil de otra persona
+- **WHEN** abre el chat
+- **THEN** el panel aparece igual que en la vista principal
+
+#### Scenario: El widget no busca la identidad por su cuenta
+
+- **WHEN** el componente se monta
+- **THEN** usa el `currentUserId` que recibe como propiedad y no lo obtiene por otra vía
