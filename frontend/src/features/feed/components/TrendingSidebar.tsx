@@ -51,10 +51,7 @@ export const TrendingSidebar: React.FC<TrendingSidebarProps> = ({ currentUserId 
         if (cancelado) return;
         setEstado({
           tipo: 'error',
-          mensaje: getUserFacingError(
-            err,
-            'No pudimos cargar las tendencias. Inténtalo de nuevo.',
-          ),
+          mensaje: getUserFacingError(err, 'No pudimos cargar las tendencias. Inténtalo de nuevo.'),
         });
       });
     return () => {
@@ -131,7 +128,9 @@ export const TrendingSidebar: React.FC<TrendingSidebarProps> = ({ currentUserId 
                           : 'text-slate-500'
                     }`}
                   >
-                    {tendencia.puntuacionNeta > 0 ? `+${tendencia.puntuacionNeta}` : tendencia.puntuacionNeta}{' '}
+                    {tendencia.puntuacionNeta > 0
+                      ? `+${tendencia.puntuacionNeta}`
+                      : tendencia.puntuacionNeta}{' '}
                     pts
                   </span>
                 </div>

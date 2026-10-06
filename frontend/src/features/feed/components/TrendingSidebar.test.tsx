@@ -38,7 +38,9 @@ describe('TrendingSidebar', () => {
 
       renderWidget();
 
-      await screen.findByText('Aún no hay tendencias en tu red. Las publicaciones más reaccionadas de la semana aparecerán aquí.');
+      await screen.findByText(
+        'Aún no hay tendencias en tu red. Las publicaciones más reaccionadas de la semana aparecerán aquí.',
+      );
       expect(tendenciasMock).toHaveBeenCalledTimes(1);
       expect(tendenciasMock).toHaveBeenCalledWith('carlos-patino');
     });
@@ -95,7 +97,13 @@ describe('TrendingSidebar', () => {
     it('muestra autor, likes, dislikes y la puntuación neta con signo', async () => {
       tendenciasMock.mockResolvedValue([
         tendencia({ autor: 'paulo', likes: 3, dislikes: 1, puntuacionNeta: 2 }),
-        tendencia({ id: 'post-t33', texto: 'Post con neta negativa', likes: 3, dislikes: 5, puntuacionNeta: -2 }),
+        tendencia({
+          id: 'post-t33',
+          texto: 'Post con neta negativa',
+          likes: 3,
+          dislikes: 5,
+          puntuacionNeta: -2,
+        }),
       ]);
 
       renderWidget();
@@ -133,7 +141,9 @@ describe('TrendingSidebar', () => {
         'No pudimos cargar las tendencias. Inténtalo de nuevo.',
       );
       expect(
-        screen.queryByText('Aún no hay tendencias en tu red. Las publicaciones más reaccionadas de la semana aparecerán aquí.'),
+        screen.queryByText(
+          'Aún no hay tendencias en tu red. Las publicaciones más reaccionadas de la semana aparecerán aquí.',
+        ),
       ).not.toBeInTheDocument();
     });
 

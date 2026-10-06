@@ -3,7 +3,11 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from './App';
 import { restoreSession } from './features/auth/services/authApi';
-import { fetchFeedBySocialGraph, fetchTendencias, likePost } from './features/feed/services/feedApi';
+import {
+  fetchFeedBySocialGraph,
+  fetchTendencias,
+  likePost,
+} from './features/feed/services/feedApi';
 import {
   fetchSeguidos,
   fetchSugerenciasGrafo,
