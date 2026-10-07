@@ -82,12 +82,28 @@ public class UserGraphResource {
      */
     static final int MINIMO_CARACTERES_BUSQUEDA = 2;
 
+    /**
+     * Perfil público de una persona.
+     *
+     * <p>Responde {@link UsuarioPublicoResponse}, que no lleva correo, y ya no lleva {@code
+     * pushSubscriptionJson}. Antes respondía {@link UsuarioResponse}, que lleva los dos, y sin
+     * pedir autenticación: cualquiera que supiera un identificador leía el correo de cualquier
+     * persona de la comunidad. Medido, no supuesto:
+     *
+     * <pre>
+     * GET /api/users/beatriz-silva  -&gt; 200  email = beatriz@upse.edu.ec
+     * </pre>
+     *
+     * <p>El correo de la sesión se lee en {@code GET /api/auth/me}, que sí exige token. Así que la
+     * información no se pierde: cambia de_endpoint, no desaparece. Y el perfil ajeno, que es lo que
+     * la interfaz pinta en pantalla, no necesita el correo de nadie.
+     */
     @GET
     @Path("/{userId}")
     public Response obtenerUsuarioPorId(@PathParam("userId") String userId) {
         return gestionarGrafoSocialUseCase
                 .obtenerUsuarioPorId(userId)
-                .map(u -> Response.ok(UsuarioResponse.from(u)).build())
+                .map(u -> Response.ok(UsuarioPublicoResponse.from(u)).build())
                 .orElse(Response.status(Response.Status.NOT_FOUND).build());
     }
 

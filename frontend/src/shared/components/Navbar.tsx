@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, Edit3, Upload, Check, AlertCircle, X, Share2, LogOut } from 'lucide-react';
 import { Usuario } from '../../features/user/types/user.types';
 import {
+  fetchMiPerfil,
   fetchUsuario,
   registerOrUpdateUsuario,
   uploadAvatar,
@@ -50,20 +51,41 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load current user profile
+  // Perfil del usuario activo, CON su correo.
+  //
+  // El correo ya no viene de `GET /users/{userId}`: ese endpoint es la lectura pública de un perfil
+  // y no puede devolver el correo de nadie, ni siquiera del propio (US-14 lo dejó de exponer). Se lee
+  // de `GET /auth/me`, que exige sesión y es donde el correo debe estar: es un dato de contacto de
+  // la cuenta, no del perfil.
+  //
+  // Si `/auth/me` falla, el perfil se degrada a lo público y el campo de correo queda vacío en vez de
+  // romper el Navbar entero: perder la edición del correo es un problema, perder la sesión es otro.
   const loadProfile = useCallback(async () => {
     try {
-      const data = await fetchUsuario(currentUserId);
-      setCurrentUserProfile(data);
-      setEditNombre(data.nombre || '');
-      setEditEmail(data.email || '');
-      setEditAvatarUrl(data.avatarUrl || '');
-    } catch {
+      const data = await fetchMiPerfil();
       setCurrentUserProfile({
         id: currentUserId,
         username: currentUsername,
-        nombre: currentUsername,
+        nombre: data.nombre || currentUsername,
+        email: data.email,
+        avatarUrl: data.avatarUrl,
       });
+      setEditNombre(data.nombre || currentUsername);
+      setEditEmail(data.email || '');
+      setEditAvatarUrl(data.avatarUrl || '');
+    } catch {
+      // Sin sesión válida el Navbar sigue vivo, sólo sin correo. El token ya lo limpia el
+      // interceptor de `client.ts` cuando el backend responde 401.
+      try {
+        const publico = await fetchUsuario(currentUserId);
+        setCurrentUserProfile(publico);
+      } catch {
+        setCurrentUserProfile({
+          id: currentUserId,
+          username: currentUsername,
+          nombre: currentUsername,
+        });
+      }
       setEditNombre(currentUsername);
       setEditEmail('');
       setEditAvatarUrl('');

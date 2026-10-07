@@ -46,6 +46,23 @@ export const fetchPostsDeUsuario = async (userId: string, viewerId?: string): Pr
 };
 
 /**
+ * Perfil de la sesión activa, con su correo.
+ *
+ * Es la única forma de leer el correo propio desde la interfaz. Antes venía de
+ * `GET /users/{currentUserId}`, que es la lectura pública de un perfil cualquiera y por eso ya no
+ * devuelve el correo de nadie: el correo es un dato de la cuenta y vive con la sesión, no con el
+ * perfil que los demás ven.
+ *
+ * Va aquí y no en `authApi` a propósito: ese módulo tiene su propio cliente axios para no reenviar el
+ * token durante el login, que es justo el caso contrario a este. Importarlo desde aquí crearía un
+ * ciclo con `shared/api/client`, que ya importa los helpers de token de `authApi`.
+ */
+export const fetchMiPerfil = async (): Promise<Usuario> => {
+  const response = await api.get<Usuario>('/auth/me');
+  return response.data;
+};
+
+/**
  * Personas que siguen a un perfil.
  *
  * Es la inversa de `fetchSeguidos`, y no su alias: mismo par de nodos, arista leída al revés. La

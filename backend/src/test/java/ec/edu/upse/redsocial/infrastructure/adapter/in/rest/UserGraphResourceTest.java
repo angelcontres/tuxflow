@@ -23,6 +23,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.jboss.resteasy.reactive.multipart.FileUpload;
@@ -520,6 +521,36 @@ class UserGraphResourceTest {
         assertTrue(
                 metodos.contains("registrarUsuario"),
                 "El registro de usuarios se cerró por error: " + metodos);
+    }
+
+    @Test
+    @DisplayName("GET /{userId} no devuelve el correo de nadie, ni siquiera del propio")
+    void elPerfilPublicoNoDevuelveElCorreo() {
+        // Este endpoint respondía UsuarioResponse, que lleva email y pushSubscriptionJson, y sin
+        // pedir autenticación. Medido antes del arreglo:
+        //   GET /api/users/beatriz-silva  ->  200  email = beatriz@upse.edu.ec
+        //
+        // El correo es un dato de la cuenta, no del perfil que ve el resto. Ahora vive en
+        // GET /api/auth/me, que exige sesión.
+        Usuario conCorreo =
+                new Usuario(
+                        "beatriz-silva", "beatriz", "beatriz@upse.edu.ec", "Beatriz Silva", null);
+        conCorreo.setPushSubscriptionJson("{\"endpoint\":\"https://fcm/secreto\"}");
+        when(gestionarGrafoSocialUseCase.obtenerUsuarioPorId("beatriz-silva"))
+                .thenReturn(Optional.of(conCorreo));
+
+        Response respuesta = resource.obtenerUsuarioPorId("beatriz-silva");
+
+        assertEquals(200, respuesta.getStatus());
+        // Un perfil es un objeto, no una lista: son las listas de seguidores y la búsqueda las que
+        // devuelven varias.
+        UsuarioPublicoResponse entity = (UsuarioPublicoResponse) respuesta.getEntity();
+        assertEquals("beatriz-silva", entity.getId());
+        assertEquals("Beatriz Silva", entity.getNombre());
+
+        String cuerpo = respuesta.getEntity().toString();
+        assertFalse(cuerpo.contains("upse.edu.ec"), "El correo se filtró: " + cuerpo);
+        assertFalse(cuerpo.contains("fcm"), "La suscripción push se filtró: " + cuerpo);
     }
 
     @Test

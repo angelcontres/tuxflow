@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+﻿import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from './App';
@@ -15,6 +15,7 @@ import {
 } from './features/network/services/networkApi';
 import {
   buscarUsuarios,
+  fetchMiPerfil,
   fetchPostsDeUsuario,
   fetchSeguidores,
   fetchUsuario,
@@ -61,6 +62,9 @@ vi.mock('./features/user/services/userApi', () => ({
   // "Cannot read properties of undefined (reading 'then')". Es el mismo motivo que el de
   // fetchTendencias en US-11.
   buscarUsuarios: vi.fn(),
+  // El Navbar lee el correo propio de /auth/me. Sin este stub, el Navbar revienta al montar con
+  // la misma ClassCastException de undefined.
+  fetchMiPerfil: vi.fn(),
 }));
 
 vi.mock('./features/chat/services/chatSocket', () => ({
@@ -95,6 +99,7 @@ const seguidoresMock = vi.mocked(fetchSeguidores);
 const caminoMock = vi.mocked(fetchCaminoCorto);
 const comunesMock = vi.mocked(fetchConexionesComunes);
 const buscarMock = vi.mocked(buscarUsuarios);
+const miPerfilMock = vi.mocked(fetchMiPerfil);
 
 function postBeatriz(overrides: Partial<Post> = {}): Post {
   return {
@@ -170,6 +175,13 @@ describe('App (feed tras dejar de seguir)', () => {
     vi.resetAllMocks();
     // US-11: el widget de tendencias pide esto al montar con App.
     tendenciasMock.mockResolvedValue([]);
+    // El Navbar pide el perfil con correo por separado: /users/{id} ya no lo devuelve.
+    miPerfilMock.mockResolvedValue({
+      id: 'carlos-patino',
+      username: 'carlos',
+      email: 'carlos@upse.edu.ec',
+      nombre: 'Carlos',
+    });
     sesionMock.mockResolvedValue({
       id: 'carlos-patino',
       username: 'carlos',
@@ -260,6 +272,13 @@ describe('App (navegación al perfil ajeno, US-12)', () => {
     vi.resetAllMocks();
     // US-11: el widget de tendencias pide esto al montar con App.
     tendenciasMock.mockResolvedValue([]);
+    // El Navbar pide el perfil con correo por separado: /users/{id} ya no lo devuelve.
+    miPerfilMock.mockResolvedValue({
+      id: 'carlos-patino',
+      username: 'carlos',
+      email: 'carlos@upse.edu.ec',
+      nombre: 'Carlos',
+    });
     sesionMock.mockResolvedValue({
       id: 'carlos-patino',
       username: 'carlos',
@@ -350,6 +369,13 @@ describe('App (búsqueda de personas, US-14)', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     tendenciasMock.mockResolvedValue([]);
+    // El Navbar pide el perfil con correo por separado: /users/{id} ya no lo devuelve.
+    miPerfilMock.mockResolvedValue({
+      id: 'carlos-patino',
+      username: 'carlos',
+      email: 'carlos@upse.edu.ec',
+      nombre: 'Carlos',
+    });
     sesionMock.mockResolvedValue({
       id: 'carlos-patino',
       username: 'carlos',
@@ -401,5 +427,65 @@ describe('App (búsqueda de personas, US-14)', () => {
 
     expect(await screen.findByLabelText(/buscar personas/i)).toBeInTheDocument();
     expect(buscarMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('App (el correo propio viene de la sesion, no del perfil publico)', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    tendenciasMock.mockResolvedValue([]);
+    // El Navbar pide el perfil con correo por separado: /users/{id} ya no lo devuelve.
+    miPerfilMock.mockResolvedValue({
+      id: 'carlos-patino',
+      username: 'carlos',
+      email: 'carlos@upse.edu.ec',
+      nombre: 'Carlos',
+    });
+    sesionMock.mockResolvedValue({
+      id: 'carlos-patino',
+      username: 'carlos',
+      email: 'carlos@upse.edu.ec',
+      nombre: 'Carlos',
+    });
+    feedMock.mockResolvedValue([]);
+    sugerenciasMock.mockResolvedValue([]);
+    seguidosMock.mockResolvedValue([]);
+    unfollowMock.mockResolvedValue(undefined);
+    postsAjenosMock.mockResolvedValue([]);
+    seguidoresMock.mockResolvedValue([]);
+    comunesMock.mockResolvedValue([]);
+    caminoMock.mockResolvedValue({ rutaConexion: [], saltosTotales: 0 });
+    buscarMock.mockResolvedValue([]);
+    perfilMock.mockResolvedValue({ id: 'carlos-patino', username: 'carlos', nombre: 'Carlos' });
+  });
+
+  it('el perfil ajeno se pinta sin el correo de otra persona', async () => {
+    // El perfil publico ya no lleva correo y `PerfilAjeno` no debe intentar mostrarlo. Es la
+    // contraparte de que `GET /users/{id}` responda `UsuarioPublicoResponse`.
+    perfilesConBeatriz();
+    buscarMock.mockResolvedValue([
+      { id: 'beatriz-silva', username: 'beatriz', nombre: 'Beatriz Silva' },
+    ]);
+    render(<App />);
+
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText(/buscar personas/i), 'beatriz');
+    await screen.findByText('Beatriz Silva', { selector: 'li *' });
+    await user.click(screen.getByRole('option', { name: /Beatriz Silva/ }));
+
+    // El nombre si aparece; el correo de otra persona, nunca.
+    expect(await screen.findByText('Beatriz Silva')).toBeInTheDocument();
+    expect(screen.queryByText('beatriz@upse.edu.ec')).not.toBeInTheDocument();
+  });
+
+  it('el Navbar sobrevive si /auth/me falla, sin tirar la sesion abajo', async () => {
+    // Perder el correo propio es un problema; perder el Navbar entero, que es por donde se entra
+    // al perfil y se cierra sesion, es otro. El token ya lo limpia el interceptor de `client.ts`
+    // cuando el backend responde 401.
+    miPerfilMock.mockRejectedValue(new Error('Network Error'));
+    render(<App />);
+
+    expect(await screen.findByLabelText(/buscar personas/i)).toBeInTheDocument();
+    expect(screen.getByTitle(/ver perfil o cambiar de sesi/i)).toBeInTheDocument();
   });
 });

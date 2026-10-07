@@ -207,23 +207,31 @@ class PerfilAjenoRutasIT {
     }
 
     @Test
-    @DisplayName(
-            "GET /api/users/{userId} del perfil propio conserva el correo y oculta la contraseña")
-    void perfilPropioConservaCorreoYOcultaContrasena() {
-        // El DTO de las listas es más estrecho a propósito. Este endpoint es el otro: es el perfil
-        // propio, se pide autenticado, y por eso sí lleva el correo. La distinción entre los dos es
-        // la razón de que existan dos DTO, así que también merece una prueba.
+    @DisplayName("GET /api/users/{userId} no filtra el correo de nadie")
+    void perfilPublicoNoFiltraElCorreo() {
+        // Antes esta prueba afirmaba lo contrario, y con razón para entonces: el perfil se pedía
+        // autenticado y por eso llevaba el correo. Pero el endpoint no exigía token, así que el
+        // correo de cualquier persona era público. Medido: sin token devolvía
+        // 200 con email = beatriz@upse.edu.ec.
+        //
+        // El correo se lee ahora en GET /api/auth/me, que sí exige sesión.
         String crudo =
                 given().when()
                         .get("/api/users/beatriz-silva")
                         .then()
                         .statusCode(200)
-                        .body("email", equalTo("beatriz@upse.edu.ec"))
+                        .body("id", equalTo("beatriz-silva"))
+                        .body("nombre", equalTo("Beatriz Silva"))
+                        .body("email", not(org.hamcrest.Matchers.hasKey("email")))
                         .body("password", not(org.hamcrest.Matchers.hasKey("password")))
+                        .body(
+                                "pushSubscriptionJson",
+                                not(org.hamcrest.Matchers.hasKey("pushSubscriptionJson")))
                         .extract()
                         .asString();
 
-        assertFalse(crudo.contains("no-debe-aparecer"), "La contraseña se filtró: " + crudo);
+        assertFalse(crudo.contains("upse.edu.ec"), "El correo se filtró: " + crudo);
+        assertFalse(crudo.contains("fcm"), "La suscripción push se filtró: " + crudo);
     }
 
     @Test
