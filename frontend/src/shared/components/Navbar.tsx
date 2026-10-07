@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { User, Edit3, Upload, Check, AlertCircle, X, Share2, LogOut } from 'lucide-react';
+import { User, Edit3, Upload, Check, AlertCircle, X, LogOut, MessageSquare, Sun, Moon, Network } from 'lucide-react';
 import { Usuario } from '../../features/user/types/user.types';
 import {
   fetchMiPerfil,
@@ -10,6 +10,14 @@ import {
 import { getUserFacingError } from '../utils/errorMessage';
 import { NotificationCenter } from '../../features/notifications/components/NotificationCenter';
 import { UserSearchBox } from '../../features/user/components/UserSearchBox';
+import { useTheme } from '../context/ThemeContext';
+import { TuxFlowLogo } from './TuxFlowLogo';
+import {
+  BANNER_THEMES,
+  getBannerTheme,
+  getUserSavedBanner,
+  saveUserBanner,
+} from '../../features/user/utils/profileStyle';
 
 interface NavbarProps {
   currentUserId: string;
@@ -24,6 +32,9 @@ interface NavbarProps {
    * sigue funcionando y sólo deja de poder abrir el perfil, en vez de romper el `Navbar` entero.
    */
   onOpenPerfil?: (usuarioId: string) => void;
+  onToggleChat?: () => void;
+  isChatOpen?: boolean;
+  onOpenGraphModal?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -32,7 +43,11 @@ export const Navbar: React.FC<NavbarProps> = ({
   onProfileUpdated,
   onLogout,
   onOpenPerfil,
+  onToggleChat,
+  isChatOpen,
+  onOpenGraphModal,
 }) => {
+  const { theme, toggleTheme } = useTheme();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'view' | 'edit'>('view');
   const [currentUserProfile, setCurrentUserProfile] = useState<Usuario | null>(null);
@@ -48,6 +63,9 @@ export const Navbar: React.FC<NavbarProps> = ({
     null,
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedBannerKey, setSelectedBannerKey] = useState<string>(() => {
+    return getUserSavedBanner(currentUserId) || 'aurora';
+  });
 
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -147,6 +165,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       };
       const updated = await registerOrUpdateUsuario(payload);
       setCurrentUserProfile(updated);
+      saveUserBanner(currentUserId, selectedBannerKey);
       setFeedback({
         type: 'success',
         message: 'Perfil actualizado correctamente.',
@@ -168,17 +187,17 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-white border-b border-slate-200 shadow-xs">
+      <header className="sticky top-0 z-40 bg-slateDark-surface border-b border-slateDark-borderSubtle shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
-          {/* Logo Simple y Base */}
+          {/* Logo TuxFlow */}
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
-              <Share2 className="w-5 h-5" />
-            </div>
+            <TuxFlowLogo className="w-9 h-9 rounded-xl shadow-xs" size={36} />
             <div>
-              <span className="font-bold text-lg text-slate-900 tracking-tight">Red Social</span>
-              <span className="hidden sm:inline-block ml-1.5 text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
-                UPSE
+              <span className="font-extrabold text-lg text-slateDark-text tracking-tight font-sans">
+                Tux<span className="text-indigo-600 dark:text-indigo-400">Flow</span>
+              </span>
+              <span className="hidden sm:inline-block ml-1.5 text-xs font-medium text-slateDark-primaryLight bg-slateDark-surfaceSubtle border border-slateDark-borderSubtle px-2 py-0.5 rounded-md">
+                Social
               </span>
             </div>
           </div>
@@ -197,7 +216,52 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
 
           {/* Acciones de Usuario */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Alternar Tema Claro / Oscuro */}
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="p-2 rounded-lg text-slateDark-textMuted hover:text-slateDark-text hover:bg-slateDark-surfaceSubtle transition-colors cursor-pointer"
+              title={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+              aria-label="Alternar tema claro y oscuro"
+            >
+              {theme === 'dark' ? (
+                <Sun className="w-5 h-5 text-amber-400" />
+              ) : (
+                <Moon className="w-5 h-5 text-indigo-600" />
+              )}
+            </button>
+
+            {/* Explorador de Grafo Social */}
+            {onOpenGraphModal && (
+              <button
+                type="button"
+                onClick={onOpenGraphModal}
+                className="p-2 rounded-lg text-slateDark-textMuted hover:text-slateDark-text hover:bg-slateDark-surfaceSubtle transition-colors cursor-pointer flex items-center gap-1.5"
+                title="Explorar Grafo Social Interactivo"
+                aria-label="Abrir explorador de grafo"
+              >
+                <Network className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                <span className="hidden sm:inline text-xs font-semibold text-slateDark-text">Grafo</span>
+              </button>
+            )}
+
+            {onToggleChat && (
+              <button
+                type="button"
+                onClick={onToggleChat}
+                className={`p-2 rounded-lg transition-colors cursor-pointer relative ${
+                  isChatOpen
+                    ? 'bg-slateDark-surfaceSubtle text-indigo-400'
+                    : 'text-slateDark-textMuted hover:text-slateDark-text hover:bg-slateDark-surfaceSubtle'
+                }`}
+                title="Mensajes directos"
+                aria-label="Abrir mensajes directos"
+              >
+                <MessageSquare className="w-5 h-5" />
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-slateDark-bg animate-pulse" />
+              </button>
+            )}
             <NotificationCenter currentUserId={currentUserId} />
             {/* Perfil del Usuario Activo */}
             <button
@@ -205,7 +269,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 setActiveTab('view');
                 setIsModalOpen(true);
               }}
-              className="flex items-center gap-2.5 p-1 sm:px-2.5 sm:py-1.5 rounded-lg hover:bg-slate-100 transition-colors text-left cursor-pointer border border-transparent hover:border-slate-200"
+              className="flex items-center gap-2.5 p-1 sm:px-2.5 sm:py-1.5 rounded-lg hover:bg-slateDark-surfaceSubtle transition-colors text-left cursor-pointer border border-transparent hover:border-slateDark-borderSubtle"
               title="Ver perfil o cambiar de sesión"
             >
               <div className="relative">
@@ -213,23 +277,23 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <img
                     src={avatarSrc}
                     alt={currentUsername}
-                    className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200"
+                    className="w-8 h-8 rounded-full object-cover ring-1 ring-slateDark-border"
                     onError={(e) => {
                       (e.target as HTMLElement).style.display = 'none';
                     }}
                   />
                 ) : (
-                  <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs">
+                  <div className="w-8 h-8 rounded-full bg-slateDark-primary text-white flex items-center justify-center font-bold text-xs">
                     {initial}
                   </div>
                 )}
-                <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white" />
+                <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-slateDark-bg" />
               </div>
               <div className="hidden sm:block">
-                <p className="text-xs font-semibold text-slate-800 leading-tight">
+                <p className="text-xs font-semibold text-slateDark-text leading-tight">
                   {currentUserProfile?.nombre || currentUsername}
                 </p>
-                <p className="text-[11px] text-slate-500">@{currentUsername}</p>
+                <p className="text-[11px] text-slateDark-textMuted">@{currentUsername}</p>
               </div>
             </button>
 
@@ -237,7 +301,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {onLogout && (
               <button
                 onClick={onLogout}
-                className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                className="p-2 rounded-lg text-slateDark-textMuted hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
                 title="Cerrar sesión"
               >
                 <LogOut className="w-4 h-4" />
@@ -249,18 +313,18 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Modal de Perfil e Identidad */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-slateDark-surface rounded-2xl shadow-2xl border border-slateDark-border w-full max-w-lg overflow-hidden">
             {/* Cabecera del Modal */}
-            <div className="border-b border-slate-200 px-6 pt-5 pb-3">
+            <div className="border-b border-slateDark-borderSubtle px-6 pt-5 pb-3">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <User className="w-5 h-5 text-blue-600" />
+                <h2 className="text-base font-bold text-slateDark-text flex items-center gap-2">
+                  <User className="w-5 h-5 text-slateDark-primaryLight" />
                   Perfil de Usuario
                 </h2>
                 <button
                   onClick={() => setIsModalOpen(false)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                  className="p-1 rounded-lg text-slateDark-textMuted hover:text-slateDark-text hover:bg-slateDark-surfaceSubtle transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -273,10 +337,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                     setActiveTab('view');
                     setFeedback(null);
                   }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                     activeTab === 'view'
-                      ? 'bg-blue-600 text-white'
-                      : 'text-slate-600 hover:bg-slate-100'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slateDark-textMuted hover:text-slateDark-text hover:bg-slateDark-surfaceSubtle'
                   }`}
                 >
                   <User className="w-3.5 h-3.5" />
@@ -287,10 +351,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                     setActiveTab('edit');
                     setFeedback(null);
                   }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                     activeTab === 'edit'
-                      ? 'bg-blue-600 text-white'
-                      : 'text-slate-600 hover:bg-slate-100'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slateDark-textMuted hover:text-slateDark-text hover:bg-slateDark-surfaceSubtle'
                   }`}
                 >
                   <Edit3 className="w-3.5 h-3.5" />
@@ -306,72 +370,90 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div
                   className={`mb-4 p-3 rounded-lg flex items-center gap-2.5 text-xs font-medium ${
                     feedback.type === 'success'
-                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                      : 'bg-rose-50 text-rose-800 border border-rose-200'
+                      ? 'bg-emerald-950/40 text-emerald-300 border border-emerald-800/60'
+                      : 'bg-rose-950/40 text-rose-300 border border-rose-800/60'
                   }`}
                 >
                   {feedback.type === 'success' ? (
-                    <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
                   ) : (
-                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
                   )}
                   <span>{feedback.message}</span>
                 </div>
               )}
 
               {/* TAB 1: VER PERFIL */}
-              {activeTab === 'view' && (
-                <div className="space-y-6">
-                  <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
-                    {currentUserProfile?.avatarUrl ? (
-                      <img
-                        src={currentUserProfile.avatarUrl}
-                        alt={currentUserProfile.nombre}
-                        className="w-16 h-16 rounded-full object-cover ring-2 ring-blue-500 shadow-xs"
-                        onError={(e) => {
-                          (e.target as HTMLElement).style.display = 'none';
-                        }}
-                      />
-                    ) : (
-                      <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-xl shadow-xs">
-                        {initial}
+              {activeTab === 'view' && (() => {
+                const myBannerTheme = getBannerTheme(selectedBannerKey, currentUserId);
+                return (
+                  <div className="space-y-6">
+                    <div className="rounded-xl overflow-hidden border border-slateDark-borderSubtle bg-slateDark-surfaceSubtle shadow-xs">
+                      {/* Banner de Cabecera Estético */}
+                      <div
+                        className={`h-24 w-full bg-gradient-to-r ${myBannerTheme.gradient} relative overflow-hidden flex items-end justify-end p-2.5`}
+                      >
+                        <div className="absolute inset-0 opacity-15 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:12px_12px]" />
+                        <span className="relative z-10 px-2.5 py-0.5 rounded-full bg-black/40 backdrop-blur-md text-[10px] font-semibold text-white/95 border border-white/10 shadow-xs">
+                          {myBannerTheme.nombre}
+                        </span>
                       </div>
-                    )}
 
-                    <div className="flex-1">
-                      <h3 className="text-base font-bold text-slate-900">
-                        {currentUserProfile?.nombre || currentUsername}
-                      </h3>
-                      <p className="text-xs font-medium text-blue-600">
-                        @{currentUserProfile?.username || currentUsername}
-                      </p>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        {currentUserProfile?.email || 'Sin correo configurado'}
-                      </p>
-                      <span className="mt-1.5 inline-block text-[11px] font-mono text-slate-400 bg-white border border-slate-200 px-2 py-0.5 rounded">
-                        ID: {currentUserId}
-                      </span>
+                      <div className="p-4 pt-0">
+                        <div className="flex items-end gap-3 -mt-8 mb-3">
+                          {currentUserProfile?.avatarUrl ? (
+                            <img
+                              src={currentUserProfile.avatarUrl}
+                              alt={currentUserProfile.nombre}
+                              className="w-16 h-16 rounded-full object-cover ring-4 ring-white dark:ring-[#27272A] shadow-md shrink-0"
+                              onError={(e) => {
+                                (e.target as HTMLElement).style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <div className="w-16 h-16 rounded-full bg-slateDark-primary flex items-center justify-center text-white font-bold text-xl shadow-md ring-4 ring-white dark:ring-[#27272A] shrink-0">
+                              {initial}
+                            </div>
+                          )}
+
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-base font-bold text-slateDark-text truncate">
+                              {currentUserProfile?.nombre || currentUsername}
+                            </h3>
+                            <p className="text-xs font-medium text-slateDark-primaryLight truncate">
+                              @{currentUserProfile?.username || currentUsername}
+                            </p>
+                          </div>
+                        </div>
+
+                        <p className="text-xs text-slateDark-textMuted mb-2">
+                          {currentUserProfile?.email || 'Sin correo configurado'}
+                        </p>
+                        <span className="inline-block text-[11px] font-mono text-slateDark-textMuted bg-slateDark-surface border border-slateDark-borderSubtle px-2 py-0.5 rounded">
+                          ID: {currentUserId}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Acciones Rápidas */}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setActiveTab('edit')}
+                        className="flex-1 py-2 px-3 bg-slateDark-primary hover:bg-slateDark-primaryHover text-white rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        Editar Perfil
+                      </button>
                     </div>
                   </div>
-
-                  {/* Acciones Rápidas */}
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setActiveTab('edit')}
-                      className="flex-1 py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                      Editar Perfil
-                    </button>
-                  </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* TAB 2: EDITAR PERFIL */}
               {activeTab === 'edit' && (
                 <form onSubmit={handleSaveProfile} className="space-y-4">
                   <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">
+                    <label className="block text-xs font-medium text-slateDark-textMuted mb-1">
                       Nombre Completo
                     </label>
                     <input
@@ -379,13 +461,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                       value={editNombre}
                       onChange={(e) => setEditNombre(e.target.value)}
                       placeholder="Ej. Angel Villon"
-                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
+                      className="w-full px-3 py-2 text-xs bg-slateDark-surfaceSubtle border border-slateDark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-slateDark-text placeholder:text-slateDark-textMuted/50"
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">
+                    <label className="block text-xs font-medium text-slateDark-textMuted mb-1">
                       Correo Electrónico
                     </label>
                     <input
@@ -393,19 +475,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                       value={editEmail}
                       onChange={(e) => setEditEmail(e.target.value)}
                       placeholder="usuario@upse.edu.ec"
-                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
+                      className="w-full px-3 py-2 text-xs bg-slateDark-surfaceSubtle border border-slateDark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-slateDark-text placeholder:text-slateDark-textMuted/50"
                     />
                   </div>
 
                   {/* Foto de perfil */}
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
+                  <div className="p-3 bg-slateDark-surfaceSubtle rounded-xl border border-slateDark-borderSubtle space-y-2.5">
                     <div className="flex items-center justify-between">
-                      <label className="text-xs font-medium text-slate-700 flex items-center gap-1.5">
-                        <Upload className="w-3.5 h-3.5 text-blue-600" />
+                      <label className="text-xs font-medium text-slateDark-text flex items-center gap-1.5">
+                        <Upload className="w-3.5 h-3.5 text-slateDark-primaryLight" />
                         Foto de perfil
                       </label>
                       {editAvatarUrl && (
-                        <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
+                        <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
                           <Check className="w-3 h-3" /> Imagen cargada
                         </span>
                       )}
@@ -416,10 +498,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <img
                           src={editAvatarUrl}
                           alt="Avatar preview"
-                          className="w-12 h-12 rounded-full object-cover ring-2 ring-blue-500 shrink-0"
+                          className="w-12 h-12 rounded-full object-cover ring-2 ring-slateDark-primary shrink-0"
                         />
                       ) : (
-                        <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-bold shrink-0">
+                        <div className="w-12 h-12 rounded-full bg-slateDark-surface text-slateDark-textMuted flex items-center justify-center font-bold shrink-0 border border-slateDark-borderSubtle">
                           {initial}
                         </div>
                       )}
@@ -436,9 +518,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                           type="button"
                           disabled={isUploadingEditAvatar}
                           onClick={() => editFileInputRef.current?.click()}
-                          className="w-full py-2 px-3 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium text-slate-700 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                          className="w-full py-2 px-3 bg-slateDark-surface hover:bg-slateDark-surfaceSubtle border border-slateDark-border rounded-lg text-xs font-medium text-slateDark-text transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
                         >
-                          <Upload className="w-3.5 h-3.5 text-blue-600" />
+                          <Upload className="w-3.5 h-3.5 text-slateDark-primaryLight" />
                           {isUploadingEditAvatar ? 'Subiendo...' : 'Elegir imagen'}
                         </button>
                       </div>
@@ -450,8 +532,34 @@ export const Navbar: React.FC<NavbarProps> = ({
                         value={editAvatarUrl}
                         onChange={(e) => setEditAvatarUrl(e.target.value)}
                         placeholder="O pega el enlace de una imagen"
-                        className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 font-mono"
+                        className="w-full px-3 py-1.5 text-xs bg-slateDark-surface border border-slateDark-border rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slateDark-text placeholder:text-slateDark-textMuted/50 font-mono"
                       />
+                    </div>
+                  </div>
+
+                  {/* Estilo de Portada / Banner */}
+                  <div>
+                    <label className="block text-xs font-medium text-slateDark-textMuted mb-1.5">
+                      Estilo de Portada / Banner
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {Object.values(BANNER_THEMES).map((th) => (
+                        <button
+                          key={th.key}
+                          type="button"
+                          onClick={() => setSelectedBannerKey(th.key)}
+                          className={`p-2 rounded-xl border text-left transition-all cursor-pointer flex flex-col gap-1.5 ${
+                            selectedBannerKey === th.key
+                              ? 'border-indigo-500 bg-indigo-500/10 shadow-xs ring-1 ring-indigo-500'
+                              : 'border-slateDark-borderSubtle hover:border-slateDark-border bg-slateDark-surfaceSubtle'
+                          }`}
+                        >
+                          <div className={`h-6 w-full rounded-md ${th.previewBg}`} />
+                          <span className="text-[11px] font-medium text-slateDark-text truncate">
+                            {th.nombre}
+                          </span>
+                        </button>
+                      ))}
                     </div>
                   </div>
 
@@ -459,14 +567,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <button
                       type="button"
                       onClick={() => setActiveTab('view')}
-                      className="px-3.5 py-2 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                      className="px-3.5 py-2 rounded-lg text-xs font-medium text-slateDark-textMuted hover:text-slateDark-text hover:bg-slateDark-surfaceSubtle transition-colors cursor-pointer"
                     >
                       Cancelar
                     </button>
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                      className="px-4 py-2 bg-slateDark-primary hover:bg-slateDark-primaryHover text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-xs"
                     >
                       <Check className="w-3.5 h-3.5" />
                       {isSubmitting ? 'Guardando...' : 'Guardar Cambios'}

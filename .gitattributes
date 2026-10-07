@@ -28,3 +28,7 @@
 # Los archivos de la semilla se cargan por stdin a `cypher-shell`, que decodifica usando el
 # locale del contenedor. LF es lo que espera el `docker/seed.sh` para no romper los acentos.
 *.cql text eol=lf
+
+# Scripts batch para Windows requieren CRLF obligatoriamente; cmd.exe falla en saltos goto con LF
+*.bat text eol=crlf
+*.cmd text eol=crlf

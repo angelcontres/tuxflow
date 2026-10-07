@@ -107,55 +107,82 @@ export const ConexionesComunesPanel: React.FC<ConexionesComunesPanelProps> = ({
   // suelto en la barra lateral, donde no hay nadie fijado a quién mirar.
   const otroUsuarioNombre = fijado ? `@${otroUsername ?? otroUsuarioId}` : `@${currentUsername}`;
 
+  // Contactos sugeridos para comparar con 1 clic en la barra lateral
+  const contactosSugeridos = ['beatriz', 'paulo', 'angel-villon'];
+
+  const handleCompararRapido = (id: string) => {
+    setOtroUsuario(id);
+    void consultar(id);
+  };
+
   return (
-    <div className="bg-white rounded-xl p-5 shadow-xs border border-slate-200 mb-6">
-      <div className="flex items-center gap-2 mb-2">
-        <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600">
+    <div className="bg-slateDark-surface rounded-xl p-5 shadow-xs border border-slateDark-borderSubtle mb-6">
+      <div className="flex items-center gap-2.5 mb-2">
+        <div className="p-1.5 rounded-lg bg-indigo-500/10 text-slateDark-primaryLight">
           <Link2 className="w-4 h-4" />
         </div>
-        <h3 className="font-semibold text-sm text-slate-900">Conexiones en común</h3>
+        <div>
+          <h3 className="font-semibold text-sm text-slateDark-text">Conexiones en común</h3>
+        </div>
       </div>
-      <p className="text-xs text-slate-500 mb-4 leading-relaxed">
-        Personas que sigues tú y también {otroUsuarioNombre}.
+      <p className="text-xs text-slateDark-textMuted mb-3.5 leading-relaxed">
+        Descubre personas que sigues tú y también {otroUsuarioNombre}.
       </p>
 
       {/* El campo desaparece cuando la otra persona ya está fijada: no hay nada que escribir y un
           campo que ignora lo que se escribe es peor que un campo que no está. */}
       {!fijado ? (
-        <form onSubmit={handleBuscar} className="flex gap-2">
-          <input
-            type="text"
-            value={otroUsuario}
-            onChange={(e) => setOtroUsuario(e.target.value)}
-            placeholder="Ej. angel-villon"
-            aria-label="Identificador de la otra persona"
-            className="flex-1 min-w-0 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
-          />
-          <button
-            type="submit"
-            disabled={estado.tipo === 'cargando'}
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0"
-          >
-            <Search className="w-3.5 h-3.5" />
-            {estado.tipo === 'cargando' ? 'Buscando...' : 'Buscar'}
-          </button>
-        </form>
+        <div className="space-y-2.5">
+          <form onSubmit={handleBuscar} className="flex gap-2">
+            <input
+              type="text"
+              value={otroUsuario}
+              onChange={(e) => setOtroUsuario(e.target.value)}
+              placeholder="Ej. angel-villon"
+              aria-label="Identificador de la otra persona"
+              className="flex-1 min-w-0 px-3 py-2 bg-slateDark-surfaceSubtle border border-slateDark-border rounded-lg text-xs text-slateDark-text placeholder:text-slateDark-textMuted/50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-slateDark-surfaceSubtle transition-all"
+            />
+            <button
+              type="submit"
+              disabled={estado.tipo === 'cargando'}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slateDark-primary hover:bg-slateDark-primaryHover disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0 shadow-xs"
+            >
+              <Search className="w-3.5 h-3.5" />
+              <span>{estado.tipo === 'cargando' ? 'Buscando...' : 'Buscar'}</span>
+            </button>
+          </form>
+
+          {/* Chips de sugerencia rápida para comparar en 1 clic */}
+          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+            <span className="text-[11px] text-slateDark-textMuted font-medium">Sugeridos:</span>
+            {contactosSugeridos.map((sugId) => (
+              <button
+                key={sugId}
+                type="button"
+                onClick={() => handleCompararRapido(sugId)}
+                className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-slateDark-surfaceSubtle hover:bg-indigo-500/15 text-slateDark-textMuted hover:text-slateDark-primaryLight border border-slateDark-borderSubtle hover:border-indigo-500/30 transition-all cursor-pointer"
+              >
+                vs @{sugId}
+              </button>
+            ))}
+          </div>
+        </div>
       ) : (
         <button
           type="button"
           onClick={() => otroUsuarioId !== undefined && void consultar(otroUsuarioId)}
           disabled={estado.tipo === 'cargando'}
-          className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slateDark-surfaceSubtle hover:bg-slateDark-borderSubtle border border-slateDark-borderSubtle disabled:opacity-50 disabled:cursor-not-allowed text-slateDark-text rounded-lg text-xs font-semibold transition-colors cursor-pointer shadow-xs"
         >
-          <Search className="w-3.5 h-3.5" />
-          {estado.tipo === 'cargando' ? 'Buscando...' : 'Actualizar'}
+          <Search className="w-3.5 h-3.5 text-slateDark-primaryLight" />
+          <span>{estado.tipo === 'cargando' ? 'Buscando...' : 'Actualizar'}</span>
         </button>
       )}
 
       {estado.tipo === 'error' && (
         <p
           role="alert"
-          className="mt-3 text-xs text-rose-600 font-medium flex items-center gap-1.5"
+          className="mt-3 text-xs text-rose-400 font-medium flex items-center gap-1.5 bg-rose-950/20 border border-rose-800/40 p-2.5 rounded-lg"
         >
           <AlertCircle className="w-3.5 h-3.5 shrink-0" />
           {estado.mensaje}
@@ -163,50 +190,57 @@ export const ConexionesComunesPanel: React.FC<ConexionesComunesPanelProps> = ({
       )}
 
       {estado.tipo === 'listo' && estado.conexiones.length === 0 && (
-        <p className="mt-3 py-3 text-center text-xs text-slate-400">
-          No tienen conexiones en común.
-        </p>
+        <div className="mt-3.5 py-4 text-center rounded-lg bg-slateDark-surfaceSubtle border border-slateDark-borderSubtle/60">
+          <p className="text-xs text-slateDark-textMuted">
+            No tienen conexiones en común.
+          </p>
+        </div>
       )}
 
       {estado.tipo === 'listo' && estado.conexiones.length > 0 && (
-        <div className="mt-3 space-y-2.5">
-          <p className="text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-1 rounded-full inline-flex items-center gap-1">
-            <UserCheck className="w-3 h-3" />
-            {estado.conexiones.length} conexion(es) en comun con {otroUsuarioNombre}
-          </p>
-          {estado.conexiones.map((conexion) => {
-            const inicial = conexion.username.charAt(0).toUpperCase();
-            // El Cypher #3 no garantiza nombre ni avatar: el nombre es la propiedad
-            // que guardarUsuario borra cuando viene null, y el identificador siempre
-            // está, así que sirve de respaldo en ambos casos.
-            const nombre = conexion.nombre || `@${conexion.username}`;
-            const mostrarAvatar = Boolean(conexion.avatar) && avatarCaido[conexion.id] !== true;
-            return (
-              <div
-                key={conexion.id}
-                className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 transition-colors"
-              >
-                {mostrarAvatar ? (
-                  <div className="w-9 h-9 rounded-full overflow-hidden bg-slate-200 shrink-0">
-                    <img
-                      src={conexion.avatar}
-                      alt={`Avatar de @${conexion.username}`}
-                      className="w-full h-full object-cover"
-                      onError={() => setAvatarCaido((prev) => ({ ...prev, [conexion.id]: true }))}
-                    />
+        <div className="mt-3.5 space-y-2.5">
+          <div className="p-2.5 rounded-lg bg-emerald-950/30 border border-emerald-800/40 flex items-center gap-2">
+            <UserCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+            <p className="text-xs font-medium text-emerald-300">
+              {estado.conexiones.length} conexion(es) en comun con {otroUsuarioNombre}
+            </p>
+          </div>
+
+          <div className="space-y-1.5 max-h-64 overflow-y-auto">
+            {estado.conexiones.map((conexion) => {
+              const inicial = conexion.username.charAt(0).toUpperCase();
+              // El Cypher #3 no garantiza nombre ni avatar: el nombre es la propiedad
+              // que guardarUsuario borra cuando viene null, y el identificador siempre
+              // está, así que sirve de respaldo en ambos casos.
+              const nombre = conexion.nombre || `@${conexion.username}`;
+              const mostrarAvatar = Boolean(conexion.avatar) && avatarCaido[conexion.id] !== true;
+              return (
+                <div
+                  key={conexion.id}
+                  className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-slateDark-surfaceSubtle transition-colors border border-transparent hover:border-slateDark-borderSubtle/50"
+                >
+                  {mostrarAvatar ? (
+                    <div className="w-9 h-9 rounded-full overflow-hidden bg-slateDark-surfaceSubtle shrink-0 ring-1 ring-slateDark-border">
+                      <img
+                        src={conexion.avatar}
+                        alt={`Avatar de @${conexion.username}`}
+                        className="w-full h-full object-cover"
+                        onError={() => setAvatarCaido((prev) => ({ ...prev, [conexion.id]: true }))}
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-9 h-9 rounded-full bg-slateDark-surfaceSubtle text-slateDark-text border border-slateDark-borderSubtle flex items-center justify-center font-bold text-xs shrink-0">
+                      {inicial}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-slateDark-text truncate">{nombre}</p>
+                    <p className="text-[11px] text-slateDark-textMuted">@{conexion.username}</p>
                   </div>
-                ) : (
-                  <div className="w-9 h-9 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs shrink-0">
-                    {inicial}
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-slate-800 truncate">{nombre}</p>
-                  <p className="text-[11px] text-slate-500">@{conexion.username}</p>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

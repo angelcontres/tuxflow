@@ -1,0 +1,77 @@
+import React from 'react';
+
+interface TuxFlowLogoProps {
+  className?: string;
+  size?: number;
+}
+
+export const TuxFlowLogo: React.FC<TuxFlowLogoProps> = ({
+  className = 'w-9 h-9',
+  size = 36,
+}) => {
+  return (
+    <svg
+      viewBox="0 0 48 48"
+      width={size}
+      height={size}
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      aria-label="TuxFlow Logo"
+    >
+      {/* Fondo estilizado con esquinas redondeadas */}
+      <rect width="48" height="48" rx="12" fill="#4F46E5" />
+
+      {/* Sutil resplandor interno */}
+      <rect
+        x="1"
+        y="1"
+        width="46"
+        height="46"
+        rx="11"
+        stroke="#818CF8"
+        strokeWidth="1.5"
+        strokeOpacity="0.4"
+      />
+
+      {/* Silueta de Tux (cuerpo del pingüino) */}
+      <path
+        d="M24 8C17.5 8 14.5 13 14.5 19.5C14.5 24 13 28.5 12 31.5C13.2 33 16 33.5 18 32C18.8 33.2 21 34.5 24 34.5C27 34.5 29.2 33.2 30 32C32 33.5 34.8 33 36 31.5C35 28.5 33.5 24 33.5 19.5C33.5 13 30.5 8 24 8Z"
+        fill="#18181B"
+      />
+
+      {/* Pecho / Vientre blanco con curvatura Flow */}
+      <path
+        d="M24 17.5C20.5 17.5 18 20.8 18 25.5C18 29.8 20.5 32.5 24 32.5C27.5 32.5 30 29.8 30 25.5C30 20.8 27.5 17.5 24 17.5Z"
+        fill="#FFFFFF"
+      />
+
+      {/* Ojos de Tux */}
+      <circle cx="21" cy="14.5" r="1.6" fill="#FFFFFF" />
+      <circle cx="21.3" cy="14.5" r="0.8" fill="#18181B" />
+      <circle cx="27" cy="14.5" r="1.6" fill="#FFFFFF" />
+      <circle cx="26.7" cy="14.5" r="0.8" fill="#18181B" />
+
+      {/* Pico dorado característico */}
+      <path
+        d="M21.5 17.2C21.5 17.2 22.8 19.8 24 19.8C25.2 19.8 26.5 17.2 26.5 17.2H21.5Z"
+        fill="#F59E0B"
+      />
+
+      {/* Ondas dinámicas "Flow" (ondas de conexión en cian/azul) */}
+      <path
+        d="M10 39C13.5 37.2 17 37.2 20.5 39C24 40.8 27.5 40.8 31 39C34.5 37.2 36.5 37.8 38 39"
+        stroke="#38BDF8"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M13 42.5C16 41.2 19 41.2 22 42.5C25 43.8 28 43.8 31 42.5C33.5 41.5 35 41.8 36 42.5"
+        stroke="#93C5FD"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeOpacity="0.8"
+      />
+    </svg>
+  );
+};
