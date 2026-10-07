@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Route, UserMinus, UserPlus, Sparkles, Users } from 'lucide-react';
+import { Route, UserMinus, UserPlus, Sparkles, Users, Network } from 'lucide-react';
 import { FilaRed, esSugerencia } from '../types/network.types';
 import type { CaminoCorto } from '../types/network.types';
 import { fetchCaminoCorto, followUserInGraph, unfollowUserInGraph } from '../services/networkApi';
@@ -24,6 +24,7 @@ interface UserSuggestionsCardProps {
    * promete nada.
    */
   onOpenPerfil?: (usuarioId: string) => void;
+  onOpenGraphModal?: () => void;
 }
 
 interface DistanciaResultProps {
@@ -41,7 +42,7 @@ interface DistanciaResultProps {
 const DistanciaResult: React.FC<DistanciaResultProps> = ({ camino, username }) => {
   if (camino.rutaConexion.length === 0) {
     return (
-      <p className="mt-1.5 text-[11px] text-slate-500">
+      <p className="mt-1.5 text-[11px] text-slateDark-textMuted">
         No hay conexión con @{username} dentro de los 6 grados de separación.
       </p>
     );
@@ -49,15 +50,15 @@ const DistanciaResult: React.FC<DistanciaResultProps> = ({ camino, username }) =
 
   const saltos = camino.saltosTotales;
   return (
-    <div className="mt-1.5 text-[11px] text-slate-600">
-      <p className="font-medium text-indigo-700">
+    <div className="mt-1.5 text-[11px] text-slateDark-textMuted">
+      <p className="font-medium text-slateDark-primaryLight">
         {saltos} {saltos === 1 ? 'salto' : 'saltos'} de separación
       </p>
       <ol className="mt-1 flex flex-wrap items-center gap-1">
         {camino.rutaConexion.map((nodo, indice) => (
           <li key={`${nodo.id ?? nodo.username}-${indice}`} className="flex items-center gap-1">
-            {indice > 0 && <span className="text-slate-300">&rarr;</span>}
-            <span className="font-medium text-slate-700">@{nodo.username}</span>
+            {indice > 0 && <span className="text-slateDark-border">&rarr;</span>}
+            <span className="font-medium text-slateDark-text">@{nodo.username}</span>
           </li>
         ))}
       </ol>
@@ -70,6 +71,7 @@ export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
   currentUserId,
   onNetworkUpdated,
   onOpenPerfil,
+  onOpenGraphModal,
 }) => {
   const [confirmados, setConfirmados] = useState<Record<string, boolean>>({});
   const [errorPorId, setErrorPorId] = useState<Record<string, string | null>>({});
@@ -184,20 +186,34 @@ export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-xl p-5 shadow-xs border border-slate-200 mb-6">
+    <div className="bg-slateDark-surface rounded-xl p-5 shadow-xs border border-slateDark-borderSubtle mb-6">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
+          <div className="p-1.5 rounded-lg bg-indigo-500/10 text-slateDark-primaryLight">
             <Users className="w-4 h-4" />
           </div>
-          <h3 className="font-semibold text-sm text-slate-900">Tu red</h3>
+          <h3 className="font-semibold text-sm text-slateDark-text">Tu red</h3>
         </div>
-        <span className="text-[11px] font-medium bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full flex items-center gap-1 border border-blue-100">
-          <Sparkles className="w-3 h-3 text-blue-500" />
-          Sugerencias
-        </span>
+        <div className="flex items-center gap-1.5">
+          {onOpenGraphModal && (
+            <button
+              type="button"
+              onClick={onOpenGraphModal}
+              className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 flex items-center gap-1 cursor-pointer transition-colors bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800/60"
+              title="Abrir Explorador Interactivo de Grafo"
+              aria-label="Abrir explorador de grafo"
+            >
+              <Network className="w-3 h-3" />
+              <span>Ver Grafo</span>
+            </button>
+          )}
+          <span className="text-[11px] font-medium bg-indigo-500/10 text-slateDark-primaryLight px-2 py-0.5 rounded-full flex items-center gap-1 border border-indigo-500/20">
+            <Sparkles className="w-3 h-3 text-slateDark-primaryLight" />
+            Sugerencias
+          </span>
+        </div>
       </div>
-      <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+      <p className="text-xs text-slateDark-textMuted mb-4 leading-relaxed">
         Sugerencias y personas que sigues
       </p>
 
@@ -205,7 +221,7 @@ export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
         <p
           role="status"
           aria-live="polite"
-          className="text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 mb-4 leading-relaxed"
+          className="text-xs text-indigo-300 bg-indigo-950/40 border border-indigo-800/60 rounded-lg px-3 py-2 mb-4 leading-relaxed"
         >
           {aviso}
         </p>
@@ -213,7 +229,9 @@ export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
 
       {filas.length === 0 ? (
         <div className="py-4 text-center">
-          <p className="text-xs text-slate-400">No hay nuevas recomendaciones por ahora.</p>
+          <p className="text-xs text-slateDark-textMuted">
+            No hay nuevas recomendaciones por ahora.
+          </p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -228,11 +246,14 @@ export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
             const errorCalculo = errorDistancia[fila.id];
             const calculandoDistancia = calculando[fila.id] === true;
             return (
-              <div key={fila.id} className="p-2 rounded-lg hover:bg-slate-50 transition-colors">
+              <div
+                key={fila.id}
+                className="p-2 rounded-lg hover:bg-slateDark-surfaceSubtle transition-colors"
+              >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     {mostrarAvatar ? (
-                      <div className="w-9 h-9 rounded-full overflow-hidden bg-slate-200 shrink-0">
+                      <div className="w-9 h-9 rounded-full overflow-hidden bg-slateDark-surfaceSubtle shrink-0 ring-1 ring-slateDark-border">
                         <img
                           src={avatarUrl}
                           alt={`Avatar de @${fila.username}`}
@@ -241,7 +262,7 @@ export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
                         />
                       </div>
                     ) : (
-                      <div className="w-9 h-9 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs shrink-0">
+                      <div className="w-9 h-9 rounded-full bg-slateDark-surfaceSubtle text-slateDark-text border border-slateDark-borderSubtle flex items-center justify-center font-bold text-xs shrink-0">
                         {fila.username.charAt(0).toUpperCase()}
                       </div>
                     )}
@@ -251,25 +272,27 @@ export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
                           type="button"
                           onClick={() => onOpenPerfil(fila.id)}
                           aria-label={`Ver perfil de @${fila.username}`}
-                          className="text-xs font-semibold text-slate-800 hover:underline cursor-pointer text-left"
+                          className="text-xs font-semibold text-slateDark-text hover:underline cursor-pointer text-left"
                         >
                           @{fila.username}
                         </button>
                       ) : (
-                        <h4 className="text-xs font-semibold text-slate-800">@{fila.username}</h4>
+                        <h4 className="text-xs font-semibold text-slateDark-text">
+                          @{fila.username}
+                        </h4>
                       )}
-                      <p className="text-[11px] text-slate-500">
+                      <p className="text-[11px] text-slateDark-textMuted">
                         {esSugerencia(fila)
                           ? `${fila.conexionesEnComun} conexión(es) mutua(s)`
                           : fila.nombre || 'Persona que sigues'}
                       </p>
                       {seguidosEnComun && seguidosEnComun.length > 0 && (
-                        <p className="text-[11px] text-slate-400">
+                        <p className="text-[11px] text-slateDark-textMuted/70">
                           Conocido por {seguidosEnComun.map((nombre) => `@${nombre}`).join(', ')}
                         </p>
                       )}
                       {error && (
-                        <p role="alert" className="text-[11px] text-red-600 font-medium">
+                        <p role="alert" className="text-[11px] text-rose-400 font-medium">
                           {error}
                         </p>
                       )}
@@ -281,7 +304,7 @@ export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
                       onClick={() => void handleCalcularDistancia(fila.id)}
                       disabled={calculandoDistancia}
                       title={`Calcular la distancia entre @${currentUserId} y @${fila.username}`}
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-indigo-600 bg-slate-100 hover:bg-indigo-50 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-slateDark-textMuted hover:text-slateDark-primaryLight bg-slateDark-surfaceSubtle hover:bg-slateDark-borderSubtle border border-slateDark-borderSubtle px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Route className="w-3.5 h-3.5" />
                       <span>{calculandoDistancia ? 'Calculando...' : 'Distancia'}</span>
@@ -290,7 +313,7 @@ export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
                     <button
                       onClick={() => void handleToggle(fila, seguido)}
                       disabled={cargando}
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-blue-600 bg-slate-100 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-slateDark-text hover:text-white bg-slateDark-surfaceSubtle hover:bg-slateDark-primary border border-slateDark-borderSubtle px-3 py-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {seguido ? (
                         <UserMinus className="w-3.5 h-3.5" />
@@ -303,7 +326,7 @@ export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
                 </div>
 
                 {errorCalculo && (
-                  <p role="alert" className="mt-1.5 text-[11px] text-red-600 font-medium">
+                  <p role="alert" className="mt-1.5 text-[11px] text-rose-400 font-medium">
                     {errorCalculo}
                   </p>
                 )}

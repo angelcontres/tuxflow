@@ -3,8 +3,43 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    /* Modo Claro (Clean Studio): tonos slate/zinc luminosos y nítidos */
+    --color-bg: 248 250 252; /* #F8FAFC canvas claro limpio */
+    --color-surface: 255 255 255; /* #FFFFFF tarjetas blanco puro */
+    --color-surface-subtle: 241 245 249; /* #F1F5F9 controles e inputs sutiles */
+    --color-border: 226 232 240; /* #E2E8F0 bordes estructurales definidos */
+    --color-border-subtle: 241 245 249; /* #F1F5F9 separadores tenues */
+    --color-text: 15 23 42; /* #0F172A texto principal de alto contraste */
+    --color-text-muted: 100 116 139; /* #64748B texto secundario legible */
+    --color-primary: 79 70 229; /* #4F46E5 índigo principal contrastado */
+    --color-primary-hover: 67 56 202; /* #4338CA índigo hover */
+    --color-primary-light: 99 102 241; /* #6366F1 índigo suave */
+    --color-chat-bg: 241 245 249; /* #F1F5F9 fondo dedicado para el canvas de mensajes */
+    color-scheme: light;
+  }
+
+  .dark {
+    /* Modo Oscuro (Midnight Slate): zinc profundo con gran contraste */
+    --color-bg: 24 24 27; /* #18181B fondo zinc oscuro */
+    --color-surface: 39 39 42; /* #27272A tarjetas sólidas */
+    --color-surface-subtle: 31 31 35; /* #1F1F23 controles e inputs oscuros */
+    --color-border: 63 63 70; /* #3F3F46 bordes sutiles */
+    --color-border-subtle: 46 46 51; /* #2E2E33 separadores */
+    --color-text: 244 244 245; /* #F4F4F5 texto claro */
+    --color-text-muted: 161 161 170; /* #A1A1AA texto secundario */
+    --color-primary: 99 102 241; /* #6366F1 índigo vibrante */
+    --color-primary-hover: 79 70 229; /* #4F46E5 índigo hover */
+    --color-primary-light: 129 140 248; /* #818CF8 índigo claro */
+    --color-chat-bg: 18 18 20; /* #121214 lienzo profundo para el feed de chat */
+    color-scheme: dark;
+  }
+
   body {
-    @apply bg-slate-100 text-slate-900 antialiased;
+    background-color: rgb(var(--color-bg));
+    color: rgb(var(--color-text));
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     font-family:
       system-ui,
       -apple-system,
@@ -17,5 +52,50 @@
       'Open Sans',
       'Helvetica Neue',
       sans-serif;
+  }
+
+  ::selection {
+    background-color: rgba(99, 102, 241, 0.25);
+    color: inherit;
+  }
+}
+
+@layer utilities {
+  @keyframes heartPop {
+    0% {
+      transform: scale(1);
+    }
+    30% {
+      transform: scale(1.35);
+    }
+    60% {
+      transform: scale(0.9);
+    }
+    100% {
+      transform: scale(1.1);
+    }
+  }
+
+  @keyframes sparkleBurst {
+    0% {
+      transform: scale(0) rotate(0deg);
+      opacity: 0;
+    }
+    50% {
+      transform: scale(1.2) rotate(45deg);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1.6) rotate(90deg);
+      opacity: 0;
+    }
+  }
+
+  .animate-heart-pop {
+    animation: heartPop 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  }
+
+  .animate-sparkle-burst {
+    animation: sparkleBurst 0.6s ease-out forwards;
   }
 }

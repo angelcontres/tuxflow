@@ -79,6 +79,14 @@ public class FiltroLimiteDeBusqueda implements ContainerRequestFilter {
         }
     }
 
+    /**
+     * Reinicia los contadores por IP. Usado en pruebas para evitar que una ráfaga contamine las
+     * aserciones de otras suites que prueban la búsqueda.
+     */
+    static void reiniciar() {
+        CONTADORES.clear();
+    }
+
     @Override
     public void filter(ContainerRequestContext contexto) {
         if (!esBusqueda(contexto)) {

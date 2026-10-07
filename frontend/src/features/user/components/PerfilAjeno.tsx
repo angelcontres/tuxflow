@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { AlertCircle, ArrowLeft, Route, UserMinus, UserPlus, Users } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Route, UserMinus, UserPlus, Users, Sparkles } from 'lucide-react';
 import { ConexionesComunesPanel } from '../../network/components/ConexionesComunesPanel';
 import { PostCard } from '../../feed/components/PostCard';
 import {
@@ -13,6 +13,7 @@ import { getUserFacingError } from '../../../shared/utils/errorMessage';
 import { fetchPostsDeUsuario, fetchSeguidores, fetchUsuario } from '../services/userApi';
 import type { Usuario } from '../types/user.types';
 import type { Post } from '../types/post.types';
+import { getBannerTheme, getUserSavedBanner } from '../utils/profileStyle';
 
 interface PerfilAjenoProps {
   /** Identificador de la persona cuyo perfil se está mirando. */
@@ -72,6 +73,7 @@ export const PerfilAjeno: React.FC<PerfilAjenoProps> = ({
   const [distancia, setDistancia] = useState<Estado<CaminoCorto>>({ tipo: 'inicial' });
 
   const esPropio = usuarioId === viewerId;
+  const bannerTheme = getBannerTheme(getUserSavedBanner(usuarioId), usuarioId);
 
   // Cada cambio de identificador reinicia los cuatro bloques. Sin esto, abrir el perfil de otra
   // persona dejaría en pantalla el nombre y las publicaciones de la anterior hasta que llegaran
@@ -199,24 +201,24 @@ export const PerfilAjeno: React.FC<PerfilAjenoProps> = ({
       <button
         type="button"
         onClick={onCerrar}
-        className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-blue-600 bg-white border border-slate-200 hover:border-blue-200 px-3 py-2 rounded-lg transition-colors cursor-pointer"
+        className="inline-flex items-center gap-1.5 text-xs font-semibold text-slateDark-textMuted hover:text-slateDark-text bg-slateDark-surface border border-slateDark-borderSubtle hover:border-slateDark-border px-3 py-2 rounded-lg transition-colors cursor-pointer"
       >
         <ArrowLeft className="w-3.5 h-3.5" />
         Volver
       </button>
 
-      <section className="bg-white rounded-xl border border-slate-200 shadow-xs p-5">
+      <section className="bg-slateDark-surface rounded-xl border border-slateDark-borderSubtle shadow-xs overflow-hidden">
         {perfil.tipo === 'cargando' && (
-          <div className="flex items-center gap-4">
-            <div className="animate-spin w-10 h-10 border-3 border-blue-600 border-t-transparent rounded-full shrink-0" />
-            <p className="text-xs text-slate-500 font-medium">Cargando perfil...</p>
+          <div className="flex items-center gap-4 p-6">
+            <div className="animate-spin w-10 h-10 border-3 border-indigo-500 border-t-transparent rounded-full shrink-0" />
+            <p className="text-xs text-slateDark-textMuted font-medium">Cargando perfil...</p>
           </div>
         )}
 
         {perfil.tipo === 'error' && (
-          <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-            <p role="alert" className="text-sm text-rose-600 font-medium">
+          <div className="flex items-center gap-2 p-6">
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            <p role="alert" className="text-sm text-rose-400 font-medium">
               {perfil.mensaje}
             </p>
           </div>
@@ -224,133 +226,148 @@ export const PerfilAjeno: React.FC<PerfilAjenoProps> = ({
 
         {perfil.tipo === 'listo' && (
           <>
-            <div className="flex items-start gap-4">
-              {perfil.datos.avatarUrl && !avatarCaido ? (
-                <div className="w-16 h-16 rounded-full overflow-hidden bg-slate-200 shrink-0">
-                  <img
-                    src={perfil.datos.avatarUrl}
-                    alt={`Avatar de @${perfil.datos.username}`}
-                    className="w-full h-full object-cover"
-                    onError={() => setAvatarCaido(true)}
-                  />
-                </div>
-              ) : (
-                // Respaldo con la inicial. El identificador siempre llega: es la clave del MERGE
-                // de guardarUsuario, así que hay algo que inicializar aunque falte el nombre.
-                <div className="w-16 h-16 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xl shrink-0">
-                  {(perfil.datos.nombre || perfil.datos.username || '?').charAt(0).toUpperCase()}
-                </div>
-              )}
-
-              <div className="flex-1 min-w-0">
-                {/* Sin nombre, el encabezado cae al @username en vez de quedar en blanco: el
-                    identificador siempre llega, porque es la clave del MERGE de guardarUsuario. */}
-                <h2 className="text-lg font-bold text-slate-900 truncate">
-                  {perfil.datos.nombre || `@${perfil.datos.username}`}
-                </h2>
-                <p className="text-sm text-slate-500">
-                  {perfil.datos.nombre ? `@${perfil.datos.username}` : 'Sin nombre registrado'}
-                </p>
+            {/* Banner Estético Superior */}
+            <div
+              className={`h-24 sm:h-32 w-full bg-gradient-to-r ${bannerTheme.gradient} relative overflow-hidden flex items-end justify-end p-3`}
+            >
+              <div className="absolute inset-0 opacity-15 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:14px_14px]" />
+              <div className="relative z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-md text-[10px] font-semibold text-white/95 border border-white/10 shadow-xs">
+                <Sparkles className="w-3 h-3 text-cyan-300" />
+                <span>{bannerTheme.nombre}</span>
               </div>
-
-              {/* El botón no aparece sobre el perfil propio: no hay botón de "dejar de seguirte a
-                  ti mismo", y ahí la pregunta no tiene sentido. */}
-              {!esPropio && siguiendo !== null && (
-                <button
-                  type="button"
-                  onClick={() => void handleToggleSeguir()}
-                  disabled={enVuelo}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-lg transition-colors cursor-pointer shrink-0"
-                >
-                  {siguiendo ? (
-                    <UserMinus className="w-3.5 h-3.5" />
-                  ) : (
-                    <UserPlus className="w-3.5 h-3.5" />
-                  )}
-                  <span>{siguiendo ? 'Dejar de seguir' : 'Seguir'}</span>
-                </button>
-              )}
             </div>
 
-            {errorSeguimiento && (
-              <p role="alert" className="mt-3 text-xs text-rose-600 font-medium">
-                {errorSeguimiento}
-              </p>
-            )}
+            <div className="p-5 pt-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                <div className="flex items-center gap-3.5 min-w-0">
+                  {perfil.datos.avatarUrl && !avatarCaido ? (
+                    <div className="w-16 h-16 rounded-full overflow-hidden bg-slateDark-surfaceSubtle shrink-0 ring-2 ring-slateDark-border shadow-xs">
+                      <img
+                        src={perfil.datos.avatarUrl}
+                        alt={`Avatar de @${perfil.datos.username}`}
+                        className="w-full h-full object-cover"
+                        onError={() => setAvatarCaido(true)}
+                      />
+                    </div>
+                  ) : (
+                    // Respaldo con la inicial. El identificador siempre llega: es la clave del MERGE
+                    // de guardarUsuario, así que hay algo que inicializar aunque falte el nombre.
+                    <div className="w-16 h-16 rounded-full bg-slateDark-primary text-white flex items-center justify-center font-bold text-xl shrink-0 shadow-xs ring-2 ring-slateDark-border">
+                      {(perfil.datos.nombre || perfil.datos.username || '?')
+                        .charAt(0)
+                        .toUpperCase()}
+                    </div>
+                  )}
 
-            {/* Separadores y estado de la distancia */}
-            <div className="mt-4 pt-4 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => void handleCalcularDistancia()}
-                disabled={distancia.tipo === 'cargando'}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-indigo-600 bg-slate-100 hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Route className="w-3.5 h-3.5" />
-                <span>
-                  {distancia.tipo === 'cargando'
-                    ? 'Calculando...'
-                    : `Distancia con @${viewerUsername}`}
-                </span>
-              </button>
-
-              {distancia.tipo === 'error' && (
-                <p role="alert" className="mt-2 text-xs text-rose-600 font-medium">
-                  {distancia.mensaje}
-                </p>
-              )}
-
-              {distancia.tipo === 'listo' && distancia.datos.rutaConexion.length === 0 && (
-                <p className="mt-2 text-xs text-slate-500">
-                  No hay conexión con @{usernameMostrado} dentro de los 6 grados de separación.
-                </p>
-              )}
-
-              {distancia.tipo === 'listo' && distancia.datos.rutaConexion.length > 0 && (
-                <div className="mt-2 text-xs text-slate-600">
-                  <p className="font-medium text-indigo-700">
-                    {distancia.datos.saltosTotales}{' '}
-                    {distancia.datos.saltosTotales === 1 ? 'salto' : 'saltos'} de separación
-                  </p>
-                  <ol className="mt-1 flex flex-wrap items-center gap-1">
-                    {distancia.datos.rutaConexion.map((nodo, indice) => (
-                      <li
-                        key={`${nodo.id ?? nodo.username}-${indice}`}
-                        className="flex items-center gap-1"
-                      >
-                        {indice > 0 && <span className="text-slate-300">&rarr;</span>}
-                        <span className="font-medium text-slate-700">@{nodo.username}</span>
-                      </li>
-                    ))}
-                  </ol>
+                  <div className="min-w-0">
+                    <h2 className="text-lg font-bold text-slateDark-text truncate">
+                      {perfil.datos.nombre || `@${perfil.datos.username}`}
+                    </h2>
+                    <p className="text-xs text-slateDark-primaryLight font-medium truncate">
+                      {perfil.datos.nombre ? `@${perfil.datos.username}` : 'Sin nombre registrado'}
+                    </p>
+                  </div>
                 </div>
+
+                {/* El botón no aparece sobre el perfil propio: no hay botón de "dejar de seguirte a
+                      ti mismo", y ahí la pregunta no tiene sentido. */}
+                {!esPropio && siguiendo !== null && (
+                  <button
+                    type="button"
+                    onClick={() => void handleToggleSeguir()}
+                    disabled={enVuelo}
+                    className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-white bg-slateDark-primary hover:bg-slateDark-primaryHover disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-lg transition-colors cursor-pointer shrink-0 shadow-xs active:scale-95"
+                  >
+                    {siguiendo ? (
+                      <UserMinus className="w-3.5 h-3.5" />
+                    ) : (
+                      <UserPlus className="w-3.5 h-3.5" />
+                    )}
+                    <span>{siguiendo ? 'Dejar de seguir' : 'Seguir'}</span>
+                  </button>
+                )}
+              </div>
+
+              {errorSeguimiento && (
+                <p role="alert" className="mt-2 mb-3 text-xs text-rose-400 font-medium">
+                  {errorSeguimiento}
+                </p>
               )}
+
+              {/* Separadores y estado de la distancia */}
+              <div className="mt-4 pt-4 border-t border-slateDark-borderSubtle">
+                <button
+                  type="button"
+                  onClick={() => void handleCalcularDistancia()}
+                  disabled={distancia.tipo === 'cargando'}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-slateDark-textMuted hover:text-slateDark-primaryLight bg-slateDark-surfaceSubtle hover:bg-slateDark-borderSubtle border border-slateDark-borderSubtle px-3 py-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Route className="w-3.5 h-3.5" />
+                  <span>
+                    {distancia.tipo === 'cargando'
+                      ? 'Calculando...'
+                      : `Distancia con @${viewerUsername}`}
+                  </span>
+                </button>
+
+                {distancia.tipo === 'error' && (
+                  <p role="alert" className="mt-2 text-xs text-rose-400 font-medium">
+                    {distancia.mensaje}
+                  </p>
+                )}
+
+                {distancia.tipo === 'listo' && distancia.datos.rutaConexion.length === 0 && (
+                  <p className="mt-2 text-xs text-slateDark-textMuted">
+                    No hay conexión con @{usernameMostrado} dentro de los 6 grados de separación.
+                  </p>
+                )}
+
+                {distancia.tipo === 'listo' && distancia.datos.rutaConexion.length > 0 && (
+                  <div className="mt-2 text-xs text-slateDark-textMuted">
+                    <p className="font-medium text-slateDark-primaryLight">
+                      {distancia.datos.saltosTotales}{' '}
+                      {distancia.datos.saltosTotales === 1 ? 'salto' : 'saltos'} de separación
+                    </p>
+                    <ol className="mt-1 flex flex-wrap items-center gap-1">
+                      {distancia.datos.rutaConexion.map((nodo, indice) => (
+                        <li
+                          key={`${nodo.id ?? nodo.username}-${indice}`}
+                          className="flex items-center gap-1"
+                        >
+                          {indice > 0 && <span className="text-slateDark-border">&rarr;</span>}
+                          <span className="font-medium text-slateDark-text">@{nodo.username}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+              </div>
             </div>
           </>
         )}
       </section>
 
       {/* Seguidores */}
-      <section className="bg-white rounded-xl border border-slate-200 shadow-xs p-5">
+      <section className="bg-slateDark-surface rounded-xl border border-slateDark-borderSubtle shadow-xs p-5">
         <div className="flex items-center gap-2 mb-2">
-          <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
+          <div className="p-1.5 rounded-lg bg-indigo-500/10 text-slateDark-primaryLight">
             <Users className="w-4 h-4" />
           </div>
-          <h3 className="font-semibold text-sm text-slate-900">Seguidores</h3>
+          <h3 className="font-semibold text-sm text-slateDark-text">Seguidores</h3>
         </div>
 
         {seguidores.tipo === 'cargando' && (
-          <p className="text-xs text-slate-400">Cargando seguidores...</p>
+          <p className="text-xs text-slateDark-textMuted">Cargando seguidores...</p>
         )}
 
         {seguidores.tipo === 'error' && (
-          <p role="alert" className="text-xs text-rose-600 font-medium">
+          <p role="alert" className="text-xs text-rose-400 font-medium">
             {seguidores.mensaje}
           </p>
         )}
 
         {seguidores.tipo === 'listo' && seguidores.datos.length === 0 && (
-          <p className="text-xs text-slate-400 py-2">Todavía no tiene seguidores.</p>
+          <p className="text-xs text-slateDark-textMuted py-2">Todavía no tiene seguidores.</p>
         )}
 
         {seguidores.tipo === 'listo' && seguidores.datos.length > 0 && (
@@ -371,24 +388,28 @@ export const PerfilAjeno: React.FC<PerfilAjenoProps> = ({
 
       {/* Publicaciones */}
       <section>
-        <h3 className="font-semibold text-sm text-slate-900 mb-3">Publicaciones</h3>
+        <h3 className="font-semibold text-sm text-slateDark-text mb-3">Publicaciones</h3>
 
         {publicaciones.tipo === 'cargando' && (
-          <div className="bg-white rounded-xl p-8 text-center border border-slate-200 shadow-xs">
-            <div className="animate-spin w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full mx-auto mb-3" />
-            <p className="text-xs text-slate-500 font-medium">Cargando publicaciones...</p>
+          <div className="bg-slateDark-surface rounded-xl p-8 text-center border border-slateDark-borderSubtle shadow-xs">
+            <div className="animate-spin w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full mx-auto mb-3" />
+            <p className="text-xs text-slateDark-textMuted font-medium">
+              Cargando publicaciones...
+            </p>
           </div>
         )}
 
         {publicaciones.tipo === 'error' && (
-          <p role="alert" className="text-sm text-rose-600 font-medium">
+          <p role="alert" className="text-sm text-rose-400 font-medium">
             {publicaciones.mensaje}
           </p>
         )}
 
         {publicaciones.tipo === 'listo' && publicaciones.datos.length === 0 && (
-          <div className="bg-white rounded-xl p-8 text-center border border-slate-200 shadow-xs">
-            <p className="text-xs text-slate-400">Esta persona todavía no ha publicado nada.</p>
+          <div className="bg-slateDark-surface rounded-xl p-8 text-center border border-slateDark-borderSubtle shadow-xs">
+            <p className="text-xs text-slateDark-textMuted">
+              Esta persona todavía no ha publicado nada.
+            </p>
           </div>
         )}
 
@@ -423,10 +444,10 @@ const PersonaFila: React.FC<PersonaFilaProps> = ({ persona, onOpenPerfil }) => {
     <button
       type="button"
       onClick={() => onOpenPerfil(persona.id)}
-      className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 transition-colors text-left cursor-pointer"
+      className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-slateDark-surfaceSubtle transition-colors text-left cursor-pointer"
     >
       {persona.avatarUrl && !avatarCaido ? (
-        <div className="w-9 h-9 rounded-full overflow-hidden bg-slate-200 shrink-0">
+        <div className="w-9 h-9 rounded-full overflow-hidden bg-slateDark-surfaceSubtle shrink-0 ring-1 ring-slateDark-border">
           <img
             src={persona.avatarUrl}
             alt={`Avatar de @${persona.username}`}
@@ -435,15 +456,15 @@ const PersonaFila: React.FC<PersonaFilaProps> = ({ persona, onOpenPerfil }) => {
           />
         </div>
       ) : (
-        <div className="w-9 h-9 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs shrink-0">
+        <div className="w-9 h-9 rounded-full bg-slateDark-surfaceSubtle text-slateDark-text border border-slateDark-borderSubtle flex items-center justify-center font-bold text-xs shrink-0">
           {inicial}
         </div>
       )}
       <div className="min-w-0">
-        <p className="text-xs font-semibold text-slate-800 truncate">
+        <p className="text-xs font-semibold text-slateDark-text truncate">
           {persona.nombre || `@${persona.username}`}
         </p>
-        <p className="text-[11px] text-slate-500">@{persona.username}</p>
+        <p className="text-[11px] text-slateDark-textMuted">@{persona.username}</p>
       </div>
     </button>
   );

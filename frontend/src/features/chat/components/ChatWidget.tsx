@@ -1,22 +1,75 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
-  ChevronDown,
-  ChevronLeft,
+  AlertTriangle,
+  ArrowLeft,
+  ArrowUp,
+  CheckCheck,
+  CheckCircle2,
+  ChevronUp,
+  Clock,
   Loader2,
   MessageSquare,
+  Minimize2,
+  RefreshCw,
+  RotateCw,
   Search,
-  Send,
-  Wifi,
-  WifiOff,
+  Smile,
+  Sparkles,
+  X,
 } from 'lucide-react';
 import { ChatMessage, ConversacionChat, EstadoChat, FilaChat } from '../types/chat.types';
 import { chatSocketManager } from '../services/chatSocket';
 import { obtenerConversaciones, obtenerHistorial } from '../services/chatApi';
 import { fetchSeguidos } from '../../network/services/networkApi';
 
-interface ChatWidgetProps {
-  currentUserId: string;
+const EMOJIS_RAPIDOS = ['❤️', '🔥', '👍', '😂', '🎉', '🚀', '👋', '✨'];
+const SUGERENCIAS_INICIO = ['👋 ¡Hola!', '🚀 ¿Cómo va el proyecto?', '✨ ¡Mucho gusto!'];
+
+const formatearHora = (timestamp?: number): string => {
+  if (!timestamp) return '';
+  const d = new Date(timestamp);
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
+/**
+ * Sintetizador de audio con Web Audio API: genera sutiles toques sonoros
+ * de envío y recepción sin necesidad de archivos externos.
+ */
+function reproducirSonidoFeedback(tipo: 'send' | 'receive') {
+  try {
+    const AudioContextClass =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof window.AudioContext }).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    if (tipo === 'send') {
+      // Pop sutil ascendente al enviar
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(600, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(900, ctx.currentTime + 0.06);
+      gain.gain.setValueAtTime(0.06, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.06);
+    } else {
+      // Campanilla suave de dos tonos al recibir
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+      osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.07); // E5
+      gain.gain.setValueAtTime(0.09, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.18);
+    }
+  } catch {
+    // Si el navegador bloquea audio sin interacción previa, se ignora silenciosamente
+  }
 }
 
 const ETIQUETA_ESTADO: Record<EstadoChat['estado'], string> = {
@@ -119,12 +172,29 @@ export function fusionarFilas(
   return [...conMensajes, ...sinMensajes];
 }
 
-export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId }) => {
-  const [abierto, setAbierto] = useState<boolean>(false);
-  const [enConversacion, setEnConversacion] = useState<boolean>(false);
-  const [busqueda, setBusqueda] = useState<string>('');
+export interface ChatWidgetProps {
+  currentUserId: string;
+  isOpenExternal?: boolean;
+  onToggleExternal?: () => void;
+  onCloseExternal?: () => void;
+}
+
+export const ChatWidget: React.FC<ChatWidgetProps> = ({
+  currentUserId,
+  isOpenExternal,
+  onToggleExternal,
+  onCloseExternal,
+}) => {
+  // Apertura: la controla App si pasa las props, y si no el propio widget.
+  const [internalIsOpen, setInternalIsOpen] = useState<boolean>(false);
+  const isOpen = isOpenExternal !== undefined ? isOpenExternal : internalIsOpen;
+
+  const [activeView, setActiveView] = useState<'inbox' | 'conversation'>('inbox');
+  const [contactoActivo, setContactoActivo] = useState<FilaChat | null>(null);
   const [filas, setFilas] = useState<FilaChat[]>([]);
-  const [seleccion, setSeleccion] = useState<FilaChat | null>(null);
+  const [busqueda, setBusqueda] = useState<string>('');
+  const [inboxFilter, setInboxFilter] = useState<'todos' | 'directos'>('todos');
+  const [unreadCount, setUnreadCount] = useState<number>(0);
   const [mensaje, setMensaje] = useState<string>('');
   const [mensajes, setMensajes] = useState<ChatMessage[]>([]);
   const [estado, setEstado] = useState<EstadoChat>({ estado: 'conectando', intento: 0 });
@@ -132,7 +202,21 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId }) => {
   const [errorLista, setErrorLista] = useState<string | null>(null);
   const [cargandoHistorial, setCargandoHistorial] = useState<boolean>(false);
   const [errorHistorial, setErrorHistorial] = useState<string | null>(null);
+
+  // Toast de notificación flotante para mensajes entrantes en segundo plano
+  const [incomingToast, setIncomingToast] = useState<{
+    emisorId: string;
+    contenido: string;
+  } | null>(null);
+
+  // Feedback visual de envío y estado
+  const [sendFeedback, setSendFeedback] = useState<string | null>(null);
+  const [lastSentSuccess, setLastSentSuccess] = useState<boolean>(false);
+
   const scrollRef = useRef<HTMLDivElement>(null);
+  const isOpenRef = useRef(isOpen);
+  const contactoActivoRef = useRef(contactoActivo);
+  const activeViewRef = useRef(activeView);
 
   /**
    * Interlocutor vigente, legible desde el manejador del socket.
@@ -143,7 +227,106 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId }) => {
    * conversación" descartaría todo lo que llegara y el chat no mostraría nunca nada.
    */
   const interlocutorRef = useRef<string>('');
-  interlocutorRef.current = seleccion?.id ?? '';
+
+  isOpenRef.current = isOpen;
+  contactoActivoRef.current = contactoActivo;
+  activeViewRef.current = activeView;
+  interlocutorRef.current = contactoActivo?.id ?? '';
+
+  const conectado = estado.estado === 'conectado';
+
+  /**
+   * Deja la fila del interlocutor al día con lo que se acaba de escribir o de recibir.
+   *
+   * <p>La fila pasa a tener conversación aunque la lista no se vuelva a pedir. Si no, volver atrás
+   * después de escribir la primera palabra mostraría "Sin mensajes" sobre una conversación que ya
+   * existe, y el mensaje recién llegado no se vería reflejado en la bandeja.
+   */
+  const sincronizarPreview = useCallback((contactoId: string, contenido: string): void => {
+    setFilas((previas) => {
+      const indice = previas.findIndex(
+        (fila) => fila.id.toLowerCase() === contactoId.toLowerCase(),
+      );
+      if (indice === -1) {
+        // Quien escribe sin estar en la lista local (por ejemplo, alguien que acaba de aparecer
+        // con un mensaje entrante) se crea la fila para que la bandeja no la pierda.
+        const limpio = contactoId.trim().replace(/^@/, '');
+        if (!limpio) return previas;
+        const nueva: FilaChat = {
+          id: limpio,
+          username: limpio,
+          nombre: limpio.charAt(0).toUpperCase() + limpio.slice(1),
+          conMensajes: true,
+          ultimoMensaje: contenido,
+          fechaUltimoMensaje: Date.now(),
+        };
+        return [nueva, ...previas];
+      }
+      const actualizada: FilaChat = {
+        ...previas[indice],
+        conMensajes: true,
+        ultimoMensaje: contenido,
+        fechaUltimoMensaje: Date.now(),
+      };
+      return [actualizada, ...previas.filter((_, i) => i !== indice)];
+    });
+  }, []);
+
+  /**
+   * Frame recibido del canal: lo mezcla en la conversación abierta y, si es un mensaje nuevo y no
+   * un acuse, refresca la bandeja y avisa.
+   */
+  const manejarFrame = (nuevo: ChatMessage): void => {
+    setMensajes((previos) => incorporar(previos, nuevo, currentUserId, interlocutorRef.current));
+
+    // Un acuse no es un mensaje nuevo: no suena, no refresca la bandeja y no abre el aviso, porque
+    // describe el desenlace de una burbuja que ya está en pantalla.
+    const esAcuse = Boolean(nuevo.estado) && nuevo.estado !== 'PENDIENTE';
+    if (esAcuse) return;
+
+    const llegaDeOtro = nuevo.emisorId !== currentUserId;
+    if (llegaDeOtro) {
+      reproducirSonidoFeedback('receive');
+      sincronizarPreview(nuevo.emisorId, nuevo.contenido);
+    }
+
+    const estaEnOtroChat =
+      !isOpenRef.current ||
+      activeViewRef.current !== 'conversation' ||
+      (contactoActivoRef.current?.id.toLowerCase() ?? '') !== nuevo.emisorId.toLowerCase();
+
+    if (llegaDeOtro && estaEnOtroChat) {
+      setUnreadCount((c) => c + 1);
+      setIncomingToast({ emisorId: nuevo.emisorId, contenido: nuevo.contenido });
+
+      // Auto-cerrar toast tras 6 segundos
+      const contenido = nuevo.contenido;
+      setTimeout(() => {
+        setIncomingToast((prev) => (prev?.contenido === contenido ? null : prev));
+      }, 6000);
+    }
+  };
+
+  /**
+   * El manejador vigente se lee a través de la referencia para que el socket, que se registra una
+   * sola vez por montaje, no se quede cerrado sobre la primera versión del render.
+   */
+  const manejarFrameRef = useRef(manejarFrame);
+  manejarFrameRef.current = manejarFrame;
+
+  const registrarFrame = useCallback((nuevo: ChatMessage): void => {
+    manejarFrameRef.current(nuevo);
+  }, []);
+
+  const notificarEstado = useCallback((siguiente: EstadoChat): void => {
+    setEstado(siguiente);
+  }, []);
+
+  /** Reconexión a mano desde el aviso de desconexión, para no esperar al siguiente reintento. */
+  const reconectar = useCallback((): void => {
+    chatSocketManager.disconnect();
+    chatSocketManager.connect(currentUserId, registrarFrame, notificarEstado);
+  }, [currentUserId, registrarFrame, notificarEstado]);
 
   /**
    * Abre el canal una vez por montaje.
@@ -151,24 +334,17 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId }) => {
    * <p>App.tsx monta el widget con `key={currentUserId}`, así que al cambiar de usuario React
    * desmonta este componente y crea otro limpio. Sin esa clave el socket seguiría conectado con la
    * identidad anterior durante toda la sesión y los mensajes se irían a la persona equivocada.
+   *
+   * <p>El efecto no depende de la conversación a propósito: si dependiera, abrir otra cerraría y
+   * reabriría el canal, y lo que hubiera en vuelo se perdería. El valor vigente se lee a través de
+   * la referencia de arriba, que no es una dependencia porque no cambia.
    */
   useEffect(() => {
-    chatSocketManager.connect(
-      currentUserId,
-      (nuevo) => {
-        setMensajes((previos) =>
-          incorporar(previos, nuevo, currentUserId, interlocutorRef.current),
-        );
-      },
-      (siguiente) => setEstado(siguiente),
-    );
+    chatSocketManager.connect(currentUserId, registrarFrame, notificarEstado);
     return () => {
       chatSocketManager.disconnect();
     };
-    // El efecto no depende de la conversación a propósito: si dependiera, abrir otra cerraría y
-    // reabriría el canal, y lo que hubiera en vuelo se perdería. El valor vigente se lee a través
-    // de la referencia de arriba, que no es una dependencia porque no cambia.
-  }, [currentUserId]);
+  }, [currentUserId, registrarFrame, notificarEstado]);
 
   /**
    * Carga la lista de destino al abrir el panel, no al montar.
@@ -182,7 +358,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId }) => {
    * conversaciones, y la segunda parte sí tiene algo que enseñar.
    */
   useEffect(() => {
-    if (!abierto) return undefined;
+    if (!isOpen) return undefined;
 
     let cancelado = false;
     setCargandoLista(true);
@@ -207,17 +383,18 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId }) => {
     return () => {
       cancelado = true;
     };
-  }, [abierto, currentUserId]);
+  }, [isOpen, currentUserId]);
 
   /**
    * Carga el historial de la conversación abierta.
    *
-   * <p>Ya no hay espera de escritura: antes el interlocutor se tecleaba letra a letra y cada
-   * pulsación disparaba una petición. Ahora se elige de una lista, así que la petición se hace una
-   * vez por conversación abierta.
+   * <p>La dependencia es el interlocutor y no la lista de mensajes: si lo fuera, cada envío volvería
+   * a pedir la conversación entera y reescribiría con ella las burbujas que acaban de aparecer. La
+   * petición se hace una vez por conversación elegida.
    */
   useEffect(() => {
-    if (!seleccion) {
+    const interlocutor = contactoActivo?.id;
+    if (!interlocutor) {
       setMensajes([]);
       setCargandoHistorial(false);
       setErrorHistorial(null);
@@ -225,10 +402,11 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId }) => {
     }
 
     let cancelado = false;
+    setMensajes([]);
     setCargandoHistorial(true);
     setErrorHistorial(null);
 
-    obtenerHistorial(currentUserId, seleccion.id)
+    obtenerHistorial(currentUserId, interlocutor)
       .then((historial) => {
         if (cancelado) return;
         setMensajes(historial);
@@ -245,36 +423,85 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId }) => {
     return () => {
       cancelado = true;
     };
-  }, [seleccion, currentUserId]);
+  }, [contactoActivo?.id, currentUserId]);
 
   useEffect(() => {
-    const nodo = scrollRef.current;
-    if (nodo) {
-      nodo.scrollTop = nodo.scrollHeight;
+    if (isOpen && activeView === 'conversation' && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [mensajes]);
+  }, [mensajes, isOpen, activeView, contactoActivo]);
 
-  const abrirFila = (fila: FilaChat): void => {
-    setEnConversacion(true);
-    setSeleccion(fila);
+  const handleToggle = (): void => {
+    if (onToggleExternal) {
+      onToggleExternal();
+    } else {
+      setInternalIsOpen((prev) => !prev);
+    }
+    if (!isOpen) {
+      setUnreadCount(0);
+      setIncomingToast(null);
+    }
   };
 
-  const volverALista = (): void => {
-    setEnConversacion(false);
-    setSeleccion(null);
+  const handleClose = (): void => {
+    if (onCloseExternal) {
+      onCloseExternal();
+    } else {
+      setInternalIsOpen(false);
+    }
   };
 
-  const enviar = (evento: React.FormEvent): void => {
-    evento.preventDefault();
-    const texto = mensaje.trim();
-    const destinatario = seleccion?.id;
-    if (!texto || !destinatario) return;
+  const handleSeleccionarConversacion = (contacto: FilaChat): void => {
+    setContactoActivo(contacto);
+    setActiveView('conversation');
+    setUnreadCount(0);
+    setIncomingToast(null);
+  };
 
-    const entregado = chatSocketManager.sendMessage(destinatario, texto);
-    if (!entregado) {
-      // El texto se conserva a propósito: borrarlo perdería lo escrito por un canal que no está listo.
+  const handleVolverAInbox = (): void => {
+    setActiveView('inbox');
+  };
+
+  const handleCrearChatCustom = (username: string): void => {
+    const limpio = username.trim().replace(/^@/, '');
+    if (!limpio) return;
+
+    const existente = filas.find((fila) => fila.id.toLowerCase() === limpio.toLowerCase());
+    if (existente) {
+      handleSeleccionarConversacion(existente);
+      setBusqueda('');
       return;
     }
+
+    const nueva: FilaChat = {
+      id: limpio,
+      username: limpio,
+      nombre: limpio.charAt(0).toUpperCase() + limpio.slice(1),
+      conMensajes: false,
+    };
+
+    setFilas((previas) => [nueva, ...previas]);
+    handleSeleccionarConversacion(nueva);
+    setBusqueda('');
+  };
+
+  const enviarMensajeTexto = (texto: string): void => {
+    const textoAEnviar = texto.trim();
+    const destinatario = contactoActivo?.id;
+    if (!textoAEnviar || !destinatario) return;
+
+    const entregado = chatSocketManager.sendMessage(destinatario, textoAEnviar);
+    if (!entregado) {
+      // El texto se conserva a propósito: borrarlo perdería lo escrito por un canal que no está
+      // listo, y al reconectar basta con volver a pulsar enviar.
+      setSendFeedback('Sin conexión con el canal de chat. Tu mensaje se conserva en el campo.');
+      setTimeout(() => setSendFeedback(null), 4000);
+      return;
+    }
+
+    reproducirSonidoFeedback('send');
+    setLastSentSuccess(true);
+    setTimeout(() => setLastSentSuccess(false), 2000);
 
     // La burbuja aparece antes de que el servidor confirme, y con estado provisional. Sin esto, un
     // envío se vería como si no hubiera pasado hasta que llegue la respuesta.
@@ -284,309 +511,738 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId }) => {
         clave: nuevaClave(),
         emisorId: currentUserId,
         destinatarioId: destinatario,
-        contenido: texto,
+        contenido: textoAEnviar,
+        timestamp: Date.now(),
         estado: 'PENDIENTE',
       } as Pendiente,
     ]);
+    sincronizarPreview(destinatario, textoAEnviar);
     setMensaje('');
-    // La fila del interlocutor pasa a tener conversación aunque la lista no se vuelva a pedir. Si
-    // no, volver atrás después de escribir la primera palabra mostraría "Sin mensajes" sobre una
-    // conversación que existe.
-    marcarEnviado(destinatario, texto);
   };
 
-  /** Deja la fila del interlocutor al día con lo que se acaba de escribir. */
-  const marcarEnviado = (destinatarioId: string, contenido: string): void => {
-    setFilas((previas) =>
-      previas.map((fila) =>
-        fila.id === destinatarioId
-          ? {
-              ...fila,
-              conMensajes: true,
-              ultimoMensaje: contenido,
-              fechaUltimoMensaje: Date.now(),
-            }
-          : fila,
+  const handleEnviar = (evento: React.FormEvent): void => {
+    evento.preventDefault();
+    enviarMensajeTexto(mensaje);
+  };
+
+  /** Reenvía una burbuja que el servidor rechazó o no pudo entregar. */
+  const reintentarMensaje = (m: ChatMessage): void => {
+    const entregado = chatSocketManager.sendMessage(m.destinatarioId, m.contenido);
+    if (!entregado) {
+      setSendFeedback('Sigue sin conexión. Inténtalo de nuevo en unos segundos.');
+      setTimeout(() => setSendFeedback(null), 3000);
+      return;
+    }
+
+    reproducirSonidoFeedback('send');
+    setMensajes((previos) =>
+      previos.map((item) =>
+        item === m
+          ? { ...item, estado: 'PENDIENTE', motivo: undefined, timestamp: Date.now() }
+          : item,
       ),
     );
   };
 
-  const reintentarHistorial = useCallback(() => {
-    if (!seleccion) return;
+  const reintentarHistorial = (): void => {
+    const interlocutor = contactoActivo?.id;
+    if (!interlocutor) return;
+
     setCargandoHistorial(true);
-    obtenerHistorial(currentUserId, seleccion.id)
-      .then((historial) => {
-        setMensajes(historial);
-        setErrorHistorial(null);
-      })
+    setErrorHistorial(null);
+    obtenerHistorial(currentUserId, interlocutor)
+      .then((historial) => setMensajes(historial))
       .catch(() => setErrorHistorial('No se pudo cargar el historial.'))
       .finally(() => setCargandoHistorial(false));
-  }, [seleccion, currentUserId]);
+  };
 
-  const visibles = useMemo(() => {
+  const avatarLetra = (nombre: string): string =>
+    nombre ? nombre.charAt(0).toUpperCase() : '?';
+
+  const tiempoFila = (fila: FilaChat): string =>
+    fila.conMensajes ? formatearHora(fila.fechaUltimoMensaje) : '';
+
+  const estadoFila = (fila: FilaChat): string =>
+    fila.conMensajes ? 'Conversación activa' : 'Nuevo contacto';
+
+  const filasVisibles = useMemo(() => {
     const texto = normalizar(busqueda);
-    if (texto === '') return filas;
-    return filas.filter((fila) =>
-      normalizar(`${fila.nombre ?? ''} ${fila.username}`).includes(texto),
+    return filas.filter((fila) => {
+      const coincide =
+        texto === '' || normalizar(`${fila.nombre ?? ''} ${fila.username}`).includes(texto);
+      if (!coincide) return false;
+      return inboxFilter === 'todos' || fila.conMensajes;
+    });
+  }, [filas, busqueda, inboxFilter]);
+
+  // Mensajes correspondientes al contacto activo
+  const mensajesDelContacto = useMemo(() => {
+    if (!contactoActivo) return [];
+    const interlocutor = contactoActivo.id.toLowerCase();
+    return mensajes.filter(
+      (m) =>
+        m.destinatarioId.toLowerCase() === interlocutor ||
+        m.emisorId.toLowerCase() === interlocutor,
     );
-  }, [filas, busqueda]);
+  }, [mensajes, contactoActivo]);
 
-  const claseEstado = useMemo(() => {
-    switch (estado.estado) {
-      case 'conectado':
-        return 'text-emerald-700 bg-emerald-50 border-emerald-100';
-      case 'conectando':
-        return 'text-amber-700 bg-amber-50 border-amber-100';
-      default:
-        return 'text-slate-600 bg-slate-50 border-slate-200';
-    }
-  }, [estado.estado]);
-
-  const cabecera = (
-    <div className="flex items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-4 py-3">
-      <div className="flex min-w-0 items-center gap-2">
-        {enConversacion ? (
-          <button
-            type="button"
-            onClick={volverALista}
-            aria-label="Volver a la lista de conversaciones"
-            className="cursor-pointer rounded-lg p-1 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-700"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-        ) : (
-          <span className="rounded-lg bg-blue-50 p-1.5 text-blue-600">
-            <MessageSquare className="h-4 w-4" />
-          </span>
-        )}
-        <h3 className="truncate text-sm font-semibold text-slate-900">
-          {enConversacion && seleccion
-            ? seleccion.nombre || `@${seleccion.username}`
-            : 'Mensajes en vivo'}
-        </h3>
-      </div>
-      <div className="flex shrink-0 items-center gap-1.5">
-        <span
-          className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${claseEstado}`}
-          title={
-            estado.intento > 0
-              ? `${estado.intento} intento(s) de reconexión`
-              : ETIQUETA_ESTADO[estado.estado]
-          }
+  return (
+    <div className="fixed bottom-0 right-4 sm:right-6 z-50">
+      {/* 1. TOAST FLOTANTE DE FEEDBACK PARA MENSAJE ENTRANTE */}
+      {incomingToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{ backgroundColor: 'rgb(var(--color-surface))' }}
+          className="absolute bottom-14 right-0 w-80 sm:w-88 p-3 rounded-2xl bg-white dark:bg-[#27272A] border border-slate-200 dark:border-zinc-700 shadow-2xl flex items-center justify-between gap-3 text-xs text-slate-900 dark:text-zinc-100 animate-in slide-in-from-bottom-2 fade-in duration-200 z-50"
         >
-          {estado.estado === 'conectado' ? (
-            <Wifi className="h-3 w-3" />
-          ) : estado.estado === 'conectando' ? (
-            <Loader2 className="h-3 w-3 animate-spin" />
-          ) : (
-            <WifiOff className="h-3 w-3" />
-          )}
-          <span className="hidden sm:inline">{ETIQUETA_ESTADO[estado.estado]}</span>
-        </span>
-        <button
-          type="button"
-          onClick={() => setAbierto(false)}
-          aria-label="Minimizar el chat"
-          className="cursor-pointer rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-700"
-        >
-          <ChevronDown className="h-4 w-4" />
-        </button>
-      </div>
-    </div>
-  );
-
-  const panel = (
-    <div className="flex min-h-0 flex-1 flex-col">
-      {!enConversacion && (
-        <div className="border-b border-slate-200 p-3">
-          <label htmlFor="chat-buscar" className="sr-only">
-            Buscar conversación
-          </label>
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400" />
-            <input
-              id="chat-buscar"
-              type="search"
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar por nombre o usuario"
-              className="w-full rounded-lg border border-slate-300 bg-slate-50 py-1.5 pl-8 pr-3 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
-        </div>
-      )}
-
-      {!enConversacion ? (
-        <div className="min-h-0 flex-1 overflow-y-auto p-2">
-          {cargandoLista ? (
-            <div className="flex h-full flex-col items-center justify-center gap-2 py-10 text-xs text-slate-500">
-              <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
-              Cargando conversaciones...
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shrink-0 ring-1 ring-indigo-400/40 shadow-xs">
+              {incomingToast.emisorId.charAt(0).toUpperCase()}
             </div>
-          ) : errorLista ? (
-            <div className="flex h-full flex-col items-center justify-center gap-2 py-10 text-center">
-              <AlertCircle className="h-5 w-5 text-red-500" />
-              <p className="text-xs text-red-600">{errorLista}</p>
-              <p className="text-[11px] text-slate-400">
-                Cierra y vuelve a abrir el chat para intentarlo de nuevo.
+            <div className="min-w-0">
+              <p className="font-semibold text-slate-900 dark:text-zinc-100 truncate flex items-center gap-1">
+                <span>@{incomingToast.emisorId}</span>
+                <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-normal">
+                  te escribió
+                </span>
+              </p>
+              <p className="text-[11px] text-slate-500 dark:text-zinc-400 truncate">
+                {incomingToast.contenido}
               </p>
             </div>
-          ) : visibles.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center py-10 text-center text-xs text-slate-400">
-              <MessageSquare className="mb-1 h-6 w-6 text-slate-300" />
-              <p>
-                {busqueda.trim() === ''
-                  ? 'Todavía no has escrito con nadie.'
-                  : 'Ninguna conversación coincide con la búsqueda.'}
-              </p>
-            </div>
-          ) : (
-            <ul className="space-y-1">
-              {visibles.map((fila) => (
-                <li key={fila.id}>
-                  <FilaConversacion fila={fila} onAbrir={abrirFila} />
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      ) : (
-        <>
-          <div ref={scrollRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto bg-slate-50 p-3">
-            {cargandoHistorial ? (
-              <div className="flex h-full flex-col items-center justify-center gap-2 py-10 text-xs text-slate-500">
-                <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
-                Cargando historial...
-              </div>
-            ) : errorHistorial ? (
-              <div className="flex h-full flex-col items-center justify-center gap-2 py-10 text-center">
-                <AlertCircle className="h-5 w-5 text-red-500" />
-                <p className="text-xs text-red-600">{errorHistorial}</p>
-                <button
-                  type="button"
-                  onClick={reintentarHistorial}
-                  className="cursor-pointer rounded-lg border border-slate-300 px-2.5 py-1 text-[11px] font-medium text-slate-700 transition-colors hover:bg-slate-100"
-                >
-                  Reintentar
-                </button>
-              </div>
-            ) : mensajes.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center py-10 text-center text-xs text-slate-400">
-                <MessageSquare className="mb-1 h-6 w-6 text-slate-300" />
-                <p>No hay mensajes en esta conversación.</p>
-                <p className="mt-0.5 text-[11px] text-slate-400">
-                  Escribe para iniciar el chat en tiempo real.
-                </p>
-              </div>
-            ) : (
-              mensajes.map((m) => (
-                <Burbuja key={claveDe(m)} mensaje={m} currentUserId={currentUserId} />
-              ))
-            )}
           </div>
 
-          <form onSubmit={enviar} className="flex gap-2 border-t border-slate-200 p-3">
-            <label htmlFor="chat-mensaje" className="sr-only">
-              Escribe un mensaje
-            </label>
-            <input
-              id="chat-mensaje"
-              type="text"
-              value={mensaje}
-              onChange={(e) => setMensaje(e.target.value)}
-              placeholder="Escribe un mensaje..."
-              className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
-              type="submit"
-              disabled={!mensaje.trim()}
-              aria-label="Enviar mensaje"
-              className="cursor-pointer rounded-lg bg-blue-600 p-2 text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+              type="button"
+              onClick={() => {
+                const contacto =
+                  filas.find(
+                    (fila) => fila.id.toLowerCase() === incomingToast.emisorId.toLowerCase(),
+                  ) || {
+                    id: incomingToast.emisorId,
+                    username: incomingToast.emisorId,
+                    nombre: incomingToast.emisorId,
+                    conMensajes: true,
+                    ultimoMensaje: incomingToast.contenido,
+                    fechaUltimoMensaje: Date.now(),
+                  };
+                handleSeleccionarConversacion(contacto);
+                if (!isOpen) handleToggle();
+              }}
+              className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-semibold cursor-pointer transition-colors shadow-xs active:scale-95"
             >
-              <Send className="h-3.5 w-3.5" />
+              Ver
             </button>
-          </form>
-        </>
+            <button
+              type="button"
+              onClick={() => setIncomingToast(null)}
+              aria-label="Descartar notificación"
+              className="p-1 text-slate-400 hover:text-slate-600 dark:text-zinc-400 dark:hover:text-zinc-100 rounded-md cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
       )}
 
-      {estado.estado !== 'conectado' && (
-        <p className="border-t border-slate-200 px-4 py-2 text-center text-[11px] text-amber-600">
-          {estado.estado === 'conectando'
-            ? 'Reintentando la conexión con el servidor...'
-            : 'Sin conexión con el canal de chat.'}
-        </p>
+      {/* 2. BARRA MINIMIZADA (DOCK LIMPIO Y SÓLIDO) */}
+      {!isOpen && (
+        <div
+          onClick={handleToggle}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') handleToggle();
+          }}
+          aria-label="Abrir mensajes directos"
+          style={{ backgroundColor: 'rgb(var(--color-surface))' }}
+          className="w-72 sm:w-80 h-12 bg-white dark:bg-[#27272A] hover:bg-slate-50 dark:hover:bg-[#323236] border-t border-x border-slate-200/90 dark:border-zinc-800 rounded-t-2xl shadow-xl px-4 flex items-center justify-between cursor-pointer transition-all duration-200 select-none group"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="relative">
+              <div className="w-7 h-7 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-xs">
+                <MessageSquare className="w-3.5 h-3.5" />
+              </div>
+              <span
+                title={ETIQUETA_ESTADO[estado.estado]}
+                className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-white dark:ring-zinc-800 ${
+                  conectado ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'
+                }`}
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-slate-900 dark:text-zinc-100">
+                Mensajes
+              </span>
+              {unreadCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-indigo-600 text-white animate-bounce shadow-xs">
+                  {unreadCount}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 text-slate-500 dark:text-zinc-400 group-hover:text-slate-900 dark:group-hover:text-zinc-100 transition-colors">
+            {!conectado && (
+              <span className="text-[10px] text-amber-500 flex items-center gap-1 font-medium">
+                <AlertTriangle className="w-3 h-3" />
+                Desconectado
+              </span>
+            )}
+            <ChevronUp className="w-4 h-4 transition-transform group-hover:-translate-y-0.5" />
+          </div>
+        </div>
+      )}
+
+      {/* 3. VENTANA DE MENSAJERÍA COMPLETA (INBOX + CONVERSACIÓN) */}
+      {isOpen && (
+        <div
+          style={{ backgroundColor: 'rgb(var(--color-surface))' }}
+          className="w-80 sm:w-96 h-[520px] bg-white dark:bg-[#18181B] border-t border-x border-slate-200/90 dark:border-zinc-800 rounded-t-2xl shadow-2xl flex flex-col overflow-hidden transition-all duration-300"
+        >
+          {/* Aviso si el canal de chat no está conectado */}
+          {!conectado && (
+            <div className="bg-amber-50 dark:bg-amber-950/80 border-b border-amber-200 dark:border-amber-800 px-3 py-1.5 flex items-center justify-between text-[11px] text-amber-800 dark:text-amber-200 shrink-0">
+              <span className="flex items-center gap-1.5 truncate font-medium">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+                <span>{ETIQUETA_ESTADO[estado.estado]}</span>
+                {estado.intento > 0 && (
+                  <span className="text-amber-600 dark:text-amber-400 font-normal">
+                    · {estado.intento} intento(s)
+                  </span>
+                )}
+              </span>
+              <button
+                type="button"
+                onClick={reconectar}
+                className="inline-flex items-center gap-1 font-semibold text-amber-700 dark:text-amber-300 hover:underline cursor-pointer ml-2 shrink-0"
+              >
+                <RefreshCw className="w-3 h-3" />
+                Reconectar
+              </button>
+            </div>
+          )}
+
+          {/* Banner de feedback temporal de error en envío */}
+          {sendFeedback && (
+            <div className="bg-rose-50 dark:bg-rose-950/80 border-b border-rose-200 dark:border-rose-800 px-3 py-1 text-[11px] text-rose-700 dark:text-rose-200 shrink-0 animate-in fade-in flex items-center justify-between">
+              <span>{sendFeedback}</span>
+              <button
+                type="button"
+                onClick={() => setSendFeedback(null)}
+                className="text-rose-500 hover:text-rose-700 ml-2"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+
+          {/* Toast sutil de confirmación de envío exitoso */}
+          {lastSentSuccess && (
+            <div className="bg-emerald-50 dark:bg-emerald-950/80 border-b border-emerald-200 dark:border-emerald-800/80 px-3 py-1 text-[11px] text-emerald-700 dark:text-emerald-300 shrink-0 animate-in fade-in flex items-center gap-1.5 font-medium">
+              <CheckCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>Mensaje enviado correctamente</span>
+            </div>
+          )}
+
+          {/* === VISTA A: BANDEJA DE ENTRADA (LISTA DE CONVERSACIONES) === */}
+          {activeView === 'inbox' && (
+            <div
+              style={{ backgroundColor: 'rgb(var(--color-surface))' }}
+              className="flex-1 flex flex-col h-full bg-white dark:bg-[#18181B]"
+            >
+              {/* Header de la Bandeja */}
+              <div
+                style={{ backgroundColor: 'rgb(var(--color-surface))' }}
+                className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#18181B] shrink-0"
+              >
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-zinc-100">Mensajes</h3>
+                  <span
+                    className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border font-medium ${
+                      conectado
+                        ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800/60'
+                        : 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 border-amber-200 dark:border-amber-800/60'
+                    }`}
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        conectado ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
+                      }`}
+                    />
+                    {conectado ? 'En vivo' : 'Offline'}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={handleClose}
+                    aria-label="Minimizar mensajes"
+                    title="Minimizar"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                  >
+                    <Minimize2 className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleClose}
+                    aria-label="Cerrar mensajes"
+                    title="Cerrar"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Buscador de conversaciones y filtros */}
+              <div
+                style={{ backgroundColor: 'rgb(var(--color-surface))' }}
+                className="p-3 border-b border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#18181B] shrink-0 space-y-2"
+              >
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={busqueda}
+                    onChange={(e) => setBusqueda(e.target.value)}
+                    placeholder="Buscar o escribir @usuario..."
+                    className="w-full bg-slate-100 dark:bg-[#27272A] border border-slate-200 dark:border-zinc-700 rounded-full pl-8 pr-3 py-1.5 text-xs text-slate-900 dark:text-zinc-100 placeholder:text-slate-400 dark:placeholder:text-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-sans transition-all"
+                  />
+                  <Search className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-500 absolute left-2.5 top-2.5" />
+                </div>
+
+                {/* Filtros de Pestañas Normales */}
+                <div className="flex items-center gap-1.5 pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setInboxFilter('todos')}
+                    className={`text-[11px] font-semibold px-3 py-1 rounded-full transition-all cursor-pointer ${
+                      inboxFilter === 'todos'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'bg-slate-100 dark:bg-[#27272A] text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100'
+                    }`}
+                  >
+                    Todos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInboxFilter('directos')}
+                    className={`text-[11px] font-semibold px-3 py-1 rounded-full transition-all cursor-pointer ${
+                      inboxFilter === 'directos'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'bg-slate-100 dark:bg-[#27272A] text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100'
+                    }`}
+                  >
+                    Directos
+                  </button>
+                </div>
+              </div>
+
+              {/* Lista Vertical de Conversaciones */}
+              <div
+                style={{ backgroundColor: 'rgb(var(--color-surface))' }}
+                className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-zinc-800/70 bg-white dark:bg-[#18181B]"
+              >
+                {cargandoLista ? (
+                  <div className="h-full flex flex-col items-center justify-center gap-2 py-10 text-xs text-slate-500 dark:text-zinc-400">
+                    <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
+                    Cargando conversaciones...
+                  </div>
+                ) : errorLista ? (
+                  <div className="h-full flex flex-col items-center justify-center gap-2 py-10 px-4 text-center">
+                    <AlertCircle className="w-5 h-5 text-rose-500" />
+                    <p className="text-xs text-rose-600 dark:text-rose-400">{errorLista}</p>
+                    <p className="text-[11px] text-slate-400 dark:text-zinc-500">
+                      Cierra y vuelve a abrir el chat para intentarlo de nuevo.
+                    </p>
+                  </div>
+                ) : filasVisibles.length === 0 && busqueda.trim() === '' ? (
+                  <div className="h-full flex flex-col items-center justify-center py-10 px-4 text-center text-xs text-slate-400 dark:text-zinc-500">
+                    <MessageSquare className="w-6 h-6 mb-1 text-slate-300 dark:text-zinc-600" />
+                    <p>Todavía no has escrito con nadie.</p>
+                  </div>
+                ) : (
+                  <>
+                    {filasVisibles.map((c) => {
+                      const esActivo = contactoActivo?.id.toLowerCase() === c.id.toLowerCase();
+                      const nombre = c.nombre || c.username;
+                      return (
+                        <div
+                          key={c.id}
+                          onClick={() => handleSeleccionarConversacion(c)}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSeleccionarConversacion(c);
+                          }}
+                          style={{
+                            backgroundColor: esActivo ? undefined : 'rgb(var(--color-surface))',
+                          }}
+                          className={`flex items-center gap-3 p-3.5 transition-colors cursor-pointer text-left ${
+                            esActivo
+                              ? 'bg-slate-100 dark:bg-[#27272A] border-l-[3.5px] border-indigo-600'
+                              : 'bg-white dark:bg-[#18181B] hover:bg-slate-50 dark:hover:bg-[#222226] border-l-[3.5px] border-transparent'
+                          }`}
+                        >
+                          <div className="relative shrink-0">
+                            {c.avatarUrl ? (
+                              <img
+                                src={c.avatarUrl}
+                                alt={nombre}
+                                className={`w-10 h-10 rounded-full object-cover transition-all ${
+                                  esActivo
+                                    ? 'ring-2 ring-indigo-500 shadow-xs'
+                                    : 'ring-1 ring-slate-200 dark:ring-zinc-700'
+                                }`}
+                              />
+                            ) : (
+                              <div
+                                className={`w-10 h-10 rounded-full text-slate-800 dark:text-zinc-200 font-bold text-xs flex items-center justify-center transition-all ${
+                                  esActivo
+                                    ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 ring-2 ring-indigo-500'
+                                    : 'bg-slate-100 dark:bg-[#27272A] border border-slate-200 dark:border-zinc-700'
+                                }`}
+                              >
+                                {avatarLetra(nombre)}
+                              </div>
+                            )}
+                            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-zinc-800" />
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                              <span
+                                className={`text-xs truncate ${
+                                  esActivo
+                                    ? 'font-bold text-slate-900 dark:text-zinc-100'
+                                    : 'font-semibold text-slate-900 dark:text-zinc-100'
+                                }`}
+                              >
+                                {nombre}
+                              </span>
+                              <span className="text-[10px] text-slate-400 dark:text-zinc-500">
+                                {tiempoFila(c)}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 dark:text-zinc-500 font-mono truncate">
+                              @{c.username}
+                            </p>
+                            <p className="text-[11px] text-slate-600 dark:text-zinc-400 truncate mt-0.5">
+                              {c.conMensajes ? c.ultimoMensaje : `@${c.username} · Sin mensajes`}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* Si no coincide con ninguno, ofrecer crear chat con el @usuario buscado */}
+                    {busqueda.trim() && filasVisibles.length === 0 && (
+                      <div className="p-4 text-center">
+                        <p className="text-xs text-slate-500 dark:text-zinc-400 mb-2">
+                          No hay conversaciones con &quot;{busqueda}&quot;
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => handleCrearChatCustom(busqueda)}
+                          className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full text-xs font-semibold cursor-pointer transition-colors shadow-xs"
+                        >
+                          Iniciar chat con @{busqueda.trim().replace(/^@/, '')}
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* === VISTA B: CONVERSACIÓN INDIVIDUAL (CHAT ABIERTO) === */}
+          {activeView === 'conversation' && contactoActivo && (
+            <div
+              style={{ backgroundColor: 'rgb(var(--color-surface))' }}
+              className="flex-1 flex flex-col h-full bg-white dark:bg-[#18181B]"
+            >
+              {/* Header de la Conversación */}
+              <div
+                style={{ backgroundColor: 'rgb(var(--color-surface))' }}
+                className="flex items-center justify-between px-3 py-2.5 border-b border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#18181B] shrink-0"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <button
+                    type="button"
+                    onClick={handleVolverAInbox}
+                    aria-label="Volver a lista de mensajes"
+                    title="Volver"
+                    className="p-1.5 rounded-lg text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                  </button>
+
+                  <div className="relative shrink-0">
+                    {contactoActivo.avatarUrl ? (
+                      <img
+                        src={contactoActivo.avatarUrl}
+                        alt={contactoActivo.nombre || contactoActivo.username}
+                        className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200 dark:ring-zinc-700"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-[#27272A] text-slate-800 dark:text-zinc-200 font-bold text-xs flex items-center justify-center border border-slate-200 dark:border-zinc-700">
+                        {avatarLetra(contactoActivo.nombre || contactoActivo.username)}
+                      </div>
+                    )}
+                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-zinc-800" />
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1">
+                      <h4 className="font-semibold text-xs text-slate-900 dark:text-zinc-100 truncate">
+                        {contactoActivo.nombre || contactoActivo.username}
+                      </h4>
+                      <CheckCircle2 className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-zinc-400 truncate">
+                      @{contactoActivo.username} ·{' '}
+                      <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                        {estadoFila(contactoActivo)}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleClose}
+                    aria-label="Minimizar mensajes"
+                    title="Minimizar"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                  >
+                    <Minimize2 className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleClose}
+                    aria-label="Cerrar mensajes"
+                    title="Cerrar"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Historial de Mensajes: Lienzo Sólido */}
+              <div
+                ref={scrollRef}
+                style={{ backgroundColor: 'rgb(var(--color-chat-bg))' }}
+                className="flex-1 overflow-y-auto p-3.5 space-y-2.5 bg-slate-100 dark:bg-[#121214] scroll-smooth"
+              >
+                {cargandoHistorial ? (
+                  <div className="h-full flex flex-col items-center justify-center gap-2 text-xs text-slate-500 dark:text-zinc-400">
+                    <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
+                    Cargando historial...
+                  </div>
+                ) : errorHistorial ? (
+                  <div className="h-full flex flex-col items-center justify-center gap-2 text-center">
+                    <AlertCircle className="w-5 h-5 text-rose-500" />
+                    <p className="text-xs text-rose-600 dark:text-rose-400">{errorHistorial}</p>
+                    <button
+                      type="button"
+                      onClick={reintentarHistorial}
+                      className="cursor-pointer rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-[#27272A] px-2.5 py-1 text-[11px] font-medium text-slate-700 dark:text-zinc-200 transition-colors hover:bg-slate-50 dark:hover:bg-[#323236]"
+                    >
+                      Reintentar
+                    </button>
+                  </div>
+                ) : mensajesDelContacto.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center text-slate-500 dark:text-zinc-400 py-4 px-3">
+                    <div className="relative mb-2.5">
+                      {contactoActivo.avatarUrl ? (
+                        <img
+                          src={contactoActivo.avatarUrl}
+                          alt={contactoActivo.nombre || contactoActivo.username}
+                          className="w-14 h-14 rounded-full object-cover ring-2 ring-slate-200 dark:ring-zinc-700 shadow-md"
+                        />
+                      ) : (
+                        <div
+                          style={{ backgroundColor: 'rgb(var(--color-surface))' }}
+                          className="w-14 h-14 rounded-full bg-white dark:bg-[#27272A] border border-slate-200 dark:border-zinc-700 flex items-center justify-center text-base font-bold text-slate-800 dark:text-zinc-200 shadow-sm"
+                        >
+                          {avatarLetra(contactoActivo.nombre || contactoActivo.username)}
+                        </div>
+                      )}
+                      <div
+                        style={{ backgroundColor: 'rgb(var(--color-surface))' }}
+                        className="absolute -bottom-1 -right-1 p-1 rounded-full bg-white dark:bg-[#27272A] border border-slate-200 dark:border-zinc-700 text-indigo-500 shadow-xs"
+                      >
+                        <Sparkles className="w-3 h-3" />
+                      </div>
+                    </div>
+
+                    <p className="font-semibold text-xs text-slate-900 dark:text-zinc-100">
+                      {contactoActivo.nombre || contactoActivo.username}
+                    </p>
+                    <p className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono">
+                      @{contactoActivo.username}
+                    </p>
+                    <p className="text-[10px] text-slate-500 dark:text-zinc-400 mt-1 max-w-[210px] leading-relaxed">
+                      Mensajes directos cifrados e instantáneos en TuxFlow.
+                    </p>
+
+                    {/* Sugerencias Rápidas para Iniciar Conversación */}
+                    <div className="mt-3 flex flex-wrap gap-1.5 justify-center max-w-[240px]">
+                      {SUGERENCIAS_INICIO.map((sug) => (
+                        <button
+                          key={sug}
+                          type="button"
+                          onClick={() => enviarMensajeTexto(sug)}
+                          className="text-[10px] px-2.5 py-1 bg-white dark:bg-[#27272A] hover:bg-slate-50 dark:hover:bg-[#323236] text-slate-700 dark:text-zinc-200 rounded-full border border-slate-200 dark:border-zinc-700 cursor-pointer shadow-xs transition-all hover:scale-105 active:scale-95"
+                        >
+                          {sug}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  mensajesDelContacto.map((m) => {
+                    const isMe = m.emisorId === currentUserId;
+                    const fallido = m.estado === 'NO_ENTREGADO' || m.estado === 'RECHAZADO';
+                    return (
+                      <div
+                        key={claveDe(m)}
+                        className={`flex items-end gap-1.5 ${isMe ? 'justify-end' : 'justify-start'}`}
+                      >
+                        {!isMe && (
+                          <div
+                            style={{ backgroundColor: 'rgb(var(--color-surface))' }}
+                            className="w-5 h-5 rounded-full bg-white dark:bg-[#27272A] border border-slate-200 dark:border-zinc-700 flex items-center justify-center text-[9px] font-bold text-slate-800 dark:text-zinc-200 shrink-0 mb-0.5 shadow-xs"
+                          >
+                            {contactoActivo.avatarUrl ? (
+                              <img
+                                src={contactoActivo.avatarUrl}
+                                alt=""
+                                className="w-full h-full rounded-full object-cover"
+                              />
+                            ) : (
+                              avatarLetra(contactoActivo.nombre || contactoActivo.username)
+                            )}
+                          </div>
+                        )}
+
+                        <div
+                          className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[78%]`}
+                        >
+                          {/* Globo de Mensaje: Índigo normal para propios, Superficie sólida para recibidos */}
+                          <div
+                            style={
+                              !isMe ? { backgroundColor: 'rgb(var(--color-surface))' } : undefined
+                            }
+                            className={`text-xs px-3.5 py-2 leading-relaxed ${
+                              isMe
+                                ? 'bg-indigo-600 text-white rounded-2xl rounded-br-xs shadow-xs font-normal'
+                                : 'bg-white dark:bg-[#27272A] text-slate-900 dark:text-zinc-100 border border-slate-200 dark:border-zinc-700/80 rounded-2xl rounded-bl-xs shadow-xs'
+                            } ${fallido ? 'opacity-70' : ''}`}
+                          >
+                            {m.contenido}
+                          </div>
+                          <div
+                            className={`flex items-center gap-1 mt-0.5 px-1 text-[9px] text-slate-500 dark:text-zinc-400 ${
+                              isMe ? 'justify-end' : 'justify-start'
+                            }`}
+                          >
+                            <span>{formatearHora(m.timestamp)}</span>
+                            {isMe && (
+                              <>
+                                {m.estado === 'PENDIENTE' && (
+                                  <span title="Enviando...">
+                                    <Clock className="w-3 h-3 text-indigo-300 animate-pulse" />
+                                  </span>
+                                )}
+                                {fallido && (
+                                  <button
+                                    type="button"
+                                    onClick={() => reintentarMensaje(m)}
+                                    title={m.motivo || 'Error al enviar. Clic para reintentar'}
+                                    className="inline-flex items-center gap-0.5 text-rose-500 hover:text-rose-600 cursor-pointer"
+                                  >
+                                    <AlertTriangle className="w-3 h-3" />
+                                    <RotateCw className="w-2.5 h-2.5 ml-0.5" />
+                                  </button>
+                                )}
+                                {m.estado !== 'PENDIENTE' && !fallido && (
+                                  <span title="Mensaje entregado por WebSocket">
+                                    <CheckCheck className="w-3 h-3 text-indigo-400" />
+                                  </span>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Barra Rápida de Reacciones Emoji */}
+              <div
+                style={{ backgroundColor: 'rgb(var(--color-surface))' }}
+                className="px-3 py-1.5 bg-white dark:bg-[#18181B] border-t border-slate-200 dark:border-zinc-800 flex items-center justify-between shrink-0"
+              >
+                <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+                  <span className="text-[10px] text-slate-500 dark:text-zinc-400 mr-1 flex items-center gap-1 font-medium">
+                    <Smile className="w-3 h-3 text-indigo-500" />
+                    Reaccionar:
+                  </span>
+                  {EMOJIS_RAPIDOS.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => setMensaje((prev) => prev + emoji)}
+                      className="text-xs p-1 hover:scale-125 transition-transform cursor-pointer rounded hover:bg-slate-100 dark:hover:bg-zinc-800"
+                      title={`Insertar ${emoji}`}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Compositor en Píldora Redondeada */}
+              <form
+                onSubmit={handleEnviar}
+                style={{ backgroundColor: 'rgb(var(--color-surface))' }}
+                className="p-2.5 bg-white dark:bg-[#18181B] border-t border-slate-200 dark:border-zinc-800 flex items-center gap-2 shrink-0"
+              >
+                <div className="flex-1 flex items-center bg-slate-100 dark:bg-[#27272A] border border-slate-200 dark:border-zinc-700 rounded-full px-3.5 py-1.5 focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500/30 transition-all">
+                  <input
+                    type="text"
+                    value={mensaje}
+                    onChange={(e) => setMensaje(e.target.value)}
+                    placeholder={`Mensaje a @${contactoActivo.username}...`}
+                    className="w-full bg-transparent text-xs text-slate-900 dark:text-zinc-100 placeholder:text-slate-400 dark:placeholder:text-zinc-500 focus:outline-none"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={!mensaje.trim()}
+                  className="w-8 h-8 rounded-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-30 disabled:cursor-not-allowed text-white transition-all cursor-pointer shadow-xs flex items-center justify-center shrink-0 active:scale-95"
+                  title="Enviar mensaje"
+                  aria-label="Enviar mensaje"
+                >
+                  <ArrowUp className="w-4 h-4" />
+                </button>
+              </form>
+            </div>
+          )}
+        </div>
       )}
     </div>
-  );
-
-  if (!abierto) {
-    return (
-      <button
-        type="button"
-        onClick={() => setAbierto(true)}
-        aria-label="Abrir el chat"
-        className="fixed bottom-4 right-4 z-50 flex cursor-pointer items-center gap-2 rounded-full bg-blue-600 px-4 py-3 text-sm font-medium text-white shadow-2xl transition-colors hover:bg-blue-700"
-      >
-        <MessageSquare className="h-5 w-5" />
-        <span className="hidden sm:inline">Chat</span>
-        {estado.estado !== 'conectado' && (
-          <span
-            className="h-2 w-2 rounded-full bg-amber-400"
-            title={ETIQUETA_ESTADO[estado.estado]}
-          />
-        )}
-      </button>
-    );
-  }
-
-  return (
-    <div className="fixed bottom-4 right-4 z-50 flex max-h-[80vh] w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-      {cabecera}
-      {panel}
-    </div>
-  );
-};
-
-/**
- * Fila de la lista de destino.
- *
- * <p>El avatar cae a la inicial si no hay imagen o si la imagen no carga, igual que en el resto de la
- * aplicación: un retrato roto en una lista corta da la impresión de que el perfil está vacío.
- */
-const FilaConversacion: React.FC<{ fila: FilaChat; onAbrir: (fila: FilaChat) => void }> = ({
-  fila,
-  onAbrir,
-}) => {
-  const [avatarCaido, setAvatarCaido] = useState<boolean>(false);
-  const inicial = (fila.nombre || fila.username || '?').charAt(0).toUpperCase();
-
-  return (
-    <button
-      type="button"
-      onClick={() => onAbrir(fila)}
-      className="flex w-full cursor-pointer items-center gap-2 rounded-lg p-2 text-left transition-colors hover:bg-slate-100"
-    >
-      {fila.avatarUrl && !avatarCaido ? (
-        <img
-          src={fila.avatarUrl}
-          alt={`Avatar de @${fila.username}`}
-          className="h-8 w-8 shrink-0 rounded-full bg-slate-200 object-cover"
-          onError={() => setAvatarCaido(true)}
-        />
-      ) : (
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
-          {inicial}
-        </span>
-      )}
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-xs font-semibold text-slate-800">
-          {fila.nombre || `@${fila.username}`}
-        </span>
-        <span className="block truncate text-[11px] text-slate-500">
-          {fila.conMensajes ? fila.ultimoMensaje : `@${fila.username} · Sin mensajes`}
-        </span>
-      </span>
-    </button>
   );
 };
 
@@ -595,41 +1251,6 @@ const claveDe = (mensaje: ChatMessage): string => {
   const local = (mensaje as Pendiente).clave;
   return (
     mensaje.id ?? local ?? `${mensaje.emisorId}-${mensaje.timestamp ?? ''}-${mensaje.contenido}`
-  );
-};
-
-const Burbuja: React.FC<{ mensaje: ChatMessage; currentUserId: string }> = ({
-  mensaje,
-  currentUserId,
-}) => {
-  const mio = mensaje.emisorId === currentUserId;
-  // Solo lo que salió de este navegador y sigue sin acuse está pendiente. Un mensaje propio que
-  // viene del historial ya está guardado desde antes, aunque no traiga estado: si se tratara
-  // cualquier cosa sin `estado` como pendiente, al cargar la conversación cada mensaje propio
-  // antiguo se quedaría con "Enviando..." para siempre.
-  const pendiente = mensaje.estado === 'PENDIENTE';
-  const fallido = mensaje.estado === 'NO_ENTREGADO' || mensaje.estado === 'RECHAZADO';
-
-  return (
-    <div className={`flex flex-col ${mio ? 'items-end' : 'items-start'}`}>
-      <div
-        className={`max-w-[85%] rounded-xl px-3 py-2 text-left text-xs ${
-          mio
-            ? 'rounded-br-xs bg-blue-600 text-white'
-            : 'rounded-bl-xs border border-slate-200 bg-white text-slate-800'
-        } ${fallido ? 'opacity-70' : ''}`}
-      >
-        {mensaje.contenido}
-      </div>
-      {mio && (pendiente || fallido) && (
-        <span
-          className={`mt-0.5 text-[10px] ${fallido ? 'text-red-500' : 'text-slate-400'}`}
-          title={mensaje.motivo}
-        >
-          {fallido ? mensaje.motivo : 'Enviando...'}
-        </span>
-      )}
-    </div>
   );
 };
 

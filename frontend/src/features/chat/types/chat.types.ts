@@ -7,6 +7,9 @@
  */
 export type EstadoEntrega = 'PENDIENTE' | 'ENTREGADO' | 'NO_ENTREGADO' | 'RECHAZADO';
 
+/** Estado visual temporal del mensaje en la burbuja, según lo que la UI dibuja mientras responde. */
+export type MessageStatus = 'enviando' | 'enviado' | 'fallido';
+
 export interface ChatMessage {
   /**
    * Identificador que asigna el servidor al persistir el mensaje.
@@ -32,6 +35,8 @@ export interface ChatMessage {
   estado?: EstadoEntrega;
   /** Explicación legible cuando `estado` no es `ENTREGADO`. */
   motivo?: string;
+  /** Estado temporal usado por los estilos que trae develop para la burbuja. */
+  status?: MessageStatus;
 }
 
 /** Estado real del socket, que es lo que el indicador tiene que pintar. */
@@ -68,7 +73,7 @@ export interface ConversacionChat {
  * buscarlo en otro sitio. `conMensajes` distingue las dos filas, y `ultimoMensaje` queda sin definir
  * cuando la conversación aún no existe.
  *
- * No extiende a `ConversacionChat` a propósito: aquí el último mensaje es opcional, y en la fila del
+ * No extiende de `ConversacionChat` a propósito: aquí el último mensaje es opcional, y en la fila del
  * servidor es obligatorio. Forzar la herencia obligaría a inventar un texto vacío para las
  * conversaciones que aún no existen, y ese texto vacío acabaría pintado como si fuera un mensaje.
  */

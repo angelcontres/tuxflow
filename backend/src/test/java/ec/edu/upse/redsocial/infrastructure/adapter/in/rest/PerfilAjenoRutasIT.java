@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import ec.edu.upse.redsocial.infrastructure.adapter.in.rest.dto.UsuarioRequest;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -42,6 +43,11 @@ import org.junit.jupiter.api.Test;
  */
 @QuarkusTest
 class PerfilAjenoRutasIT {
+
+    @BeforeEach
+    void reiniciarLimiteDeBusqueda() {
+        FiltroLimiteDeBusqueda.reiniciar();
+    }
 
     @Test
     @DisplayName("GET /api/posts/autor/{userId} resuelve y devuelve las publicaciones")
