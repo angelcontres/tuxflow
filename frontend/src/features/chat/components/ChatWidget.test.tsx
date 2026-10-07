@@ -90,12 +90,12 @@ const conectar = (): void => {
  * por ese momento, así que una prueba que sólo llamara a `abrir` se encontraría con un canal ya
  * conectado y nunca vería el estado que dice estar probando.
  *
- * <p>El botón se localiza por etiqueta y no por clase porque sólo existe mientras el panel está
+ * <p>El dock se localiza por etiqueta y no por clase porque sólo existe mientras el panel está
  * cerrado: si la etiqueta cambiara, la prueba lo señala en vez de seguir en verde.
  */
 const montarYAbrir = async (): Promise<ReturnType<typeof render>> => {
   const montaje = render(<ChatWidget currentUserId="carlos" />);
-  await userEvent.click(screen.getByRole('button', { name: 'Abrir el chat' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Abrir mensajes directos' }));
   await esperarLista();
   return montaje;
 };
@@ -127,10 +127,10 @@ const abrirConversacion = async (texto: string | RegExp): Promise<void> => {
 };
 
 const campoMensaje = (): HTMLInputElement =>
-  screen.getByPlaceholderText(/escribe un mensaje/i) as HTMLInputElement;
+  screen.getByPlaceholderText(/^mensaje a @/i) as HTMLInputElement;
 
 const campoBusqueda = (): HTMLInputElement =>
-  screen.getByLabelText(/buscar conversación/i) as HTMLInputElement;
+  screen.getByPlaceholderText(/buscar o escribir/i) as HTMLInputElement;
 
 describe('ChatWidget', () => {
   beforeEach(() => {
@@ -153,7 +153,9 @@ describe('ChatWidget', () => {
 
       await montarYAbrir();
 
-      expect(await screen.findByText('Conectado')).toBeInTheDocument();
+      // El chip de la bandeja pinta lo que dice el canal: "En vivo" solo sale si está abierto.
+      expect(await screen.findByText('En vivo')).toBeInTheDocument();
+      expect(screen.queryByText(/sin conexión|reconectando/i)).not.toBeInTheDocument();
     });
 
     it('avisa cuando está reconectando en vez de fingir que todo va bien', async () => {
@@ -164,7 +166,7 @@ describe('ChatWidget', () => {
       await montarYAbrir();
 
       expect(await screen.findByText('Reconectando')).toBeInTheDocument();
-      expect(screen.getByText(/reintentando la conexión/i)).toBeInTheDocument();
+      expect(screen.getByText(/3 intento\(s\)/)).toBeInTheDocument();
     });
 
     it('avisa cuando no hay conexión', async () => {
@@ -200,10 +202,10 @@ describe('ChatWidget', () => {
       await abrirConversacion(/Paulo Orrala/);
       await waitFor(() => expect(screen.getByText('mi respuesta')).toBeInTheDocument());
 
-      await userEvent.click(screen.getByRole('button', { name: /minimizar el chat/i }));
+      await userEvent.click(screen.getByRole('button', { name: /minimizar mensajes/i }));
 
-      expect(screen.queryByLabelText(/buscar conversación/i)).not.toBeInTheDocument();
-      const boton = screen.getByRole('button', { name: 'Abrir el chat' });
+      expect(screen.queryByPlaceholderText(/buscar o escribir/i)).not.toBeInTheDocument();
+      const boton = screen.getByRole('button', { name: 'Abrir mensajes directos' });
       expect(boton).toBeInTheDocument();
 
       // Minimizar esconde el panel, no lo vacía: al volver se sigue en la conversación que había.
@@ -327,7 +329,7 @@ describe('ChatWidget', () => {
 
       await userEvent.type(campoBusqueda(), 'zzzz');
 
-      expect(screen.getByText(/ninguna conversación coincide/i)).toBeInTheDocument();
+      expect(screen.getByText(/no hay conversaciones con/i)).toBeInTheDocument();
     });
 
     it('normaliza igual en el texto que se busca y en el guardado', () => {
@@ -349,12 +351,12 @@ describe('ChatWidget', () => {
       await montarYAbrir();
       await abrirConversacion(/Paulo Orrala/);
 
-      await userEvent.click(screen.getByRole('button', { name: /volver a la lista/i }));
+      await userEvent.click(screen.getByRole('button', { name: /volver a lista/i }));
 
       expect(campoBusqueda()).toBeInTheDocument();
       // El campo de escritura es lo que solo existe en la conversación: si siguiera aquí, se
       // estaría escribiendo en la conversación anterior desde la lista.
-      expect(screen.queryByPlaceholderText(/escribe un mensaje/i)).not.toBeInTheDocument();
+      expect(screen.queryByPlaceholderText(/^mensaje a @/i)).not.toBeInTheDocument();
     });
 
     it('avisa y ofrece reintentar cuando el historial no carga, en vez de fingir que está vacío', async () => {
@@ -390,13 +392,14 @@ describe('ChatWidget', () => {
       expect(screen.queryByText('Enviando...')).not.toBeInTheDocument();
     });
 
-    it('una conversación sin mensajes muestra el estado vacío', async () => {
+    it('una conversación sin mensajes ofrece empezar la conversación', async () => {
       apiMock.obtenerHistorial.mockResolvedValue([]);
 
       await montarYAbrir();
       await abrirConversacion(/Paulo Orrala/);
 
-      expect(screen.getByText(/no hay mensajes en esta conversación/i)).toBeInTheDocument();
+      expect(screen.getByText(/mensajes directos cifrados/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /¡Hola!/ })).toBeInTheDocument();
     });
   });
 
@@ -430,7 +433,7 @@ describe('ChatWidget', () => {
       await userEvent.type(campoMensaje(), 'hola');
       await userEvent.click(screen.getByRole('button', { name: /enviar mensaje/i }));
 
-      await userEvent.click(screen.getByRole('button', { name: /volver a la lista/i }));
+      await userEvent.click(screen.getByRole('button', { name: /volver a lista/i }));
 
       const fila = screen.getByRole('button', { name: /David Mendoza/ });
       expect(within(fila).getByText('hola')).toBeInTheDocument();
@@ -576,7 +579,11 @@ describe('ChatWidget', () => {
         timestamp: 9,
       });
 
-      expect(screen.queryByText('mensaje de un tercero')).not.toBeInTheDocument();
+      // El aviso flotante sí debe aparecer: alguien que no es el interlocutor acaba de escribir.
+      // Lo que no debe pasar es que el mensaje se cuele en la conversación abierta.
+      expect(screen.getByText(/te escribió/)).toBeInTheDocument();
+      const historial = screen.getByLabelText('Historial de mensajes');
+      expect(within(historial).queryByText('mensaje de un tercero')).not.toBeInTheDocument();
     });
 
     it('un mensaje del interlocutor aparece en la conversación abierta', async () => {
@@ -621,12 +628,14 @@ describe('ChatWidget', () => {
       expect(burbuja).not.toBeNull();
     });
 
-    it('el botón para abrirlo también está fijo en la esquina', () => {
+    it('el dock para abrirlo cuelga de la esquina fija de la página', () => {
       render(<ChatWidget currentUserId="carlos" />);
 
-      const boton = screen.getByRole('button', { name: 'Abrir el chat' });
+      const dock = screen.getByRole('button', { name: 'Abrir mensajes directos' });
 
-      expect(boton.className).toContain('fixed');
+      // El `position: fixed` vive en el contenedor que envuelve al dock, y es ese contenedor lo
+      // que saca al chat del flujo del contenido.
+      expect(dock.closest('.fixed')).not.toBeNull();
     });
   });
 });

@@ -556,8 +556,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
       .finally(() => setCargandoHistorial(false));
   };
 
-  const avatarLetra = (nombre: string): string =>
-    nombre ? nombre.charAt(0).toUpperCase() : '?';
+  const avatarLetra = (nombre: string): string => (nombre ? nombre.charAt(0).toUpperCase() : '?');
 
   const tiempoFila = (fila: FilaChat): string =>
     fila.conMensajes ? formatearHora(fila.fechaUltimoMensaje) : '';
@@ -617,17 +616,16 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
             <button
               type="button"
               onClick={() => {
-                const contacto =
-                  filas.find(
-                    (fila) => fila.id.toLowerCase() === incomingToast.emisorId.toLowerCase(),
-                  ) || {
-                    id: incomingToast.emisorId,
-                    username: incomingToast.emisorId,
-                    nombre: incomingToast.emisorId,
-                    conMensajes: true,
-                    ultimoMensaje: incomingToast.contenido,
-                    fechaUltimoMensaje: Date.now(),
-                  };
+                const contacto = filas.find(
+                  (fila) => fila.id.toLowerCase() === incomingToast.emisorId.toLowerCase(),
+                ) || {
+                  id: incomingToast.emisorId,
+                  username: incomingToast.emisorId,
+                  nombre: incomingToast.emisorId,
+                  conMensajes: true,
+                  ultimoMensaje: incomingToast.contenido,
+                  fechaUltimoMensaje: Date.now(),
+                };
                 handleSeleccionarConversacion(contacto);
                 if (!isOpen) handleToggle();
               }}
@@ -1038,6 +1036,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
               {/* Historial de Mensajes: Lienzo Sólido */}
               <div
                 ref={scrollRef}
+                aria-label="Historial de mensajes"
                 style={{ backgroundColor: 'rgb(var(--color-chat-bg))' }}
                 className="flex-1 overflow-y-auto p-3.5 space-y-2.5 bg-slate-100 dark:bg-[#121214] scroll-smooth"
               >
@@ -1158,20 +1157,28 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
                             {isMe && (
                               <>
                                 {m.estado === 'PENDIENTE' && (
-                                  <span title="Enviando...">
+                                  <span
+                                    className="inline-flex items-center gap-0.5"
+                                    title="Enviando..."
+                                  >
                                     <Clock className="w-3 h-3 text-indigo-300 animate-pulse" />
+                                    Enviando...
                                   </span>
                                 )}
                                 {fallido && (
-                                  <button
-                                    type="button"
-                                    onClick={() => reintentarMensaje(m)}
-                                    title={m.motivo || 'Error al enviar. Clic para reintentar'}
-                                    className="inline-flex items-center gap-0.5 text-rose-500 hover:text-rose-600 cursor-pointer"
-                                  >
-                                    <AlertTriangle className="w-3 h-3" />
-                                    <RotateCw className="w-2.5 h-2.5 ml-0.5" />
-                                  </button>
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => reintentarMensaje(m)}
+                                      title={m.motivo || 'Error al enviar. Clic para reintentar'}
+                                      aria-label="Reintentar envío"
+                                      className="inline-flex items-center gap-0.5 text-rose-500 hover:text-rose-600 cursor-pointer"
+                                    >
+                                      <AlertTriangle className="w-3 h-3" />
+                                      <RotateCw className="w-2.5 h-2.5 ml-0.5" />
+                                    </button>
+                                    {m.motivo && <span className="text-rose-500">{m.motivo}</span>}
+                                  </>
                                 )}
                                 {m.estado !== 'PENDIENTE' && !fallido && (
                                   <span title="Mensaje entregado por WebSocket">
