@@ -414,19 +414,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                           </span>
                         </div>
 
-                        <div className="p-4 pt-0">
-                          <div className="flex items-end gap-3 -mt-8 mb-3">
+                        <div className="p-4 pt-3.5">
+                          <div className="flex items-center gap-3.5 mb-3">
                             {currentUserProfile?.avatarUrl ? (
                               <img
                                 src={currentUserProfile.avatarUrl}
                                 alt={currentUserProfile.nombre}
-                                className="w-16 h-16 rounded-full object-cover ring-4 ring-white dark:ring-[#27272A] shadow-md shrink-0"
+                                className="w-14 h-14 rounded-full object-cover ring-2 ring-slateDark-border shadow-xs shrink-0"
                                 onError={(e) => {
                                   (e.target as HTMLElement).style.display = 'none';
                                 }}
                               />
                             ) : (
-                              <div className="w-16 h-16 rounded-full bg-slateDark-primary flex items-center justify-center text-white font-bold text-xl shadow-md ring-4 ring-white dark:ring-[#27272A] shrink-0">
+                              <div className="w-14 h-14 rounded-full bg-slateDark-primary flex items-center justify-center text-white font-bold text-lg shadow-xs ring-2 ring-slateDark-border shrink-0">
                                 {initial}
                               </div>
                             )}

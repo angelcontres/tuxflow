@@ -228,7 +228,7 @@ export const PerfilAjeno: React.FC<PerfilAjenoProps> = ({
           <>
             {/* Banner Estético Superior */}
             <div
-              className={`h-28 sm:h-36 w-full bg-gradient-to-r ${bannerTheme.gradient} relative overflow-hidden flex items-end justify-end p-3`}
+              className={`h-24 sm:h-32 w-full bg-gradient-to-r ${bannerTheme.gradient} relative overflow-hidden flex items-end justify-end p-3`}
             >
               <div className="absolute inset-0 opacity-15 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:14px_14px]" />
               <div className="relative z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-md text-[10px] font-semibold text-white/95 border border-white/10 shadow-xs">
@@ -237,24 +237,37 @@ export const PerfilAjeno: React.FC<PerfilAjenoProps> = ({
               </div>
             </div>
 
-            <div className="p-5 pt-0">
-              <div className="flex items-end justify-between -mt-10 sm:-mt-12 mb-3 gap-3">
-                {perfil.datos.avatarUrl && !avatarCaido ? (
-                  <div className="w-20 h-20 rounded-full overflow-hidden bg-slateDark-surfaceSubtle shrink-0 ring-4 ring-white dark:ring-[#27272A] shadow-md">
-                    <img
-                      src={perfil.datos.avatarUrl}
-                      alt={`Avatar de @${perfil.datos.username}`}
-                      className="w-full h-full object-cover"
-                      onError={() => setAvatarCaido(true)}
-                    />
+            <div className="p-5 pt-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                <div className="flex items-center gap-3.5 min-w-0">
+                  {perfil.datos.avatarUrl && !avatarCaido ? (
+                    <div className="w-16 h-16 rounded-full overflow-hidden bg-slateDark-surfaceSubtle shrink-0 ring-2 ring-slateDark-border shadow-xs">
+                      <img
+                        src={perfil.datos.avatarUrl}
+                        alt={`Avatar de @${perfil.datos.username}`}
+                        className="w-full h-full object-cover"
+                        onError={() => setAvatarCaido(true)}
+                      />
+                    </div>
+                  ) : (
+                    // Respaldo con la inicial. El identificador siempre llega: es la clave del MERGE
+                    // de guardarUsuario, así que hay algo que inicializar aunque falte el nombre.
+                    <div className="w-16 h-16 rounded-full bg-slateDark-primary text-white flex items-center justify-center font-bold text-xl shrink-0 shadow-xs ring-2 ring-slateDark-border">
+                      {(perfil.datos.nombre || perfil.datos.username || '?')
+                        .charAt(0)
+                        .toUpperCase()}
+                    </div>
+                  )}
+
+                  <div className="min-w-0">
+                    <h2 className="text-lg font-bold text-slateDark-text truncate">
+                      {perfil.datos.nombre || `@${perfil.datos.username}`}
+                    </h2>
+                    <p className="text-xs text-slateDark-primaryLight font-medium truncate">
+                      {perfil.datos.nombre ? `@${perfil.datos.username}` : 'Sin nombre registrado'}
+                    </p>
                   </div>
-                ) : (
-                  // Respaldo con la inicial. El identificador siempre llega: es la clave del MERGE
-                  // de guardarUsuario, así que hay algo que inicializar aunque falte el nombre.
-                  <div className="w-20 h-20 rounded-full bg-slateDark-primary text-white flex items-center justify-center font-bold text-2xl shrink-0 shadow-md ring-4 ring-white dark:ring-[#27272A]">
-                    {(perfil.datos.nombre || perfil.datos.username || '?').charAt(0).toUpperCase()}
-                  </div>
-                )}
+                </div>
 
                 {/* El botón no aparece sobre el perfil propio: no hay botón de "dejar de seguirte a
                       ti mismo", y ahí la pregunta no tiene sentido. */}
@@ -263,7 +276,7 @@ export const PerfilAjeno: React.FC<PerfilAjenoProps> = ({
                     type="button"
                     onClick={() => void handleToggleSeguir()}
                     disabled={enVuelo}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-slateDark-primary hover:bg-slateDark-primaryHover disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-lg transition-colors cursor-pointer shrink-0 shadow-xs active:scale-95"
+                    className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-white bg-slateDark-primary hover:bg-slateDark-primaryHover disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-lg transition-colors cursor-pointer shrink-0 shadow-xs active:scale-95"
                   >
                     {siguiendo ? (
                       <UserMinus className="w-3.5 h-3.5" />
@@ -275,19 +288,8 @@ export const PerfilAjeno: React.FC<PerfilAjenoProps> = ({
                 )}
               </div>
 
-              <div>
-                {/* Sin nombre, el encabezado cae al @username en vez de quedar en blanco: el
-                      identificador siempre llega, porque es la clave del MERGE de guardarUsuario. */}
-                <h2 className="text-lg font-bold text-slateDark-text truncate">
-                  {perfil.datos.nombre || `@${perfil.datos.username}`}
-                </h2>
-                <p className="text-sm text-slateDark-textMuted">
-                  {perfil.datos.nombre ? `@${perfil.datos.username}` : 'Sin nombre registrado'}
-                </p>
-              </div>
-
               {errorSeguimiento && (
-                <p role="alert" className="mt-3 text-xs text-rose-400 font-medium">
+                <p role="alert" className="mt-2 mb-3 text-xs text-rose-400 font-medium">
                   {errorSeguimiento}
                 </p>
               )}
