@@ -60,39 +60,39 @@ export const TrendingSidebar: React.FC<TrendingSidebarProps> = ({ currentUserId 
   }, [currentUserId]);
 
   return (
-    <div className="bg-white rounded-xl p-5 shadow-xs border border-slate-200 mb-6">
+    <div className="bg-slateDark-surface rounded-xl p-5 shadow-xs border border-slateDark-borderSubtle mb-6">
       <div className="flex items-center gap-2 mb-1">
-        <div className="p-1.5 rounded-lg bg-amber-50 text-amber-600">
+        <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400">
           <TrendingUp className="w-4 h-4" />
         </div>
-        <h3 className="font-semibold text-sm text-slate-900">Tendencias</h3>
-        <span className="ml-auto text-[10px] font-semibold bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded-full">
+        <h3 className="font-semibold text-sm text-slateDark-text">Tendencias</h3>
+        <span className="ml-auto text-[10px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/20 px-1.5 py-0.5 rounded-full">
           7 días
         </span>
       </div>
-      <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+      <p className="text-xs text-slateDark-textMuted mb-4 leading-relaxed">
         Lo más reaccionado en tu red (hasta 2 saltos) en los últimos 7 días.
       </p>
 
       {estado.tipo === 'inicial' || estado.tipo === 'cargando' ? (
         <div className="space-y-3 animate-pulse" data-testid="tendencias-cargando">
-          <div className="h-4 bg-slate-100 rounded w-full" />
-          <div className="h-4 bg-slate-100 rounded w-5/6" />
-          <div className="h-4 bg-slate-100 rounded w-2/3" />
+          <div className="h-4 bg-slateDark-surfaceSubtle rounded w-full" />
+          <div className="h-4 bg-slateDark-surfaceSubtle rounded w-5/6" />
+          <div className="h-4 bg-slateDark-surfaceSubtle rounded w-2/3" />
         </div>
       ) : null}
 
       {estado.tipo === 'error' ? (
         <div
           role="alert"
-          className="text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-lg p-3 leading-relaxed"
+          className="text-xs text-rose-400 bg-rose-950/30 border border-rose-800/50 rounded-lg p-3 leading-relaxed"
         >
           {estado.mensaje}
         </div>
       ) : null}
 
       {estado.tipo === 'listo' && estado.tendencias.length === 0 ? (
-        <div className="text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-lg p-3 leading-relaxed">
+        <div className="text-xs text-slateDark-textMuted bg-slateDark-surfaceSubtle border border-slateDark-borderSubtle rounded-lg p-3 leading-relaxed">
           Aún no hay tendencias en tu red. Las publicaciones más reaccionadas de la semana
           aparecerán aquí.
         </div>
@@ -102,15 +102,17 @@ export const TrendingSidebar: React.FC<TrendingSidebarProps> = ({ currentUserId 
         <ol className="space-y-3">
           {estado.tendencias.map((tendencia, indice) => (
             <li key={tendencia.id} className="flex items-start gap-3">
-              <span className="shrink-0 w-5 h-5 rounded-full bg-slate-100 text-slate-500 text-[11px] font-semibold flex items-center justify-center">
+              <span className="shrink-0 w-5 h-5 rounded-full bg-slateDark-surfaceSubtle text-slateDark-textMuted border border-slateDark-borderSubtle text-[11px] font-semibold flex items-center justify-center">
                 {indice + 1}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-sm text-slate-900 leading-snug line-clamp-2 break-words">
+                <p className="text-sm text-slateDark-text leading-snug line-clamp-2 break-words">
                   {tendencia.texto}
                 </p>
-                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
-                  <span className="font-medium">@{tendencia.autor}</span>
+                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slateDark-textMuted">
+                  <span className="font-medium text-slateDark-primaryLight">
+                    @{tendencia.autor}
+                  </span>
                   <span className="inline-flex items-center gap-0.5">
                     <ThumbsUp className="w-3 h-3" aria-hidden="true" />
                     {tendencia.likes}
@@ -122,10 +124,10 @@ export const TrendingSidebar: React.FC<TrendingSidebarProps> = ({ currentUserId 
                   <span
                     className={`font-semibold ${
                       tendencia.puntuacionNeta > 0
-                        ? 'text-emerald-600'
+                        ? 'text-emerald-400'
                         : tendencia.puntuacionNeta < 0
-                          ? 'text-rose-600'
-                          : 'text-slate-500'
+                          ? 'text-rose-400'
+                          : 'text-slateDark-textMuted'
                     }`}
                   >
                     {tendencia.puntuacionNeta > 0

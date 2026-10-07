@@ -4,7 +4,7 @@ import { CreatePostForm } from './features/feed/components/CreatePostForm';
 import { FeedList } from './features/feed/components/FeedList';
 import { UserSuggestionsCard } from './features/network/components/UserSuggestionsCard';
 import { TrendingSidebar } from './features/feed/components/TrendingSidebar';
-import { ConexionesComunesPanel } from './features/network/components/ConexionesComunesPanel';
+import { GraphExplorerModal } from './features/network/components/GraphExplorerModal';
 import { ChatWidget } from './features/chat/components/ChatWidget';
 import { PerfilAjeno } from './features/user/components/PerfilAjeno';
 import { LoginScreen } from './features/auth/components/LoginScreen';
@@ -14,6 +14,7 @@ import { fetchSeguidos, fetchSugerenciasGrafo } from './features/network/service
 import { Post } from './features/feed/types/post.types';
 import { FilaRed, SugerenciaUsuario, Usuario } from './features/network/types/network.types';
 import { initWebPush } from './features/notifications/services/pushService';
+import { ThemeProvider } from './shared/context/ThemeContext';
 
 export function fusionarRed(seguidos: Usuario[], sugerencias: SugerenciaUsuario[]): FilaRed[] {
   const filas: FilaRed[] = [];
@@ -46,7 +47,7 @@ export function fusionarRed(seguidos: Usuario[], sugerencias: SugerenciaUsuario[
   return filas;
 }
 
-export const App: React.FC = () => {
+const AppContent: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [currentUserId, setCurrentUserId] = useState<string>('');
   const [currentUsername, setCurrentUsername] = useState<string>('');
@@ -61,6 +62,8 @@ export const App: React.FC = () => {
   // del mismo sitio. Cuando se necesite una URL compartible es el momento de introducirlo, y no
   // antes.
   const [perfilAjenoId, setPerfilAjenoId] = useState<string | null>(null);
+  const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
+  const [isGraphModalOpen, setIsGraphModalOpen] = useState<boolean>(false);
 
   // Restaura la sesión con el token guardado. Sin esto, un refresh del
   // navegador (F5 o Ctrl+Shift+R) devolvía al usuario al login.
@@ -159,8 +162,8 @@ export const App: React.FC = () => {
   // aparecería el login un instante y luego saltaría a la app.
   if (restoringSession) {
     return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full" />
+      <div className="min-h-screen bg-slateDark-bg flex items-center justify-center">
+        <div className="animate-spin w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full" />
       </div>
     );
   }
@@ -170,13 +173,16 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900 pb-16">
+    <div className="min-h-screen bg-slateDark-bg text-slateDark-text pb-16">
       <Navbar
         currentUserId={currentUserId}
         currentUsername={currentUsername}
         onProfileUpdated={loadAllData}
         onLogout={handleLogout}
         onOpenPerfil={handleOpenPerfil}
+        onToggleChat={() => setIsChatOpen((prev) => !prev)}
+        isChatOpen={isChatOpen}
+        onOpenGraphModal={() => setIsGraphModalOpen(true)}
       />
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 pt-6">
@@ -201,9 +207,11 @@ export const App: React.FC = () => {
                 />
 
                 {loading ? (
-                  <div className="bg-white rounded-xl p-8 text-center border border-slate-200 shadow-xs">
-                    <div className="animate-spin w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full mx-auto mb-3" />
-                    <p className="text-xs text-slate-500 font-medium">Cargando publicaciones...</p>
+                  <div className="bg-slateDark-surface rounded-xl p-8 text-center border border-slateDark-borderSubtle shadow-xs">
+                    <div className="animate-spin w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full mx-auto mb-3" />
+                    <p className="text-xs text-slateDark-textMuted font-medium">
+                      Cargando publicaciones...
+                    </p>
                   </div>
                 ) : (
                   <FeedList posts={posts} currentUserId={currentUserId} />
@@ -212,37 +220,54 @@ export const App: React.FC = () => {
             )}
           </section>
 
-          {/* BARRA LATERAL DERECHA: TENDENCIAS + SUGERENCIAS + CONEXIONES + CHAT */}
+          {/* BARRA LATERAL DERECHA: SUGERENCIAS Y TENDENCIAS */}
           <aside className="lg:col-span-5 space-y-6">
-            {/* Tendencias de la red extendida (US-11): va primero por decisión de producto */}
-            <TrendingSidebar currentUserId={currentUserId} />
-
-            {/* Tu red: sugerencias + seguidos */}
             <UserSuggestionsCard
               filas={red}
               currentUserId={currentUserId}
               onNetworkUpdated={loadAllData}
               onOpenPerfil={handleOpenPerfil}
+              onOpenGraphModal={() => setIsGraphModalOpen(true)}
             />
 
-            {/* Conexiones en común con otra persona */}
-            <ConexionesComunesPanel
-              currentUserId={currentUserId}
-              currentUsername={currentUsername}
-            />
-
-            {/* Chat en Vivo por WebSocket */}
-            <ChatWidget currentUserId={currentUserId} />
+            <TrendingSidebar currentUserId={currentUserId} />
 
             {/* Pie Informativo */}
-            <footer className="text-center text-xs text-slate-400 py-2">
-              <p>Red Social Distribuida</p>
-              <p className="text-[11px] mt-0.5">Universidad Estatal Península de Santa Elena</p>
+            <footer className="text-center text-xs text-slateDark-textMuted/70 py-2">
+              <p className="font-semibold text-slateDark-text">TuxFlow</p>
+              <p className="text-[11px] mt-0.5">Red Social Distribuida · UPSE</p>
             </footer>
           </aside>
         </div>
       </main>
+
+      {/* Widget Flotante de Chat en Vivo (Dock en esquina inferior derecha) */}
+      <ChatWidget
+        currentUserId={currentUserId}
+        isOpenExternal={isChatOpen}
+        onToggleExternal={() => setIsChatOpen((prev) => !prev)}
+        onCloseExternal={() => setIsChatOpen(false)}
+      />
+
+      {/* Explorador Interactivo del Grafo Social TuxFlow */}
+      {isGraphModalOpen && (
+        <GraphExplorerModal
+          currentUserId={currentUserId}
+          currentUsername={currentUsername}
+          onClose={() => setIsGraphModalOpen(false)}
+          onOpenPerfil={handleOpenPerfil}
+          onNetworkUpdated={loadAllData}
+        />
+      )}
     </div>
+  );
+};
+
+export const App: React.FC = () => {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
   );
 };
 

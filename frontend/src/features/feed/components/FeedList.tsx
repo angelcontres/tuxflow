@@ -12,14 +12,14 @@ export const FeedList: React.FC<FeedListProps> = ({ posts, currentUserId }) => {
   return (
     <div className="w-full space-y-4">
       {posts.length === 0 ? (
-        <div className="bg-white rounded-xl p-8 text-center border border-slate-200 shadow-xs">
-          <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
+        <div className="bg-slateDark-surface rounded-xl p-8 text-center border border-slateDark-borderSubtle shadow-xs">
+          <div className="w-12 h-12 rounded-full bg-slateDark-surfaceSubtle text-slateDark-textMuted flex items-center justify-center mx-auto mb-3 border border-slateDark-borderSubtle">
             <MessageSquareOff className="w-6 h-6" />
           </div>
-          <h4 className="text-base font-semibold text-slate-800 mb-1">
+          <h4 className="text-base font-semibold text-slateDark-text mb-1">
             No hay publicaciones en tu feed
           </h4>
-          <p className="text-xs text-slate-500 max-w-sm mx-auto">
+          <p className="text-xs text-slateDark-textMuted max-w-sm mx-auto">
             Sigue a otros miembros de la red en la columna lateral para ver sus publicaciones aquí.
           </p>
         </div>
