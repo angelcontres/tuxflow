@@ -75,6 +75,7 @@ mirar en el código para comprobarla.
 | **US-10** | TUX-61 | 3 | US-02, US-03 | Comparte archivo con ambas: `UserSuggestionsCard.tsx`. |
 | **US-11** | TUX-62 | 3 | US-04, US-05, US-06 | Cuenta `REACCIONA` sobre `Post` y filtra por `fechaCreacion`. |
 | **US-12** | TUX-64 | 5 | US-01, US-02, US-09 | Lee `[:PUBLICA]` y `[:SIGUE]` por un identificador que no es el de la sesión, y monta dentro los paneles de US-09 y US-10 que ambas asumían. |
+| **US-14** | TUX-71 | 3 | US-01, US-12 | Lee todos los `:Usuario` por nombre, y su resultado lleva al perfil que US-12 abrió. Cierra `GET /api/users`, que entregaba el directorio con correos. |
 
 ### El único conflicto de merge real
 
@@ -160,6 +161,11 @@ y **no** coincide con Linear. Al leer cualquiera de los dos documentos, verifica
 | Sprint 3 | TUX-61 | TUX-10 | US-10 | 3 | Could | Camino más corto (Shortest Path 6 grados) |
 | Sprint 3 | TUX-62 | TUX-11 | US-11 | 3 | Could | Tendencias y viralidad en red extendida |
 | Sprint 3 | TUX-64 | — | US-12 | 5 | Should | Perfil de usuario ajeno: posts, seguidores y distancia |
+| Sprint 4 | TUX-71 | — | US-14 | 3 | Should | Buscar usuarios por nombre o nombre de usuario, y cerrar el directorio público |
+
+> US-13 y US-14 no tienen card en `docs/backlog-programteros.md`: nacieron de
+> `docs/propuesta-us-13-scroll-infinito.md` y `docs/propuesta-us-14-buscar-usuarios.md`, que pedían
+> verificar la numeración en Linear antes de crear la tarjeta.
 
 > US-12 no tiene card en `docs/backlog-programadores.md`: nació de
 > `docs/propuesta-us-12-perfil-ajeno.md`, que proponía `TUX-63` y avisaba de que había que verificar
@@ -224,6 +230,9 @@ Comprobados en `backend/src/main/java/ec/edu/upse/redsocial/`:
 | `asList(v -> v.asString())` sin protección | `Neo4jGrafoAdapter` | Nodo sin nombre rompe la consulta. `US-09`, `US-10`. |
 | `nombre` sin guarda de null | `Neo4jGrafoAdapter` | `obtenerSugerenciasUsuarios` y `obtenerSeguidos` devolvían el texto literal `"null"`: en el driver 5.24.0 `NullValue.asString()` no lanza. **Corregido en US-12**; la copia de US-09 en `obtenerSeguidosEnComun` ya lo tenía. |
 | Serialización de `Usuario` de dominio | `UserGraphResource` | `/follows` y `/comunes` devolvían el modelo crudo, con `password` y `pushSubscriptionJson`. **Corregido en US-12** con `UsuarioPublicoResponse`. |
+| `GET /api/users` devolvía el directorio con correos | `UserGraphResource.listarUsuarios()` | Sin autenticación y con el correo de cada persona. **Corregido en US-14**: el método se borró de los cinco eslabones. Responde `405` y no `404` porque `POST /api/users` (registro) sigue declarado en esa ruta. |
+| `toLower()` no quita acentos | consulta de búsqueda | **Corregido en US-14** con normalización en la consulta. Se descartaron tres alternativas que fallan en silencio; ver `odd/tasks/us-14-buscar-usuarios.md`. |
+| Búsqueda por `CONTAINS` es un escaneo de etiqueta | `Neo4jGrafoAdapter` | Aceptable para miles de nodos. La respuesta es un índice de texto completo de Neo4j, que además exige decidir si pliega acentos. |
 | `currentUserId` fijo en código | `frontend/src/App.tsx:13` | `'carlos-patino'`. `US-01`. |
 | `emisorId` vacío en el chat | `frontend/src/features/chat/services/chatSocket.ts:36` | **Corregido en US-07**: el cliente ya no lo envía y el servidor toma la identidad de la ruta de conexión, que es la única fuente fiable. |
 | Canal de chat sin autenticar | `backend/.../in/websocket/ChatWebSocket.java` | `US-07` abre `/chat/{userId}` creyendo el identificador de la ruta: cualquiera que lo adivine entra como ese usuario, lee su historial y le escribe. Es deuda de seguridad asumida de forma explícita, no un descuido: el ticket de US-07 la dejaba fuera y cerrar el canal exige un token de sesión para WebSocket que hoy no existe. |
@@ -241,3 +250,5 @@ Comprobados en `backend/src/main/java/ec/edu/upse/redsocial/`:
 | Migrar propuestas obsoletas (`proposals/`) al formato correcto | opencode (bot) |
 | Decidir la representación definitiva de `Post.fechaCreacion` y migrar datos existentes | Equipo de Arquitectura |
 | Limpiar reacciones duplicadas que ya existan en la base | Angel Villon / Paulo Orrala |
+| Rate limiting en la API: la búsqueda de US-14 es un vector de enumeración de nombres y el mínimo de 2 caracteres sólo lo mitiga | Angel Villon / Paulo Orrala |
+| Cerrar el correo de `GET /api/users/{userId}` para un perfil que no es el de la sesión (mismo tipo de fuga que US-14 cerró en `/api/users`) | US-01 |

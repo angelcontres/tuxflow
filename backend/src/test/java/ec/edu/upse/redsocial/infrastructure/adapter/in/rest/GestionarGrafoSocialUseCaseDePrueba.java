@@ -62,8 +62,10 @@ public class GestionarGrafoSocialUseCaseDePrueba implements GestionarGrafoSocial
     }
 
     @Override
-    public List<Usuario> listarUsuarios() {
-        return List.of(beatriz());
+    public List<Usuario> buscarUsuarios(String texto) {
+        // Devuelve a Beatriz para cualquier texto no vacío: estas pruebas miran la forma de la
+        // respuesta y el enrutado de la URL, no la consulta, que va stubeada en otro sitio.
+        return texto == null || texto.isBlank() ? List.of() : List.of(beatriz());
     }
 
     @Override

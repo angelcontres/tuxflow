@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+﻿import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from './App';
@@ -14,6 +14,8 @@ import {
   unfollowUserInGraph,
 } from './features/network/services/networkApi';
 import {
+  buscarUsuarios,
+  fetchMiPerfil,
   fetchPostsDeUsuario,
   fetchSeguidores,
   fetchUsuario,
@@ -55,6 +57,14 @@ vi.mock('./features/user/services/userApi', () => ({
   fetchSeguidores: vi.fn(),
   registerOrUpdateUsuario: vi.fn(),
   uploadAvatar: vi.fn(),
+  // El buscador del Navbar (US-14) monta con App. Sin este stub devolviendo una promesa,
+  // resetAllMocks() en cada beforeEach lo deja en undefined y el render de App revienta con
+  // "Cannot read properties of undefined (reading 'then')". Es el mismo motivo que el de
+  // fetchTendencias en US-11.
+  buscarUsuarios: vi.fn(),
+  // El Navbar lee el correo propio de /auth/me. Sin este stub, el Navbar revienta al montar con
+  // la misma ClassCastException de undefined.
+  fetchMiPerfil: vi.fn(),
 }));
 
 vi.mock('./features/chat/services/chatSocket', () => ({
@@ -88,6 +98,8 @@ const postsAjenosMock = vi.mocked(fetchPostsDeUsuario);
 const seguidoresMock = vi.mocked(fetchSeguidores);
 const caminoMock = vi.mocked(fetchCaminoCorto);
 const comunesMock = vi.mocked(fetchConexionesComunes);
+const buscarMock = vi.mocked(buscarUsuarios);
+const miPerfilMock = vi.mocked(fetchMiPerfil);
 
 function postBeatriz(overrides: Partial<Post> = {}): Post {
   return {
@@ -163,6 +175,13 @@ describe('App (feed tras dejar de seguir)', () => {
     vi.resetAllMocks();
     // US-11: el widget de tendencias pide esto al montar con App.
     tendenciasMock.mockResolvedValue([]);
+    // El Navbar pide el perfil con correo por separado: /users/{id} ya no lo devuelve.
+    miPerfilMock.mockResolvedValue({
+      id: 'carlos-patino',
+      username: 'carlos',
+      email: 'carlos@upse.edu.ec',
+      nombre: 'Carlos',
+    });
     sesionMock.mockResolvedValue({
       id: 'carlos-patino',
       username: 'carlos',
@@ -253,6 +272,13 @@ describe('App (navegación al perfil ajeno, US-12)', () => {
     vi.resetAllMocks();
     // US-11: el widget de tendencias pide esto al montar con App.
     tendenciasMock.mockResolvedValue([]);
+    // El Navbar pide el perfil con correo por separado: /users/{id} ya no lo devuelve.
+    miPerfilMock.mockResolvedValue({
+      id: 'carlos-patino',
+      username: 'carlos',
+      email: 'carlos@upse.edu.ec',
+      nombre: 'Carlos',
+    });
     sesionMock.mockResolvedValue({
       id: 'carlos-patino',
       username: 'carlos',
@@ -336,5 +362,130 @@ describe('App (navegación al perfil ajeno, US-12)', () => {
 
     expect(await screen.findByRole('button', { name: /iniciar sesi/i })).toBeInTheDocument();
     expect(screen.queryByText('Beatriz Silva')).not.toBeInTheDocument();
+  });
+});
+
+describe('App (búsqueda de personas, US-14)', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    tendenciasMock.mockResolvedValue([]);
+    // El Navbar pide el perfil con correo por separado: /users/{id} ya no lo devuelve.
+    miPerfilMock.mockResolvedValue({
+      id: 'carlos-patino',
+      username: 'carlos',
+      email: 'carlos@upse.edu.ec',
+      nombre: 'Carlos',
+    });
+    sesionMock.mockResolvedValue({
+      id: 'carlos-patino',
+      username: 'carlos',
+      email: 'carlos@upse.edu.ec',
+      nombre: 'Carlos',
+    });
+    feedMock.mockResolvedValue([]);
+    sugerenciasMock.mockResolvedValue([]);
+    seguidosMock.mockResolvedValue([]);
+    unfollowMock.mockResolvedValue(undefined);
+    postsAjenosMock.mockResolvedValue([]);
+    seguidoresMock.mockResolvedValue([]);
+    comunesMock.mockResolvedValue([]);
+    caminoMock.mockResolvedValue({ rutaConexion: [], saltosTotales: 0 });
+    buscarMock.mockResolvedValue([]);
+    perfilesConBeatriz();
+  });
+
+  it('busca a una persona y abre su perfil: el circuito que US-12 dejó a medias', async () => {
+    // Es el cierre de la historia: buscar → resultado → perfil → seguir. Lo que se comprueba aquí es
+    // que el resultado del buscador llega al MISMO manejador que usan las sugerencias, así que hay un
+    // solo camino de navegación y no uno por pantalla.
+    buscarMock.mockResolvedValue([
+      { id: 'beatriz-silva', username: 'beatriz', nombre: 'Beatriz Silva' },
+    ]);
+    render(<App />);
+
+    // Se espera a que la sesión se restaure antes de tocar el buscador: hasta entonces la pantalla
+    // es el spinner de carga y el Navbar no existe en el árbol.
+    const campo = await screen.findByLabelText(/buscar personas/i);
+
+    const user = userEvent.setup();
+    await user.type(campo, 'beatriz');
+
+    expect(await screen.findByText('Beatriz Silva', { selector: 'li *' })).toBeInTheDocument();
+    await waitFor(() => expect(buscarMock).toHaveBeenCalledWith('beatriz', expect.anything()));
+
+    await user.click(screen.getByRole('option', { name: /Beatriz Silva/ }));
+
+    // Y desde el perfil se ven sus publicaciones y sus seguidores: la búsqueda abre el circuito
+    // completo, no una pantalla a medias.
+    expect(postsAjenosMock).toHaveBeenCalledWith('beatriz-silva', 'carlos-patino');
+    expect(seguidoresMock).toHaveBeenCalledWith('beatriz-silva');
+    expect(screen.queryByPlaceholderText('¿Qué estás pensando hoy?')).not.toBeInTheDocument();
+  });
+
+  it('el buscador está en el Navbar y no pregunta nada al abrir la aplicación', async () => {
+    render(<App />);
+
+    expect(await screen.findByLabelText(/buscar personas/i)).toBeInTheDocument();
+    expect(buscarMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('App (el correo propio viene de la sesion, no del perfil publico)', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    tendenciasMock.mockResolvedValue([]);
+    // El Navbar pide el perfil con correo por separado: /users/{id} ya no lo devuelve.
+    miPerfilMock.mockResolvedValue({
+      id: 'carlos-patino',
+      username: 'carlos',
+      email: 'carlos@upse.edu.ec',
+      nombre: 'Carlos',
+    });
+    sesionMock.mockResolvedValue({
+      id: 'carlos-patino',
+      username: 'carlos',
+      email: 'carlos@upse.edu.ec',
+      nombre: 'Carlos',
+    });
+    feedMock.mockResolvedValue([]);
+    sugerenciasMock.mockResolvedValue([]);
+    seguidosMock.mockResolvedValue([]);
+    unfollowMock.mockResolvedValue(undefined);
+    postsAjenosMock.mockResolvedValue([]);
+    seguidoresMock.mockResolvedValue([]);
+    comunesMock.mockResolvedValue([]);
+    caminoMock.mockResolvedValue({ rutaConexion: [], saltosTotales: 0 });
+    buscarMock.mockResolvedValue([]);
+    perfilMock.mockResolvedValue({ id: 'carlos-patino', username: 'carlos', nombre: 'Carlos' });
+  });
+
+  it('el perfil ajeno se pinta sin el correo de otra persona', async () => {
+    // El perfil publico ya no lleva correo y `PerfilAjeno` no debe intentar mostrarlo. Es la
+    // contraparte de que `GET /users/{id}` responda `UsuarioPublicoResponse`.
+    perfilesConBeatriz();
+    buscarMock.mockResolvedValue([
+      { id: 'beatriz-silva', username: 'beatriz', nombre: 'Beatriz Silva' },
+    ]);
+    render(<App />);
+
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText(/buscar personas/i), 'beatriz');
+    await screen.findByText('Beatriz Silva', { selector: 'li *' });
+    await user.click(screen.getByRole('option', { name: /Beatriz Silva/ }));
+
+    // El nombre si aparece; el correo de otra persona, nunca.
+    expect(await screen.findByText('Beatriz Silva')).toBeInTheDocument();
+    expect(screen.queryByText('beatriz@upse.edu.ec')).not.toBeInTheDocument();
+  });
+
+  it('el Navbar sobrevive si /auth/me falla, sin tirar la sesion abajo', async () => {
+    // Perder el correo propio es un problema; perder el Navbar entero, que es por donde se entra
+    // al perfil y se cierra sesion, es otro. El token ya lo limpia el interceptor de `client.ts`
+    // cuando el backend responde 401.
+    miPerfilMock.mockRejectedValue(new Error('Network Error'));
+    render(<App />);
+
+    expect(await screen.findByLabelText(/buscar personas/i)).toBeInTheDocument();
+    expect(screen.getByTitle(/ver perfil o cambiar de sesi/i)).toBeInTheDocument();
   });
 });

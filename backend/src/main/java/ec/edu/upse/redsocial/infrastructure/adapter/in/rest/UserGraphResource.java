@@ -7,12 +7,14 @@ import ec.edu.upse.redsocial.infrastructure.adapter.in.rest.dto.UsuarioRequest;
 import ec.edu.upse.redsocial.infrastructure.adapter.in.rest.dto.UsuarioResponse;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.jboss.logging.Logger;
 import org.jboss.resteasy.reactive.RestForm;
 import org.jboss.resteasy.reactive.multipart.FileUpload;
@@ -26,21 +28,86 @@ public class UserGraphResource {
 
     @Inject GestionarGrafoSocialUseCase gestionarGrafoSocialUseCase;
 
+    @Inject GuardDeSesion guardDeSesion;
+
+    /**
+     * Búsqueda de personas por nombre o nombre de usuario (US-14).
+     *
+     * <p>La ruta compite con {@code /{userId}}, y por eso hay una prueba sobre HTTP real que la
+     * comprueba: en RESTEasy Reactive el segmento literal gana al de plantilla, así que resuelve
+     * bien, pero eso no se verifica leyendo el código sino levantando el servidor.
+     *
+     * <p>Responde {@link UsuarioPublicoResponse} y no {@link UsuarioResponse}: la búsqueda es la
+     * lectura más amplia de la comunidad que tiene la API —cualquiera que adivine dos letras puede
+     * preguntar por todos—, así que la respuesta es la más estrecha posible. El correo no se busca
+     * ni se devuelve: buscarlo convertiría el endpoint en un oráculo de "este correo existe en la
+     * comunidad".
+     */
     @GET
-    public Response listarUsuarios() {
-        List<UsuarioResponse> safe =
-                gestionarGrafoSocialUseCase.listarUsuarios().stream()
-                        .map(UsuarioResponse::from)
+    @Path("/buscar")
+    public Response buscarUsuarios(@QueryParam("q") String q) {
+        // El mínimo de dos caracteres se comprueba aquí y no sólo en el navegador, por el mismo
+        // motivo que /comunes valida sus parámetros: un cliente puede ser cualquiera, y una
+        // mitigación que sólo existe en el frontend no mitiga nada contra un curl. Con un carácter,
+        // "a" devuelve casi toda la comunidad y el endpoint es un GET /api/users con otro nombre.
+        //
+        // Y responde 400 y no la lista vacía: una llamada mal formada no puede parecerse a "no hay
+        // nadie", porque el cliente no tiene forma de distinguirlas y pintaría un resultado que no
+        // es un resultado.
+        if (q == null || q.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("error", "El campo 'q' es obligatorio"))
+                    .build();
+        }
+        if (q.strip().length() < MINIMO_CARACTERES_BUSQUEDA) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(
+                            Map.of(
+                                    "error",
+                                    "Escribe al menos "
+                                            + MINIMO_CARACTERES_BUSQUEDA
+                                            + " caracteres para buscar"))
+                    .build();
+        }
+
+        List<UsuarioPublicoResponse> resultados =
+                gestionarGrafoSocialUseCase.buscarUsuarios(q).stream()
+                        .map(UsuarioPublicoResponse::from)
                         .toList();
-        return Response.ok(safe).build();
+        return Response.ok(resultados).build();
     }
 
+    /**
+     * Mínimo de caracteres para buscar.
+     *
+     * <p>Es una mitigación y no una solución: con dos caracteres también se pueden enumerar los
+     * nombres. Lo que falta es rate limiting, que no existe en ninguna parte de la API, y queda
+     * anotado como deuda con dueño.
+     */
+    static final int MINIMO_CARACTERES_BUSQUEDA = 2;
+
+    /**
+     * Perfil público de una persona.
+     *
+     * <p>Responde {@link UsuarioPublicoResponse}, que no lleva correo, y ya no lleva {@code
+     * pushSubscriptionJson}. Antes respondía {@link UsuarioResponse}, que lleva los dos, y sin
+     * pedir autenticación: cualquiera que supiera un identificador leía el correo de cualquier
+     * persona de la comunidad. Medido, no supuesto:
+     *
+     * <pre>
+     * GET /api/users/beatriz-silva  -&gt; 200  email = beatriz@upse.edu.ec
+     * </pre>
+     *
+     * <p>El correo de la sesión se lee en {@code GET /api/auth/me}, que sí exige token. Así que la
+     * información no se pierde: cambia de_endpoint, no desaparece. Y el perfil ajeno, que es lo que
+     * la interfaz pinta en pantalla, no necesita el correo de nadie.
+     */
     @GET
     @Path("/{userId}")
     public Response obtenerUsuarioPorId(@PathParam("userId") String userId) {
         return gestionarGrafoSocialUseCase
                 .obtenerUsuarioPorId(userId)
-                .map(u -> Response.ok(UsuarioResponse.from(u)).build())
+                .map(u -> Response.ok(UsuarioPublicoResponse.from(u)).build())
                 .orElse(Response.status(Response.Status.NOT_FOUND).build());
     }
 
@@ -71,16 +138,27 @@ public class UserGraphResource {
     @POST
     @Path("/avatar")
     @Consumes(MediaType.MULTIPART_FORM_DATA)
-    public Response subirAvatarSinUsuario(@RestForm("file") FileUpload file) {
-        return procesarSubidaAvatar(null, file);
+    public Response subirAvatarSinUsuario(
+            @RestForm("file") FileUpload file,
+            @HeaderParam(HttpHeaders.AUTHORIZATION) String authorization) {
+        // Sin identificador no hay a quién atribuírselo, así que sólo se acepta con sesión: si no,
+        // el archivo se sube a MinIO y se pierde sin quedar en ningún nodo.
+        Optional<Response> sinSesion = guardDeSesion.sinSesion(authorization);
+        return sinSesion.orElseGet(() -> procesarSubidaAvatar(null, file));
     }
 
     @POST
     @Path("/{userId}/avatar")
     @Consumes(MediaType.MULTIPART_FORM_DATA)
     public Response subirAvatarUsuario(
-            @PathParam("userId") String userId, @RestForm("file") FileUpload file) {
-        return procesarSubidaAvatar(userId, file);
+            @PathParam("userId") String userId,
+            @RestForm("file") FileUpload file,
+            @HeaderParam(HttpHeaders.AUTHORIZATION) String authorization) {
+        // Antes cualquiera escribía el avatar de quien fuera poniendo su identificador en la URL:
+        // no se comprobaba ni que hubiera sesión ni que fuera su propio perfil. Con un token
+        // válido de otra persona bastaba con cambiar el identificador de la ruta.
+        Optional<Response> noAutorizado = guardDeSesion.siNoEsElDueño(authorization, userId);
+        return noAutorizado.orElseGet(() -> procesarSubidaAvatar(userId, file));
     }
 
     private Response procesarSubidaAvatar(String userId, FileUpload file) {
@@ -113,7 +191,16 @@ public class UserGraphResource {
     @POST
     @Path("/{seguidorId}/follow/{seguidoId}")
     public Response seguirUsuario(
-            @PathParam("seguidorId") String seguidorId, @PathParam("seguidoId") String seguidoId) {
+            @PathParam("seguidorId") String seguidorId,
+            @PathParam("seguidoId") String seguidoId,
+            @HeaderParam(HttpHeaders.AUTHORIZATION) String authorization) {
+        // La relación se escribe en el grafo de `seguidorId`, así que la sesión tiene que ser la de
+        // esa persona: con el token de Carlos se podía seguir y dejar de seguir desde la cuenta de
+        // cualquiera, y modificar su red sin saberlo.
+        Optional<Response> noAutorizado = guardDeSesion.siNoEsElDueño(authorization, seguidorId);
+        if (noAutorizado.isPresent()) {
+            return noAutorizado.get();
+        }
         gestionarGrafoSocialUseCase.seguir(seguidorId, seguidoId);
         return Response.ok(Map.of("mensaje", "Usuario seguido exitosamente")).build();
     }
@@ -121,7 +208,13 @@ public class UserGraphResource {
     @DELETE
     @Path("/{seguidorId}/follow/{seguidoId}")
     public Response dejarDeSeguir(
-            @PathParam("seguidorId") String seguidorId, @PathParam("seguidoId") String seguidoId) {
+            @PathParam("seguidorId") String seguidorId,
+            @PathParam("seguidoId") String seguidoId,
+            @HeaderParam(HttpHeaders.AUTHORIZATION) String authorization) {
+        Optional<Response> noAutorizado = guardDeSesion.siNoEsElDueño(authorization, seguidorId);
+        if (noAutorizado.isPresent()) {
+            return noAutorizado.get();
+        }
         gestionarGrafoSocialUseCase.dejarDeSeguir(seguidorId, seguidoId);
         return Response.ok(Map.of("mensaje", "Has dejado de seguir al usuario")).build();
     }

@@ -44,7 +44,23 @@ public interface GrafoPersistencePort {
     // Busca por email o username incluyendo el password (uso exclusivo de autenticación)
     Optional<Usuario> buscarUsuarioPorCredenciales(String emailOrUsername);
 
-    List<Usuario> listarUsuarios();
+    /**
+     * Personas cuyo nombre o nombre de usuario contienen el texto, ya ordenadas por relevancia.
+     *
+     * <p>El orden lo decide esta consulta y no el cliente: la regla (coincidencia exacta de nombre
+     * de usuario, luego empieza por, luego contiene, y para el nombre completo) es del servidor.
+     * Devolverla sin ordenar obligaría a cada consumidor a reimplementarla.
+     *
+     * <p>La comparación ignora acentos y eñes en los dos lados, así que {@code "patino"} encuentra
+     * a {@code "Carlos Patiño"}. El texto buscado llega sin normalizar y se normaliza aquí, porque
+     * la forma normalizada del dato guardado se calcula en la propia consulta.
+     *
+     * @param texto lo que la persona escribió, sin normalizar
+     * @param limite tope de resultados, para que el servidor pueda recortarlos
+     * @return las personas que coinciden, con las mismas cuatro propiedades que las listas de
+     *     seguidores y conexiones en común
+     */
+    List<Usuario> buscarUsuarios(String texto, long limite);
 
     void actualizarAvatarUsuario(String userId, String avatarUrl);
 

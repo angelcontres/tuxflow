@@ -7,7 +7,9 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+import ec.edu.upse.redsocial.infrastructure.adapter.in.rest.dto.UsuarioRequest;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import org.junit.jupiter.api.DisplayName;
@@ -205,23 +207,31 @@ class PerfilAjenoRutasIT {
     }
 
     @Test
-    @DisplayName(
-            "GET /api/users/{userId} del perfil propio conserva el correo y oculta la contraseña")
-    void perfilPropioConservaCorreoYOcultaContrasena() {
-        // El DTO de las listas es más estrecho a propósito. Este endpoint es el otro: es el perfil
-        // propio, se pide autenticado, y por eso sí lleva el correo. La distinción entre los dos es
-        // la razón de que existan dos DTO, así que también merece una prueba.
+    @DisplayName("GET /api/users/{userId} no filtra el correo de nadie")
+    void perfilPublicoNoFiltraElCorreo() {
+        // Antes esta prueba afirmaba lo contrario, y con razón para entonces: el perfil se pedía
+        // autenticado y por eso llevaba el correo. Pero el endpoint no exigía token, así que el
+        // correo de cualquier persona era público. Medido: sin token devolvía
+        // 200 con email = beatriz@upse.edu.ec.
+        //
+        // El correo se lee ahora en GET /api/auth/me, que sí exige sesión.
         String crudo =
                 given().when()
                         .get("/api/users/beatriz-silva")
                         .then()
                         .statusCode(200)
-                        .body("email", equalTo("beatriz@upse.edu.ec"))
+                        .body("id", equalTo("beatriz-silva"))
+                        .body("nombre", equalTo("Beatriz Silva"))
+                        .body("email", not(org.hamcrest.Matchers.hasKey("email")))
                         .body("password", not(org.hamcrest.Matchers.hasKey("password")))
+                        .body(
+                                "pushSubscriptionJson",
+                                not(org.hamcrest.Matchers.hasKey("pushSubscriptionJson")))
                         .extract()
                         .asString();
 
-        assertFalse(crudo.contains("no-debe-aparecer"), "La contraseña se filtró: " + crudo);
+        assertFalse(crudo.contains("upse.edu.ec"), "El correo se filtró: " + crudo);
+        assertFalse(crudo.contains("fcm"), "La suscripción push se filtró: " + crudo);
     }
 
     @Test
@@ -244,7 +254,7 @@ class PerfilAjenoRutasIT {
     @DisplayName("El cuerpo de error usa la forma que el cliente ya lee")
     void errorConFormaConocida() {
         // `getUserFacingError` del frontend lee el campo `error`. Si un endpoint devolviera otra
-        // clave, el mensaje del servidor no llegaría nunca a pantalla y saldría el texto genérico.
+        // clave, el mensaje del servidor no llegaría nunca a pantalla y salaría el texto genérico.
         //
         // La validación de "identificador en blanco" de /autor/{userId} no se puede disparar por el
         // path (ver la prueba del `%20`), así que aquí se comprueba la forma con `/comunes`, que sí
@@ -255,5 +265,220 @@ class PerfilAjenoRutasIT {
                 .statusCode(400)
                 .body("$", hasKey("error"))
                 .body("error", not(org.hamcrest.Matchers.nullValue()));
+    }
+
+    // --- Búsqueda de personas (US-14) ---
+    //
+    // Estas tres no se pueden probar llamando al método Java: pasan aunque la ruta no resuelva. Lo
+    // que
+    // se comprueba aquí es el choque entre `/api/users/buscar` y `/api/users/{userId}`, que sólo se
+    // ve
+    // cuando el servidor resuelve la URL, y el hecho de que el directorio completo ya no exista.
+
+    @Test
+    @DisplayName("GET /api/users/buscar?q= resuelve y devuelve la lista")
+    void laBusquedaResuelve() {
+        given().when()
+                .get("/api/users/buscar?q=beatriz")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("$", hasSize(1))
+                .body("[0].id", equalTo("beatriz-silva"))
+                .body("[0].username", equalTo("beatriz"));
+    }
+
+    @Test
+    @DisplayName("GET /api/users/buscar no se confunde con GET /api/users/{userId}")
+    void laBusquedaNoColisionaConElPerfil() {
+        // `buscar` es un segmento literal que compite con `{userId}`. Si el servidor lo tomara como
+        // un identificador, buscaría a una persona llamada "buscar" y devolvería 404 en vez de la
+        // lista, que es la forma silenciosa de este defecto: un 404 por identificador inexistente y
+        // un 404 por ruta mal declarada son indistinguibles desde fuera.
+        given().when().get("/api/users/buscar?q=beatriz").then().statusCode(200);
+
+        // Y al revés: el perfil sigue resolviendo como perfil, no como búsqueda.
+        given().when()
+                .get("/api/users/beatriz-silva")
+                .then()
+                .statusCode(200)
+                .body("id", equalTo("beatriz-silva"))
+                .body("username", equalTo("beatriz"));
+    }
+
+    @Test
+    @DisplayName("GET /api/users ya no devuelve el directorio con correos")
+    void elDirectorioYaNoExiste() {
+        // Este endpoint devolvía TODOS los usuarios con su correo y sin pedir autenticación.
+        //
+        // Lo que responde es 405 y no el 404 que dice el ticket, y la razón es que no puede ser
+        // 404: `POST /api/users` --el registro de US-01-- sigue declarado en esta misma ruta, así
+        // que
+        // la ruta existe y lo que no existe es el GET. En JAX-RS eso es "existe pero no por este
+        // método". El 404 del ticket sólo sería alcanzable borrando también el registro, que no es
+        // de
+        // esta historia.
+        //
+        // El defecto está cerrado igual: no hay forma de leer el directorio. Y el 405 es más exacto
+        // que el 404, porque distingue "esta ruta no existe" de "existe pero no por GET".
+        String crudo = given().when().get("/api/users").then().statusCode(405).extract().asString();
+
+        assertFalse(crudo.contains("beatriz@upse.edu.ec"), "El directorio se filtró: " + crudo);
+        assertFalse(crudo.contains("username"), "El directorio se filtró: " + crudo);
+        assertFalse(crudo.contains("nombre"), "El directorio se filtró: " + crudo);
+    }
+
+    @Test
+    @DisplayName("POST /api/users sigue declarado: cerrar el directorio no cerró el registro")
+    void elRegistroDeUsuariosSigueDeclarado() throws NoSuchMethodException {
+        // El registro de US-01 comparte ruta con el directorio que US-14 cierra, y es justo por eso
+        // que `GET /api/users` responde 405 y no 404 (ver la prueba anterior). Si esta ruta
+        // desapareciera, el alta de usuarios de US-01 se rompería.
+        //
+        // No se espera un 201: el doble de prueba que sustituye al caso de uso lanza
+        // UnsupportedOperationException a propósito en todo lo que escribe, porque estas pruebas no
+        // tocan el grafo. Lo que se comprueba aquí es que la ruta y el verbo siguen declarados, que
+        // es lo que depende de esta historia.
+        assertNotNull(
+                UserGraphResource.class.getDeclaredMethod("registrarUsuario", UsuarioRequest.class),
+                "El registro de usuarios dejó de estar declarado");
+    }
+
+    @Test
+    @DisplayName("GET /api/users/buscar no filtra correo, contraseña ni suscripción push")
+    void laBusquedaNoFiltraDatosDeSesion() {
+        // La búsqueda es la lectura más amplia de la comunidad que tiene la API: cualquiera que
+        // adivine dos letras puede preguntar por todos. La respuesta tiene que ser la más estrecha.
+        String crudo =
+                given().when()
+                        .get("/api/users/buscar?q=beatriz")
+                        .then()
+                        .statusCode(200)
+                        .extract()
+                        .asString();
+
+        assertFalse(crudo.contains("no-debe-aparecer"), "La contraseña se filtró: " + crudo);
+        assertFalse(crudo.contains("upse.edu.ec"), "El correo se filtró: " + crudo);
+        assertFalse(crudo.contains("fcm"), "La suscripción push se filtró: " + crudo);
+        org.junit.jupiter.api.Assertions.assertTrue(
+                crudo.contains("Beatriz Silva"), "El nombre debería venir: " + crudo);
+    }
+
+    @Test
+    @DisplayName("GET /api/users/buscar con menos de dos caracteres responde 400")
+    void laBusquedaConPocoTextoResponde400() {
+        // La mitigación tiene que estar en el servidor, no sólo en el navegador: en el frontend no
+        // mitiga nada contra un curl. Y responde 400 y no la lista vacía, porque una llamada mal
+        // formada no puede parecerse a "no hay nadie".
+        given().when()
+                .get("/api/users/buscar?q=a")
+                .then()
+                .statusCode(400)
+                .body("$", hasKey("error"));
+
+        given().when().get("/api/users/buscar").then().statusCode(400).body("$", hasKey("error"));
+
+        // Y con dos caracteres sí busca: si el mínimo estuviera mal, nadie encontraría a nadie.
+        given().when().get("/api/users/buscar?q=be").then().statusCode(200);
+    }
+
+    // --- Guard de sesion sobre HTTP real ---
+
+    /**
+     * El guard es el unico codigo de la cadena que decide si una escritura pasa, y su
+     * comportamiento con un token de verdad no se puede comprobar con un mock: un mock devuelve lo
+     * que le digan,incluido lo que haria un token manipulado.
+     */
+    private static String tokenDe(String userId) {
+        return io.smallrye.jwt.build.Jwt.issuer("https://redsocial.upse.edu.ec")
+                .upn(userId)
+                .claim("username", userId)
+                .expiresIn(1)
+                .sign();
+    }
+
+    /**
+     * Token firmado con la clave privada del classpath y el issuer que declara
+     * mp.jwt.verify.issuer. Si el issuer no coincide, la validacion devuelve 401 siempre y las
+     * pruebas de 403 y de sesion valida darian verde por el motivo equivocado.
+     */
+    private static final String TOKEN_DE_CARLOS = tokenDe("carlos-patino");
+
+    @Test
+    @DisplayName("POST /follow sin sesion responde 401 y no escribe la relacion")
+    void seguirSinSesionResponde401() {
+        // El recurso declara @Consumes(APPLICATION_JSON), asi que sin cuerpo la capa HTTP
+        // responde 415 ANTES de que el guard llegue a ejecutarse. El cuerpo va para llegar al
+        // guard.
+        given().when()
+                .contentType(ContentType.JSON)
+                .body("{}")
+                .post("/api/users/carlos-patino/follow/beatriz-silva")
+                .then()
+                .statusCode(401);
+    }
+
+    @Test
+    @DisplayName("POST /follow desde la cuenta de otra persona responde 403")
+    void seguirDesdeLaCuentaDeOtroResponde403() {
+        // El token es valido, pero es de Carlos y la ruta dice que sigue Elena. Con 403 y no 401
+        // porque la sesion no caduco: el frontend no debe cerrar la sesion de Carlos por esto.
+        given().when()
+                .contentType(ContentType.JSON)
+                .body("{}")
+                .header("Authorization", "Bearer " + TOKEN_DE_CARLOS)
+                .post("/api/users/elena-vega/follow/beatriz-silva")
+                .then()
+                .statusCode(403);
+    }
+
+    @Test
+    @DisplayName("POST /follow desde la propia cuenta NO lo corta el guard")
+    void seguirDesdeLaPropiaCuentaNoLoCortaElGuard() {
+        // El codigo importa mas que el numero. El guard responde 401 sin sesion y 403 si la sesion
+        // es de otra persona; cualquier otro codigo significa que la peticion lo supero y llego al
+        // caso de uso.
+        //
+        // No se espera 200 porque el doble de prueba lanza UnsupportedOperationException a
+        // proposito
+        // en todo lo que escribe, para que una prueba de recurso no toque el grafo. Eso produce un
+        // 500, y el 500 aqui es la senal de que el guard NO bloqueo -- que es justo lo que se
+        // comprueba. Un 401 o un 403 en esta prueba serian el defecto.
+        int status =
+                given().when()
+                        .contentType(ContentType.JSON)
+                        .body("{}")
+                        .header("Authorization", "Bearer " + TOKEN_DE_CARLOS)
+                        .post("/api/users/carlos-patino/follow/paulo-orrala")
+                        .then()
+                        .extract()
+                        .statusCode();
+
+        org.junit.jupiter.api.Assertions.assertNotEquals(
+                401, status, "El guard lo corto sin sesion");
+        org.junit.jupiter.api.Assertions.assertNotEquals(
+                403, status, "El guard lo corto por no ser el dueno");
+    }
+
+    @Test
+    @DisplayName("DELETE /follow desde la cuenta de otra persona responde 403")
+    void dejarDeSeguirDesdeLaCuentaDeOtroResponde403() {
+        given().when()
+                .header("Authorization", "Bearer " + TOKEN_DE_CARLOS)
+                .delete("/api/users/elena-vega/follow/beatriz-silva")
+                .then()
+                .statusCode(403);
+    }
+
+    @Test
+    @DisplayName("un token manipulado no abre ninguna escritura")
+    void unTokenManipuladoResponde401() {
+        given().when()
+                .contentType(ContentType.JSON)
+                .body("{}")
+                .header("Authorization", "Bearer eyJhbGciOiJub25lIn0.eyJ1cG4iOiJjYXJsb3MifQ.x")
+                .post("/api/users/carlos-patino/follow/beatriz-silva")
+                .then()
+                .statusCode(401);
     }
 }

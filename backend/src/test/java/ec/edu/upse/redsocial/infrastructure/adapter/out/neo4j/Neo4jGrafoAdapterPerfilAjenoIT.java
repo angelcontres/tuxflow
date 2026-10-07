@@ -391,4 +391,179 @@ class Neo4jGrafoAdapterPerfilAjenoIT {
             assertTrue(nulo);
         }
     }
+
+    // --- Búsqueda de personas (US-14) ---
+
+    @Test
+    @DisplayName("buscar por una parte del nombre o del nombre de usuario encuentra a la persona")
+    void encuentraPorNombreYPorNombreDeUsuario() {
+        List<Usuario> porNombre = adapter.buscarUsuarios("beatriz", 20L);
+        assertEquals(1, porNombre.size());
+        assertEquals("beatriz-silva", porNombre.get(0).getId());
+        assertEquals("Beatriz Silva", porNombre.get(0).getNombre());
+
+        // Y por el nombre de usuario, que es lo que alguien busca el 90% de las veces.
+        assertEquals("beatriz-silva", adapter.buscarUsuarios("beatri", 20L).get(0).getId());
+    }
+
+    @Test
+    @DisplayName("buscar sin la eñe encuentra a quien la tiene")
+    void encuentraSinLaEnye() {
+        // Este es el caso por el que existe la normalización, y no se puede comprobar con un mock:
+        // `Carlos Patiño` está en el grafo de verdad, con la eñe, desde el @BeforeAll.
+        List<Usuario> encontrados = adapter.buscarUsuarios("patino", 20L);
+
+        assertEquals(1, encontrados.size(), "La búsqueda sin acentos no encontró a nadie");
+        assertEquals("carlos-patino", encontrados.get(0).getId());
+        // El nombre que se devuelve es el real, con su eñe: la normalización es para comparar, no
+        // para mostrar. Si se devolviera la forma normalizada, el perfil de Carlos se leería
+        // "Carlos Patino".
+        assertEquals("Carlos Patiño", encontrados.get(0).getNombre());
+    }
+
+    @Test
+    @DisplayName("buscar con la eñe también encuentra a quien la tiene")
+    void encuentraConLaEnye() {
+        // El texto buscado se normaliza con la misma regla que los datos. Si sólo se normalizaran
+        // los datos, escribir "Patiño" no encontraría nunca nada.
+        assertEquals("carlos-patino", adapter.buscarUsuarios("Patiño", 20L).get(0).getId());
+    }
+
+    @Test
+    @DisplayName("buscar con mayúsculas y sin acentos encuentra igual")
+    void encuentraConMayusculas() {
+        assertEquals("carlos-patino", adapter.buscarUsuarios("CARLOS", 20L).get(0).getId());
+    }
+
+    @Test
+    @DisplayName("un texto con espacio encuentra aunque el nombre de usuario no lo tenga")
+    void encuentraConEspacioEnElNombre() {
+        // El Gherkin de US-14 lo pide explícitamente: "beatriz sil" tiene que encontrar a
+        // "Beatriz Silva", cuyo nombre de usuario es "beatriz" y no contiene ningún espacio.
+        List<Usuario> encontrados = adapter.buscarUsuarios("beatriz sil", 20L);
+
+        assertEquals(1, encontrados.size());
+        assertEquals("beatriz-silva", encontrados.get(0).getId());
+    }
+
+    @Test
+    @DisplayName("buscar 'pino' NO encuentra a Patiño, y no es un defecto")
+    void pinoNoEncuentraAPatino() {
+        // El cURL de verificación del ticket dice que buscar "pino" tiene que encontrar a
+        // "Carlos Patiño". No puede: la forma normalizada de ese nombre es "carlos patino", y
+        // "pino"
+        // no es una subcadena de "patino" -- faltan las letras "at". Da igual cuántas técnicas de
+        // normalización se apliquen.
+        //
+        // Esta prueba fija esa realidad para que nadie lea el resultado vacío como un fallo de la
+        // normalización. La forma correcta de la misma comprobación es "patino", que sí lo
+        // encuentra
+        // y que da cero resultados sin normalizar.
+        assertTrue(
+                adapter.buscarUsuarios("pino", 20L).isEmpty(),
+                "'pino' encontró a alguien, lo que significa que la comparación ya no es por "
+                        + "subcadena");
+        assertEquals("carlos-patino", adapter.buscarUsuarios("patino", 20L).get(0).getId());
+    }
+
+    @Test
+    @DisplayName("los resultados llegan en el orden de relevancia, no alfabético")
+    void ordenaPorRelevancia() {
+        // El orden alfabético por nombre haría la búsqueda inusable: buscando "sil" pondría a
+        // "Angel Villon" antes que a "Beatriz Silva". Se comprueba con dos personas que coinciden
+        // en
+        // posiciones distintas de la escala.
+        escribir(
+                """
+                CREATE (angel:Usuario {id: 'angel-villon', username: 'angel-silva', nombre: 'Angel Silva'})
+                CREATE (sandra:Usuario {id: 'sandra-ruiz', username: 'sandra', nombre: 'Sandra Ruiz'})
+                CREATE (maria:Usuario {id: 'maria-solano', username: 'maria-solano', nombre: 'Maria Solano'})
+                """);
+
+        List<Usuario> resultados = adapter.buscarUsuarios("silva", 20L);
+        List<String> ids = resultados.stream().map(Usuario::getId).toList();
+
+        // angel-silva gana por nombre de usuario exacto, aunque "Angel Silva" esté antes que
+        // "Beatriz Silva" en el alfabeto por nombre.
+        assertEquals(List.of("angel-villon", "beatriz-silva"), ids);
+
+        // Y el nombre completo también ordena: buscando "solano", la que lo tiene entero en el
+        // nombre de usuario va antes que la que sólo lo tiene como parte.
+        List<String> porNombre =
+                adapter.buscarUsuarios("solano", 20L).stream().map(Usuario::getId).toList();
+        assertTrue(
+                porNombre.contains("maria-solano"),
+                "El nombre de usuario completo debe aparecer: " + porNombre);
+    }
+
+    @Test
+    @DisplayName("el propio usuario aparece entre los resultados si busca su propio nombre")
+    void elPropioUsuarioAparece() {
+        // Excluirlo escondería un resultado real sin que nadie lo pidiera, y alguien puede buscar
+        // su propio nombre para comprobar que su perfil se ve bien.
+        List<Usuario> resultados = adapter.buscarUsuarios("carlos", 20L);
+
+        assertTrue(
+                resultados.stream().anyMatch(u -> u.getId().equals("carlos-patino")),
+                "Quien busca su propio nombre no se encuentra a sí mismo");
+    }
+
+    @Test
+    @DisplayName("una búsqueda sin coincidencias devuelve vacío y no falla")
+    void sinCoincidenciasDevuelveVacio() {
+        assertTrue(adapter.buscarUsuarios("zzzzz", 20L).isEmpty());
+    }
+
+    @Test
+    @DisplayName("un usuario sin nombre se busca por su nombre de usuario y no rompe nada")
+    void unUsuarioSinNombreNoRompeLaBusqueda() {
+        // Paulo se creó sin la propiedad `nombre`. La normalización de un valor nulo tiene que
+        // devolver algo con lo que comparar en vez de romper la consulta, y el resultado llega con
+        // nombre null, no con el texto literal "null".
+        List<Usuario> resultados = adapter.buscarUsuarios("paulo", 20L);
+
+        assertEquals(1, resultados.size());
+        assertEquals("paulo-orrala", resultados.get(0).getId());
+        assertNull(
+                resultados.get(0).getNombre(), "Llegó el texto \"null\" como si fuera un nombre");
+    }
+
+    @Test
+    @DisplayName("la búsqueda no trae correo, contraseña ni suscripción push")
+    void laBusquedaNoTraeDatosDeSesion() {
+        escribir(
+                """
+                MATCH (u:Usuario {id: 'carlos-patino'})
+                SET u.email = 'carlos@upse.edu.ec',
+                    u.password = 'no-debe-aparecer',
+                    u.pushSubscriptionJson = '{"endpoint":"https://fcm/secreto"}'
+                """);
+
+        List<Usuario> resultados = adapter.buscarUsuarios("carlos", 20L);
+        assertFalse(resultados.isEmpty(), "No hay resultados con los que comprobar la fuga");
+
+        for (Usuario persona : resultados) {
+            assertNull(persona.getEmail(), "El correo llegó en los resultados: " + persona.getId());
+            assertNull(persona.getPassword(), "La contraseña llegó: " + persona.getId());
+            assertNull(
+                    persona.getPushSubscriptionJson(),
+                    "La suscripción push llegó: " + persona.getId());
+        }
+
+        // Y se limpia para que no afecte a las demás pruebas de la clase.
+        escribir(
+                """
+                MATCH (u:Usuario {id: 'carlos-patino'})
+                REMOVE u.email, u.password, u.pushSubscriptionJson
+                """);
+    }
+
+    @Test
+    @DisplayName("la búsqueda respeta el tope que se le pasa")
+    void laBusquedaRespetaElTope() {
+        // Sin tope, una búsqueda por una letra común devuelve la comunidad entera, que es el
+        // defecto que US-14 cierra con GET /api/users. El tope es un parámetro, así que aquí se
+        // comprueba que el valor que sale es el que se pidió.
+        assertEquals(1, adapter.buscarUsuarios("a", 1L).size());
+    }
 }

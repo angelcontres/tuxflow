@@ -6,6 +6,7 @@ import ec.edu.upse.redsocial.domain.exception.PostNoEncontradoException;
 import ec.edu.upse.redsocial.domain.model.ConversacionChat;
 import ec.edu.upse.redsocial.domain.model.EstadoReaccion;
 import ec.edu.upse.redsocial.domain.model.MensajeChat;
+import ec.edu.upse.redsocial.domain.model.NormalizadorTexto;
 import ec.edu.upse.redsocial.domain.model.Post;
 import ec.edu.upse.redsocial.domain.model.SugerenciaUsuario;
 import ec.edu.upse.redsocial.domain.model.Usuario;
@@ -484,6 +485,135 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
         }
     }
 
+    // --- Búsqueda de personas por nombre o nombre de usuario (US-14) ---
+
+    /**
+     * Normalización de acentos y eñes, escrita en Cypher.
+     *
+     * <p>Se pliegan {@code á é í ó ú ñ} y sus mayúsculas a {@code a e i o u n}. No se hace nada
+     * más: no se quitan espacios, no se colapsan espacios dobles y no se tocan otros alfabetos.
+     * Cada transformación extra es una regla que alguien tiene que recordar y que puede sorprender.
+     *
+     * <p><b>Por qué se calcula en la consulta y no en un campo del nodo.</b> La alternativa era
+     * guardar {@code nombreNormalizado} y {@code usernameNormalizado} en el {@code :Usuario}. Se
+     * descartó por un fallo silencioso: cualquier nodo escrito antes de esta historia —incluidos
+     * registros reales, no sólo la semilla— quedaría <b>invisible</b> en las búsquedas, sin error y
+     * sin que nada lo delate. El precio de esto es que se evalúa por nodo, así que sigue siendo un
+     * escaneo de etiqueta; aceptable a esta escala, y la respuesta cuando la comunidad crezca es el
+     * índice de texto completo.
+     *
+     * <p>Se probaron cuatro técnicas alternativas y <b>tres fallan en silencio</b>, medido contra
+     * Neo4j 5.20 con datos reales (esta es la razón de no "simplificar" esto más adelante):
+     *
+     * <ul>
+     *   <li>Índice full-text de Neo4j: el analizador no pliega la {@code ñ}, {@code "pino"} y
+     *       {@code "patino"} no se encuentran.
+     *   <li>{@code apoc.text.clean(toLower(x))}: <b>borra los espacios</b>, deja {@code
+     *       "carlospatino"}.
+     *   <li>{@code apoc.text.regreplace(toLower(x))}: <b>borra la ñ</b> en vez de convertirla, deja
+     *       {@code "carlos patio"}.
+     * </ul>
+     *
+     * <p>Ninguna de las tres lanza error: devuelven {@code []} y se leen como correctas. La cuarta
+     * sí funciona y usa sólo funciones estándar de Neo4j.
+     */
+    /**
+     * Expresión Cypher que devuelve la forma normalizada de una propiedad.
+     *
+     * <p>Se usa con {@code %s} sustituido por el nombre de la propiedad. Las dos formas se calculan
+     * una vez por nodo en el {@code WITH}, y el {@code WHERE} y el ranking se comparan contra
+     * ellas: si el filtro usara el texto crudo y el orden el normalizado, una búsqueda con acentos
+     * no encontraría a nadie y no aparecería en el ranking.
+     *
+     * <p>Es {@code public} y no privado a propósito: {@code NormalizadorTextoTest} compara esta
+     * tabla con la de Java, porque las dos tienen que coincidir carácter a carácter y separarlas no
+     * lanza ningún error, sólo devuelve menos resultados de los que debería.
+     */
+    public static final String NORMALIZAR =
+            """
+            reduce(s = toLower(%s), i IN range(0, 5) |\
+                replace(s, ['á', 'é', 'í', 'ó', 'ú', 'ñ'][i], ['a', 'e', 'i', 'o', 'u', 'n'][i]))\
+            """;
+
+    @Override
+    public List<Usuario> buscarUsuarios(String texto, long limite) {
+        // El orden es por relevancia y no alfabético: buscando "sil", un orden por nombre pondría a
+        // "Angel Villon" antes que a "Beatriz Silva". El orden de las ramas del CASE es la escala
+        // del
+        // Gherkin de US-14, y el orden importa: Cypher devuelve la PRIMERA rama que coincide, así
+        // que
+        // ponerlas desordenadas haría que "el nombre empieza por" ganara a "el username empieza
+        // por".
+        //   1. username exacto         (es lo que alguien busca el 90% de las veces)
+        //   2. username empieza por
+        //   3. username lo contiene
+        //   4. nombre empieza por
+        //   5. nombre lo contiene
+        // El desempate por username hace la lista determinista: sin él, dos ejecuciones de la misma
+        // búsqueda pueden devolver el mismo conjunto en distinto orden y una prueba que espere un
+        // orden concreto se vuelve intermitente.
+        String cypher =
+                """
+            MATCH (u:Usuario)
+            WITH u,
+                 """
+                        + NORMALIZAR.formatted("u.username")
+                        + """
+             AS usuarioNormalizado,
+                 """
+                        + NORMALIZAR.formatted("u.nombre")
+                        + """
+             AS nombreNormalizado
+            WHERE usuarioNormalizado CONTAINS $q OR nombreNormalizado CONTAINS $q
+            RETURN u.id AS id,
+                   u.username AS username,
+                   u.nombre AS nombre,
+                   u.avatarUrl AS avatarUrl,
+                   CASE
+                       WHEN usuarioNormalizado = $q THEN 1
+                       WHEN usuarioNormalizado STARTS WITH $q THEN 2
+                       WHEN usuarioNormalizado CONTAINS $q THEN 3
+                       WHEN nombreNormalizado STARTS WITH $q THEN 4
+                       ELSE 5
+                   END AS relevancia
+            ORDER BY relevancia ASC, u.username ASC
+            LIMIT $limite
+            """;
+
+        try (var session = driver.session()) {
+            return session.executeRead(
+                    tx -> {
+                        // El texto buscado se normaliza con la misma regla que los datos, en Java.
+                        // Si se normalizaran sólo los datos, buscar "Patiño" con enye no
+                        // encontraría
+                        // nunca nada: es el mismo error en el otro sentido. Las dos
+                        // implementaciones
+                        // de la regla --esta y NormalizadorTexto-- tienen que coincidir carácter a
+                        // carácter, y hay una prueba que las ata para que no se separen en
+                        // silencio.
+                        var result =
+                                tx.run(
+                                        cypher,
+                                        Values.parameters(
+                                                "q",
+                                                NormalizadorTexto.normalizar(texto),
+                                                "limite",
+                                                limite));
+                        List<Usuario> usuarios = new ArrayList<>();
+                        while (result.hasNext()) {
+                            // Reutiliza el mapeo de US-12, con la guarda de null sobre el nombre:
+                            // en
+                            // Neo4j asignar null a una propiedad la elimina, así que un usuario sin
+                            // nombre llega como NullValue, y NullValue.asString() no lanza:
+                            // devuelve
+                            // el texto literal "null", que se renderizaría como si fuera un nombre.
+                            usuarios.add(mapearUsuarioDeRelacion(result.next()));
+                        }
+                        return usuarios;
+                    });
+        }
+    }
+
     @Override
     public void guardarUsuario(Usuario u) {
         String cypher =
@@ -618,52 +748,6 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                             return Optional.of(u);
                         }
                         return Optional.empty();
-                    });
-        }
-    }
-
-    @Override
-    public List<Usuario> listarUsuarios() {
-        String cypher =
-                """
-            MATCH (u:Usuario)
-            RETURN u.id AS id,
-                   u.username AS username,
-                   u.email AS email,
-                   u.nombre AS nombre,
-                   u.avatarUrl AS avatarUrl,
-                   u.pushSubscriptionJson AS pushSubscriptionJson
-            ORDER BY u.nombre ASC;
-            """;
-        try (var session = driver.session()) {
-            return session.executeRead(
-                    tx -> {
-                        var result = tx.run(cypher);
-                        List<Usuario> list = new ArrayList<>();
-                        while (result.hasNext()) {
-                            Record record = result.next();
-                            Usuario u = new Usuario();
-                            u.setId(record.get("id").asString());
-                            u.setUsername(record.get("username").asString());
-                            u.setEmail(
-                                    record.get("email").isNull()
-                                            ? null
-                                            : record.get("email").asString());
-                            u.setNombre(
-                                    record.get("nombre").isNull()
-                                            ? null
-                                            : record.get("nombre").asString());
-                            u.setAvatarUrl(
-                                    record.get("avatarUrl").isNull()
-                                            ? null
-                                            : record.get("avatarUrl").asString());
-                            u.setPushSubscriptionJson(
-                                    record.get("pushSubscriptionJson").isNull()
-                                            ? null
-                                            : record.get("pushSubscriptionJson").asString());
-                            list.add(u);
-                        }
-                        return list;
                     });
         }
     }

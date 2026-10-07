@@ -1,4 +1,4 @@
-import { Usuario } from '../types/user.types';
+import { ResultadoBusquedaUsuario, Usuario } from '../types/user.types';
 import { Post } from '../../feed/types/post.types';
 import { api } from '../../../shared/api/client';
 
@@ -46,6 +46,23 @@ export const fetchPostsDeUsuario = async (userId: string, viewerId?: string): Pr
 };
 
 /**
+ * Perfil de la sesión activa, con su correo.
+ *
+ * Es la única forma de leer el correo propio desde la interfaz. Antes venía de
+ * `GET /users/{currentUserId}`, que es la lectura pública de un perfil cualquiera y por eso ya no
+ * devuelve el correo de nadie: el correo es un dato de la cuenta y vive con la sesión, no con el
+ * perfil que los demás ven.
+ *
+ * Va aquí y no en `authApi` a propósito: ese módulo tiene su propio cliente axios para no reenviar el
+ * token durante el login, que es justo el caso contrario a este. Importarlo desde aquí crearía un
+ * ciclo con `shared/api/client`, que ya importa los helpers de token de `authApi`.
+ */
+export const fetchMiPerfil = async (): Promise<Usuario> => {
+  const response = await api.get<Usuario>('/auth/me');
+  return response.data;
+};
+
+/**
  * Personas que siguen a un perfil.
  *
  * Es la inversa de `fetchSeguidos`, y no su alias: mismo par de nodos, arista leída al revés. La
@@ -54,5 +71,31 @@ export const fetchPostsDeUsuario = async (userId: string, viewerId?: string): Pr
  */
 export const fetchSeguidores = async (userId: string): Promise<Usuario[]> => {
   const response = await api.get<Usuario[]>(`/users/${userId}/followers`);
+  return response.data;
+};
+
+/**
+ * Personas cuyo nombre o nombre de usuario contienen el texto, ya ordenadas por relevancia.
+ *
+ * El orden viene del servidor y el cliente lo respeta sin reordenar: la regla (coincidencia exacta
+ * de nombre de usuario, luego empieza por, luego contiene) es del backend, y un cliente que la
+ * reimplementara podría equivocarse.
+ *
+ * `signal` cancela la petición en vuelo. Hace falta además del debounce: con debounce y sin
+ * cancelación, dos respuestas pueden llegar en orden contrario y pintar el resultado de un texto que
+ * ya no es el del campo. Es un fallo de identidad, no un problema de rendimiento.
+ *
+ * El error se deja propagar, como en `fetchSeguidores`: quien llama tiene que poder distinguir
+ * "no hay nadie con ese nombre" de "no se pudo consultar", y no puede hacerlo si aquí todo se
+ * convierte en `[]`.
+ */
+export const buscarUsuarios = async (
+  texto: string,
+  signal?: AbortSignal,
+): Promise<ResultadoBusquedaUsuario[]> => {
+  const response = await api.get<ResultadoBusquedaUsuario[]>('/users/buscar', {
+    params: { q: texto },
+    signal,
+  });
   return response.data;
 };
