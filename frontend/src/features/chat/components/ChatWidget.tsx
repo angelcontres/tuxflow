@@ -2,23 +2,22 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertCircle,
   ChevronDown,
+  ChevronLeft,
   Loader2,
   MessageSquare,
+  Search,
   Send,
-  User,
   Wifi,
   WifiOff,
 } from 'lucide-react';
-import { ChatMessage, EstadoChat } from '../types/chat.types';
+import { ChatMessage, ConversacionChat, EstadoChat, FilaChat } from '../types/chat.types';
 import { chatSocketManager } from '../services/chatSocket';
-import { obtenerHistorial } from '../services/chatApi';
+import { obtenerConversaciones, obtenerHistorial } from '../services/chatApi';
+import { fetchSeguidos } from '../../network/services/networkApi';
 
 interface ChatWidgetProps {
   currentUserId: string;
 }
-
-/** Antes de pedir historial hay que esperar a que el interlocutor deje de cambiar al escribir. */
-const ESPERA_DE_ESCRITURA_MS = 400;
 
 const ETIQUETA_ESTADO: Record<EstadoChat['estado'], string> = {
   conectado: 'Conectado',
@@ -38,12 +37,99 @@ const nuevaClave = (): string => {
   return `local-${contadorClaves}`;
 };
 
+/**
+ * Quita tildes y baja a minúsculas, para comparar lo que se escribe con lo que está guardado.
+ *
+ * <p>Sin esto, buscar "Angel" no encuentra a "Ángel" ni "ángel", y en una comunidad con nombres
+ * acentuados la búsqueda falla justo en los casos que más se usan. La descomposición Unicode
+ * (NFD) separa la tilde de la letra, así que el mismo criterio sirve para las dos.
+ */
+export const normalizar = (texto: string): string =>
+  texto
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+
+/**
+ * Junta la bandeja de conversaciones con las personas a las que se sigue.
+ *
+ * <p>La lista de destino no es solo "con quién he hablado": también está quien se sigue y con quien
+ * todavía no se ha escrito nada. Si no estuviera, escribirle por primera vez a una persona a la que
+ * sigues exigiría cerrar el chat y buscarla en la barra lateral, que es un rodeo para algo que la
+ * propia pantalla del chat puede resolver.
+ *
+ * <p>Las conversaciones van primero y por fecha, porque son las que tienen algo que leer. Los
+ * demás salen detrás y por nombre, para que la lista nueva no salga en el orden en que el servidor
+ * devuelve los seguidos, que es el orden del grafo y no uno que signifique nada para quien lee.
+ *
+ * @param conversaciones lo que devuelve `GET /chat/conversaciones`
+ * @param seguidos lo que devuelve `GET /users/{id}/follows`
+ * @param yo el usuario abierto: se descarta de ambos lados, porque una conversación consigo mismo no
+ *   se puede abrir y el servidor rechaza esos envíos
+ */
+export function fusionarFilas(
+  conversaciones: ConversacionChat[] | undefined,
+  seguidos: { id: string; username: string; nombre?: string; avatarUrl?: string }[] | undefined,
+  yo: string,
+): FilaChat[] {
+  const filas: FilaChat[] = [];
+  const vistos = new Set<string>();
+
+  const agregar = (fila: FilaChat): void => {
+    if (!fila.id || fila.id === yo || vistos.has(fila.id)) {
+      return;
+    }
+    vistos.add(fila.id);
+    filas.push(fila);
+  };
+
+  if (Array.isArray(conversaciones)) {
+    for (const conversacion of conversaciones) {
+      if (conversacion && typeof conversacion.id === 'string') {
+        agregar({ ...conversacion, conMensajes: true });
+      }
+    }
+  }
+
+  if (Array.isArray(seguidos)) {
+    for (const seguido of seguidos) {
+      if (seguido && typeof seguido.id === 'string' && typeof seguido.username === 'string') {
+        agregar({
+          id: seguido.id,
+          username: seguido.username,
+          nombre: seguido.nombre,
+          avatarUrl: seguido.avatarUrl,
+          conMensajes: false,
+        });
+      }
+    }
+  }
+
+  // Solo se reordena la parte sin conversación. La de arriba viene ya ordenada por fecha desde el
+  // servidor y volver a tocarla en JavaScript perdería un criterio que la base de datos resolvió
+  // mejor.
+  const conMensajes = filas.filter((fila) => fila.conMensajes);
+  const sinMensajes = filas
+    .filter((fila) => !fila.conMensajes)
+    .sort((a, b) =>
+      normalizar(a.nombre || a.username).localeCompare(normalizar(b.nombre || b.username)),
+    );
+
+  return [...conMensajes, ...sinMensajes];
+}
+
 export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId }) => {
   const [abierto, setAbierto] = useState<boolean>(false);
-  const [interlocutor, setInterlocutor] = useState<string>('');
+  const [enConversacion, setEnConversacion] = useState<boolean>(false);
+  const [busqueda, setBusqueda] = useState<string>('');
+  const [filas, setFilas] = useState<FilaChat[]>([]);
+  const [seleccion, setSeleccion] = useState<FilaChat | null>(null);
   const [mensaje, setMensaje] = useState<string>('');
   const [mensajes, setMensajes] = useState<ChatMessage[]>([]);
   const [estado, setEstado] = useState<EstadoChat>({ estado: 'conectando', intento: 0 });
+  const [cargandoLista, setCargandoLista] = useState<boolean>(false);
+  const [errorLista, setErrorLista] = useState<string | null>(null);
   const [cargandoHistorial, setCargandoHistorial] = useState<boolean>(false);
   const [errorHistorial, setErrorHistorial] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -52,14 +138,12 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId }) => {
    * Interlocutor vigente, legible desde el manejador del socket.
    *
    * <p>Hace falta porque ese manejador se registra una sola vez, al montar, y desde ahí no puede
-   * leer el estado de cada mensaje entrante: cerraría sobre el valor que tenía el interlocutor en
-   * ese instante, que al montar está vacío. Con eso, el filtro de "este mensaje es de esta
+   * leer el estado de cada mensaje entrante: cerraría sobre el valor que tenía la conversación en
+   * ese instante, que al montar es ninguna. Con eso, el filtro de "este mensaje es de esta
    * conversación" descartaría todo lo que llegara y el chat no mostraría nunca nada.
    */
-  const interlocutorRef = useRef<string>(interlocutor);
-  interlocutorRef.current = interlocutor;
-
-  const interlocutorValido = interlocutor.trim() !== '' && interlocutor.trim() !== currentUserId;
+  const interlocutorRef = useRef<string>('');
+  interlocutorRef.current = seleccion?.id ?? '';
 
   /**
    * Abre el canal una vez por montaje.
@@ -81,19 +165,59 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId }) => {
     return () => {
       chatSocketManager.disconnect();
     };
-    // El efecto no depende de `interlocutor` a propósito: si dependiera, cambiar de interlocutor
-    // cerraría y reabriría el canal, y lo que hubiera en vuelo se perdería. El valor vigente se lee
-    // a través de la referencia de arriba, que no es una dependencia porque no cambia.
+    // El efecto no depende de la conversación a propósito: si dependiera, abrir otra cerraría y
+    // reabriría el canal, y lo que hubiera en vuelo se perdería. El valor vigente se lee a través
+    // de la referencia de arriba, que no es una dependencia porque no cambia.
   }, [currentUserId]);
+
+  /**
+   * Carga la lista de destino al abrir el panel, no al montar.
+   *
+   * <p>Se pide al abrir porque casi nadie mira la bandeja: quien monta el widget solo está pasando
+   * por la página, y una petición por cada visita para pintar una lista que nadie miró sería trabajo
+   * que se hace y se tira.
+   *
+   * <p>Un fallo al pedir los seguidos no hunde la lista: se degrada a la bandeja de conversaciones
+   * sola. Perder el acceso para escribirle a alguien nuevo no es lo mismo que quedarse sin
+   * conversaciones, y la segunda parte sí tiene algo que enseñar.
+   */
+  useEffect(() => {
+    if (!abierto) return undefined;
+
+    let cancelado = false;
+    setCargandoLista(true);
+    setErrorLista(null);
+
+    Promise.all([
+      obtenerConversaciones(currentUserId),
+      fetchSeguidos(currentUserId).catch(() => []),
+    ])
+      .then(([conversaciones, seguidos]) => {
+        if (cancelado) return;
+        setFilas(fusionarFilas(conversaciones, seguidos, currentUserId));
+        setCargandoLista(false);
+      })
+      .catch(() => {
+        if (cancelado) return;
+        setFilas([]);
+        setCargandoLista(false);
+        setErrorLista('No se pudieron cargar tus conversaciones.');
+      });
+
+    return () => {
+      cancelado = true;
+    };
+  }, [abierto, currentUserId]);
 
   /**
    * Carga el historial de la conversación abierta.
    *
-   * <p>La espera de escritura evita una petición por pulsación: el ID se escribe letra a letra.
+   * <p>Ya no hay espera de escritura: antes el interlocutor se tecleaba letra a letra y cada
+   * pulsación disparaba una petición. Ahora se elige de una lista, así que la petición se hace una
+   * vez por conversación abierta.
    */
   useEffect(() => {
-    const otro = interlocutor.trim();
-    if (!otro || otro === currentUserId) {
+    if (!seleccion) {
       setMensajes([]);
       setCargandoHistorial(false);
       setErrorHistorial(null);
@@ -104,28 +228,24 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId }) => {
     setCargandoHistorial(true);
     setErrorHistorial(null);
 
-    const temporizador = setTimeout(() => {
-      obtenerHistorial(currentUserId, otro)
-        .then((historial) => {
-          if (cancelado) return;
-          setMensajes(historial);
-          setErrorHistorial(null);
-        })
-        .catch(() => {
-          if (cancelado) return;
-          setMensajes([]);
-          setErrorHistorial('No se pudo cargar el historial.');
-        })
-        .finally(() => {
-          if (!cancelado) setCargandoHistorial(false);
-        });
-    }, ESPERA_DE_ESCRITURA_MS);
+    obtenerHistorial(currentUserId, seleccion.id)
+      .then((historial) => {
+        if (cancelado) return;
+        setMensajes(historial);
+      })
+      .catch(() => {
+        if (cancelado) return;
+        setMensajes([]);
+        setErrorHistorial('No se pudo cargar el historial.');
+      })
+      .finally(() => {
+        if (!cancelado) setCargandoHistorial(false);
+      });
 
     return () => {
       cancelado = true;
-      clearTimeout(temporizador);
     };
-  }, [interlocutor, currentUserId]);
+  }, [seleccion, currentUserId]);
 
   useEffect(() => {
     const nodo = scrollRef.current;
@@ -134,12 +254,23 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId }) => {
     }
   }, [mensajes]);
 
+  const abrirFila = (fila: FilaChat): void => {
+    setEnConversacion(true);
+    setSeleccion(fila);
+  };
+
+  const volverALista = (): void => {
+    setEnConversacion(false);
+    setSeleccion(null);
+  };
+
   const enviar = (evento: React.FormEvent): void => {
     evento.preventDefault();
     const texto = mensaje.trim();
-    if (!texto || !interlocutorValido) return;
+    const destinatario = seleccion?.id;
+    if (!texto || !destinatario) return;
 
-    const entregado = chatSocketManager.sendMessage(interlocutor.trim(), texto);
+    const entregado = chatSocketManager.sendMessage(destinatario, texto);
     if (!entregado) {
       // El texto se conserva a propósito: borrarlo perdería lo escrito por un canal que no está listo.
       return;
@@ -152,26 +283,53 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId }) => {
       {
         clave: nuevaClave(),
         emisorId: currentUserId,
-        destinatarioId: interlocutor.trim(),
+        destinatarioId: destinatario,
         contenido: texto,
         estado: 'PENDIENTE',
       } as Pendiente,
     ]);
     setMensaje('');
+    // La fila del interlocutor pasa a tener conversación aunque la lista no se vuelva a pedir. Si
+    // no, volver atrás después de escribir la primera palabra mostraría "Sin mensajes" sobre una
+    // conversación que existe.
+    marcarEnviado(destinatario, texto);
+  };
+
+  /** Deja la fila del interlocutor al día con lo que se acaba de escribir. */
+  const marcarEnviado = (destinatarioId: string, contenido: string): void => {
+    setFilas((previas) =>
+      previas.map((fila) =>
+        fila.id === destinatarioId
+          ? {
+              ...fila,
+              conMensajes: true,
+              ultimoMensaje: contenido,
+              fechaUltimoMensaje: Date.now(),
+            }
+          : fila,
+      ),
+    );
   };
 
   const reintentarHistorial = useCallback(() => {
-    const otro = interlocutor.trim();
-    if (!otro) return;
+    if (!seleccion) return;
     setCargandoHistorial(true);
-    obtenerHistorial(currentUserId, otro)
+    obtenerHistorial(currentUserId, seleccion.id)
       .then((historial) => {
         setMensajes(historial);
         setErrorHistorial(null);
       })
       .catch(() => setErrorHistorial('No se pudo cargar el historial.'))
       .finally(() => setCargandoHistorial(false));
-  }, [interlocutor, currentUserId]);
+  }, [seleccion, currentUserId]);
+
+  const visibles = useMemo(() => {
+    const texto = normalizar(busqueda);
+    if (texto === '') return filas;
+    return filas.filter((fila) =>
+      normalizar(`${fila.nombre ?? ''} ${fila.username}`).includes(texto),
+    );
+  }, [filas, busqueda]);
 
   const claseEstado = useMemo(() => {
     switch (estado.estado) {
@@ -184,127 +342,180 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId }) => {
     }
   }, [estado.estado]);
 
-  const burbaja = () => (
-    <div className="fixed bottom-4 right-4 z-50 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-      <div className="flex items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-4 py-3">
-        <div className="flex min-w-0 items-center gap-2">
+  const cabecera = (
+    <div className="flex items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-4 py-3">
+      <div className="flex min-w-0 items-center gap-2">
+        {enConversacion ? (
+          <button
+            type="button"
+            onClick={volverALista}
+            aria-label="Volver a la lista de conversaciones"
+            className="cursor-pointer rounded-lg p-1 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-700"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+        ) : (
           <span className="rounded-lg bg-blue-50 p-1.5 text-blue-600">
             <MessageSquare className="h-4 w-4" />
           </span>
-          <h3 className="truncate text-sm font-semibold text-slate-900">Mensajes en vivo</h3>
-        </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <span
-            className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${claseEstado}`}
-            title={
-              estado.intento > 0
-                ? `${estado.intento} intento(s) de reconexión`
-                : ETIQUETA_ESTADO[estado.estado]
-            }
-          >
-            {estado.estado === 'conectado' ? (
-              <Wifi className="h-3 w-3" />
-            ) : estado.estado === 'conectando' ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <WifiOff className="h-3 w-3" />
-            )}
-            <span className="hidden sm:inline">{ETIQUETA_ESTADO[estado.estado]}</span>
-          </span>
-          <button
-            type="button"
-            onClick={() => setAbierto(false)}
-            aria-label="Minimizar el chat"
-            className="cursor-pointer rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-700"
-          >
-            <ChevronDown className="h-4 w-4" />
-          </button>
-        </div>
+        )}
+        <h3 className="truncate text-sm font-semibold text-slate-900">
+          {enConversacion && seleccion
+            ? seleccion.nombre || `@${seleccion.username}`
+            : 'Mensajes en vivo'}
+        </h3>
       </div>
-
-      <div className="p-4">
-        <label
-          htmlFor="chat-interlocutor"
-          className="mb-1 block text-[11px] font-medium text-slate-600"
+      <div className="flex shrink-0 items-center gap-1.5">
+        <span
+          className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${claseEstado}`}
+          title={
+            estado.intento > 0
+              ? `${estado.intento} intento(s) de reconexión`
+              : ETIQUETA_ESTADO[estado.estado]
+          }
         >
-          Enviar mensaje a (ID)
-        </label>
-        <div className="relative mb-3">
-          <User className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400" />
-          <input
-            id="chat-interlocutor"
-            type="text"
-            value={interlocutor}
-            onChange={(e) => setInterlocutor(e.target.value)}
-            placeholder="ID de usuario (ej. paulo-orrala)"
-            className="w-full rounded-lg border border-slate-300 bg-slate-50 py-1.5 pl-8 pr-3 font-mono text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
+          {estado.estado === 'conectado' ? (
+            <Wifi className="h-3 w-3" />
+          ) : estado.estado === 'conectando' ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <WifiOff className="h-3 w-3" />
+          )}
+          <span className="hidden sm:inline">{ETIQUETA_ESTADO[estado.estado]}</span>
+        </span>
+        <button
+          type="button"
+          onClick={() => setAbierto(false)}
+          aria-label="Minimizar el chat"
+          className="cursor-pointer rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-700"
+        >
+          <ChevronDown className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+
+  const panel = (
+    <div className="flex min-h-0 flex-1 flex-col">
+      {!enConversacion && (
+        <div className="border-b border-slate-200 p-3">
+          <label htmlFor="chat-buscar" className="sr-only">
+            Buscar conversación
+          </label>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400" />
+            <input
+              id="chat-buscar"
+              type="search"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar por nombre o usuario"
+              className="w-full rounded-lg border border-slate-300 bg-slate-50 py-1.5 pl-8 pr-3 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
         </div>
+      )}
 
-        <div
-          ref={scrollRef}
-          className="mb-3 h-52 space-y-2 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3"
-        >
-          {cargandoHistorial ? (
-            <div className="flex h-full flex-col items-center justify-center gap-2 text-xs text-slate-500">
+      {!enConversacion ? (
+        <div className="min-h-0 flex-1 overflow-y-auto p-2">
+          {cargandoLista ? (
+            <div className="flex h-full flex-col items-center justify-center gap-2 py-10 text-xs text-slate-500">
               <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
-              Cargando historial...
+              Cargando conversaciones...
             </div>
-          ) : errorHistorial ? (
-            <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+          ) : errorLista ? (
+            <div className="flex h-full flex-col items-center justify-center gap-2 py-10 text-center">
               <AlertCircle className="h-5 w-5 text-red-500" />
-              <p className="text-xs text-red-600">{errorHistorial}</p>
-              <button
-                type="button"
-                onClick={reintentarHistorial}
-                className="cursor-pointer rounded-lg border border-slate-300 px-2.5 py-1 text-[11px] font-medium text-slate-700 transition-colors hover:bg-slate-100"
-              >
-                Reintentar
-              </button>
+              <p className="text-xs text-red-600">{errorLista}</p>
+              <p className="text-[11px] text-slate-400">
+                Cierra y vuelve a abrir el chat para intentarlo de nuevo.
+              </p>
             </div>
-          ) : mensajes.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center py-4 text-center text-xs text-slate-400">
+          ) : visibles.length === 0 ? (
+            <div className="flex h-full flex-col items-center justify-center py-10 text-center text-xs text-slate-400">
               <MessageSquare className="mb-1 h-6 w-6 text-slate-300" />
-              <p>No hay mensajes en esta conversación.</p>
-              <p className="mt-0.5 text-[11px] text-slate-400">
-                Escribe para iniciar el chat en tiempo real.
+              <p>
+                {busqueda.trim() === ''
+                  ? 'Todavía no has escrito con nadie.'
+                  : 'Ninguna conversación coincide con la búsqueda.'}
               </p>
             </div>
           ) : (
-            mensajes.map((m) => (
-              <Burbuja key={claveDe(m)} mensaje={m} currentUserId={currentUserId} />
-            ))
+            <ul className="space-y-1">
+              {visibles.map((fila) => (
+                <li key={fila.id}>
+                  <FilaConversacion fila={fila} onAbrir={abrirFila} />
+                </li>
+              ))}
+            </ul>
           )}
         </div>
+      ) : (
+        <>
+          <div ref={scrollRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto bg-slate-50 p-3">
+            {cargandoHistorial ? (
+              <div className="flex h-full flex-col items-center justify-center gap-2 py-10 text-xs text-slate-500">
+                <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                Cargando historial...
+              </div>
+            ) : errorHistorial ? (
+              <div className="flex h-full flex-col items-center justify-center gap-2 py-10 text-center">
+                <AlertCircle className="h-5 w-5 text-red-500" />
+                <p className="text-xs text-red-600">{errorHistorial}</p>
+                <button
+                  type="button"
+                  onClick={reintentarHistorial}
+                  className="cursor-pointer rounded-lg border border-slate-300 px-2.5 py-1 text-[11px] font-medium text-slate-700 transition-colors hover:bg-slate-100"
+                >
+                  Reintentar
+                </button>
+              </div>
+            ) : mensajes.length === 0 ? (
+              <div className="flex h-full flex-col items-center justify-center py-10 text-center text-xs text-slate-400">
+                <MessageSquare className="mb-1 h-6 w-6 text-slate-300" />
+                <p>No hay mensajes en esta conversación.</p>
+                <p className="mt-0.5 text-[11px] text-slate-400">
+                  Escribe para iniciar el chat en tiempo real.
+                </p>
+              </div>
+            ) : (
+              mensajes.map((m) => (
+                <Burbuja key={claveDe(m)} mensaje={m} currentUserId={currentUserId} />
+              ))
+            )}
+          </div>
 
-        <form onSubmit={enviar} className="flex gap-2">
-          <input
-            type="text"
-            value={mensaje}
-            onChange={(e) => setMensaje(e.target.value)}
-            placeholder={
-              interlocutorValido ? 'Escribe un mensaje...' : 'Escribe un ID de usuario arriba'
-            }
-            className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
-          <button
-            type="submit"
-            disabled={!mensaje.trim() || !interlocutorValido}
-            aria-label="Enviar mensaje"
-            className="cursor-pointer rounded-lg bg-blue-600 p-2 text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <Send className="h-3.5 w-3.5" />
-          </button>
-        </form>
+          <form onSubmit={enviar} className="flex gap-2 border-t border-slate-200 p-3">
+            <label htmlFor="chat-mensaje" className="sr-only">
+              Escribe un mensaje
+            </label>
+            <input
+              id="chat-mensaje"
+              type="text"
+              value={mensaje}
+              onChange={(e) => setMensaje(e.target.value)}
+              placeholder="Escribe un mensaje..."
+              className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <button
+              type="submit"
+              disabled={!mensaje.trim()}
+              aria-label="Enviar mensaje"
+              className="cursor-pointer rounded-lg bg-blue-600 p-2 text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Send className="h-3.5 w-3.5" />
+            </button>
+          </form>
+        </>
+      )}
 
-        {estado.estado !== 'conectado' && (
-          <p className="mt-2 text-center text-[11px] text-amber-600">
-            {estado.estado === 'conectando'
-              ? 'Reintentando la conexión con el servidor...'
-              : 'Sin conexión con el canal de chat.'}
-          </p>
-        )}
-      </div>
+      {estado.estado !== 'conectado' && (
+        <p className="border-t border-slate-200 px-4 py-2 text-center text-[11px] text-amber-600">
+          {estado.estado === 'conectando'
+            ? 'Reintentando la conexión con el servidor...'
+            : 'Sin conexión con el canal de chat.'}
+        </p>
+      )}
     </div>
   );
 
@@ -328,7 +539,55 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId }) => {
     );
   }
 
-  return burbaja();
+  return (
+    <div className="fixed bottom-4 right-4 z-50 flex max-h-[80vh] w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+      {cabecera}
+      {panel}
+    </div>
+  );
+};
+
+/**
+ * Fila de la lista de destino.
+ *
+ * <p>El avatar cae a la inicial si no hay imagen o si la imagen no carga, igual que en el resto de la
+ * aplicación: un retrato roto en una lista corta da la impresión de que el perfil está vacío.
+ */
+const FilaConversacion: React.FC<{ fila: FilaChat; onAbrir: (fila: FilaChat) => void }> = ({
+  fila,
+  onAbrir,
+}) => {
+  const [avatarCaido, setAvatarCaido] = useState<boolean>(false);
+  const inicial = (fila.nombre || fila.username || '?').charAt(0).toUpperCase();
+
+  return (
+    <button
+      type="button"
+      onClick={() => onAbrir(fila)}
+      className="flex w-full cursor-pointer items-center gap-2 rounded-lg p-2 text-left transition-colors hover:bg-slate-100"
+    >
+      {fila.avatarUrl && !avatarCaido ? (
+        <img
+          src={fila.avatarUrl}
+          alt={`Avatar de @${fila.username}`}
+          className="h-8 w-8 shrink-0 rounded-full bg-slate-200 object-cover"
+          onError={() => setAvatarCaido(true)}
+        />
+      ) : (
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
+          {inicial}
+        </span>
+      )}
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-xs font-semibold text-slate-800">
+          {fila.nombre || `@${fila.username}`}
+        </span>
+        <span className="block truncate text-[11px] text-slate-500">
+          {fila.conMensajes ? fila.ultimoMensaje : `@${fila.username} · Sin mensajes`}
+        </span>
+      </span>
+    </button>
+  );
 };
 
 /** Clave estable para React: el id del servidor en cuanto llega, y la clave local mientras no exista. */
@@ -411,7 +670,7 @@ const incorporar = (
   }
 
   // Los mensajes de otras conversaciones no se mezclan: la vista muestra una sola.
-  if (nuevo.emisorId !== currentUserId && nuevo.emisorId !== interlocutor.trim()) {
+  if (nuevo.emisorId !== currentUserId && nuevo.emisorId !== interlocutor) {
     return previos;
   }
 

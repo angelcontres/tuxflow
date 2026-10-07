@@ -3,6 +3,7 @@ package ec.edu.upse.redsocial.infrastructure.adapter.out.neo4j;
 import ec.edu.upse.redsocial.domain.exception.AutorNoEncontradoException;
 import ec.edu.upse.redsocial.domain.exception.ParticipanteNoEncontradoException;
 import ec.edu.upse.redsocial.domain.exception.PostNoEncontradoException;
+import ec.edu.upse.redsocial.domain.model.ConversacionChat;
 import ec.edu.upse.redsocial.domain.model.EstadoReaccion;
 import ec.edu.upse.redsocial.domain.model.MensajeChat;
 import ec.edu.upse.redsocial.domain.model.Post;
@@ -231,7 +232,7 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
             MATCH (s:Usuario)-[:SIGUE]->(u:Usuario {id: $userId})
             RETURN s.id AS id, s.username AS username, s.nombre AS nombre, s.avatarUrl AS avatarUrl
             ORDER BY s.username ASC
-
+            LIMIT $limite
             """;
 
         try (var session = driver.session()) {
@@ -384,6 +385,18 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
     /** Username del salto, con valor por defecto cuando el nodo no lo tiene cargado. */
     private static String usernameONulo(Value salto) {
         Value valor = salto.get("username");
+        return valor == null || valor.isNull() ? USERNAME_POR_DEFECTO : valor.asString();
+    }
+
+    /**
+     * Username de una propiedad suelta de una fila, con el mismo valor por defecto que {@link
+     * #usernameONulo}.
+     *
+     * <p>Existe separado porque la bandeja proyecta el username como propiedad de la fila y no como
+     * elemento de una lista: el código que ya había sirve para saltos de camino, donde la propiedad
+     * vive dentro de un mapa, y aquí vive en la fila.
+     */
+    private static String usernameDePropiedad(Value valor) {
         return valor == null || valor.isNull() ? USERNAME_POR_DEFECTO : valor.asString();
     }
 
@@ -1029,6 +1042,17 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
     // --- Chat 1 a 1: nodo :MensajeChat enlazado a emisor y destinatario (US-07) ---
 
     /**
+     * Tope de conversaciones que devuelve la bandeja de un usuario.
+     *
+     * <p>Cincuenta filas son todas las que alguien lee antes de decidir que empieza a buscar por
+     * nombre, y ese es justo el trabajo que hace la búsqueda local del cliente. Lo que está por
+     * encima sigue existiendo: no se pierde nada, simplemente deja de estar en la bandeja. Subir el
+     * número no arregla una bandeja ilegible, y la respuesta correcta para quien tiene más
+     * conversaciones de las que caben es la búsqueda.
+     */
+    static final long LIMITE_CONVERSACIONES_POR_USUARIO = 50;
+
+    /**
      * Conserva el mensaje y lo enlaza a las dos personas que lo escribieron.
      *
      * <p>Las dos relaciones son explícitas y de roles distintos: {@code ENVIA} sale del emisor y
@@ -1058,7 +1082,6 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
         try (var session = driver.session()) {
             session.executeWrite(
                     tx -> {
-
                         var resultado =
                                 tx.run(
                                         cypher,
@@ -1289,26 +1312,55 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
         }
     }
 
+    /**
+     * Bandeja de conversaciones: una fila por interlocutor con su último mensaje.
+     *
+     * <p>La consulta va en tres pasos y el orden importa en cada uno.
+     *
+     * <p>1. Se reparten emisor y destinatario entre {@code parte} y {@code otra}, y el filtro exige
+     * que uno de los dos sea quien pregunta. Es el mismo criterio simétrico del historial, y por el
+     * mismo motivo: con un par ordenado la bandeja saldría con la mitad de las parejas, las que
+     * solo se escribieron de un lado, que es exactamente la mitad de lo que alguien espera ver al
+     * abrir el chat.
+     *
+     * <p>2. {@code CASE WHEN} decide de las dos variables cuál es el interlocutor. Sin eso habría
+     * que devolver el interlocutor como par y el cliente tendría que deducirlo comparando con su
+     * propio identificador en cada fila.
+     *
+     * <p>3. El {@code ORDER BY m.fechaEnvio DESC} va <em>antes</em> del {@code collect}, y de ahí
+     * sale el último mensaje con {@code head(collect(...))}. Al revés, el agrupador juntaría los
+     * mensajes sin orden y la cabecera de cada lista sería arbitraria: la bandeja mostraría un
+     * mensaje viejo como si fuera el último. Y no se puede pedir "el máximo" y quedarse con él,
+     * porque hay que devolver también el texto que acompaña a esa marca de tiempo.
+     *
+     * <p>Se usa {@code collect} y no APOC a propósito: {@code apoc.coll.sortMaps} o {@code
+     * apoc.cypher.runFirstColumn} darieran el mismo resultado, pero el proyecto no carga esa
+     * biblioteca y el despliegue no debe depender de ella. El agrupamiento por variable hace el
+     * trabajo sin plugins.
+     *
+     * <p>El {@code WHERE} de la primera etapa descarta los mensajes sin marca de tiempo en vez de
+     * dejarlos pasar: sin ese filtro un mensaje sin fecha aterrizaría al final de la lista agrupada
+     * por ser el último que se vio, y aparecería como el más reciente de su conversación.
+     */
     @Override
-    public List<ec.edu.upse.redsocial.domain.model.ConversacionChat> obtenerConversacionesChat(
-            String userId) {
+    public List<ConversacionChat> obtenerConversacionesChat(String userId) {
         String cypher =
                 """
             MATCH (parte:Usuario)-[:ENVIA]->(m:MensajeChat)-[:DIRIGIDO_A]->(otra:Usuario)
-            WHERE (parte.id = $userId OR otra.id = $userId) AND m.fechaEnvio IS NOT NULL
-            WITH
-                CASE WHEN parte.id = $userId THEN otra ELSE parte END AS interlocutor,
-                m
+            WHERE (parte.id = $userId OR otra.id = $userId)
+              AND m.fechaEnvio IS NOT NULL
+            WITH CASE WHEN parte.id = $userId THEN otra ELSE parte END AS interlocutor,
+                 m.contenido AS contenido,
+                 m.fechaEnvio AS fechaEnvio
             ORDER BY fechaEnvio DESC
-            WITH interlocutor, head(collect(m)) AS ultimo
-            RETURN
-                interlocutor.id AS interlocutorId,
-                interlocutor.username AS interlocutorUsername,
-                interlocutor.nombre AS interlocutorNombre,
-                interlocutor.avatarUrl AS interlocutorAvatarUrl,
-                ultimo.contenido AS ultimoMensaje,
-                ultimo.fechaEnvio AS fechaUltimoMensaje
-            ORDER BY ultimo.fechaEnvio DESC
+            WITH interlocutor, head(collect({contenido: contenido, fechaEnvio: fechaEnvio})) AS ultimo
+            RETURN interlocutor.id AS interlocutorId,
+                   interlocutor.username AS interlocutorUsername,
+                   interlocutor.nombre AS interlocutorNombre,
+                   interlocutor.avatarUrl AS interlocutorAvatarUrl,
+                   ultimo.contenido AS ultimoMensaje,
+                   ultimo.fechaEnvio AS fechaUltimoMensaje
+            ORDER BY fechaUltimoMensaje DESC
             LIMIT $tope
             """;
         try (var session = driver.session()) {
@@ -1317,28 +1369,32 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                         var resultado =
                                 tx.run(
                                         cypher,
-                                        Values.parameters("userId", userId, "tope", 50L));
-                        List<ec.edu.upse.redsocial.domain.model.ConversacionChat> conversaciones =
-                                new ArrayList<>();
+                                        Values.parameters(
+                                                "userId", userId,
+                                                "tope", LIMITE_CONVERSACIONES_POR_USUARIO));
+                        List<ConversacionChat> conversaciones = new ArrayList<>();
                         while (resultado.hasNext()) {
-                            var fila = resultado.next();
-                            var c = new ec.edu.upse.redsocial.domain.model.ConversacionChat();
-                            c.setInterlocutorId(fila.get("interlocutorId").asString());
-                            c.setInterlocutorUsername(
-                                    fila.get("interlocutorUsername").isNull()
-                                            ? null
-                                            : fila.get("interlocutorUsername").asString());
-                            c.setInterlocutorNombre(
+                            Record fila = resultado.next();
+                            ConversacionChat conversacion = new ConversacionChat();
+                            conversacion.setInterlocutorId(fila.get("interlocutorId").asString());
+                            conversacion.setInterlocutorUsername(
+                                    usernameDePropiedad(fila.get("interlocutorUsername")));
+                            // El nombre y el avatar llevan guarda de null por lo mismo que en
+                            // mapearUsuarioDeRelacion: asignar null en Neo4j borra la propiedad, y
+                            // sin la guarda la bandeja pintaría el texto literal "null" como si
+                            // fuera el nombre de la persona.
+                            conversacion.setInterlocutorNombre(
                                     fila.get("interlocutorNombre").isNull()
                                             ? null
                                             : fila.get("interlocutorNombre").asString());
-                            c.setInterlocutorAvatarUrl(
+                            conversacion.setInterlocutorAvatarUrl(
                                     fila.get("interlocutorAvatarUrl").isNull()
                                             ? null
                                             : fila.get("interlocutorAvatarUrl").asString());
-                            c.setUltimoMensaje(fila.get("ultimoMensaje").asString());
-                            c.setFechaUltimoMensaje(fila.get("fechaUltimoMensaje").asLong());
-                            conversaciones.add(c);
+                            conversacion.setUltimoMensaje(fila.get("ultimoMensaje").asString());
+                            conversacion.setFechaUltimoMensaje(
+                                    fila.get("fechaUltimoMensaje").asLong());
+                            conversaciones.add(conversacion);
                         }
                         return conversaciones;
                     });

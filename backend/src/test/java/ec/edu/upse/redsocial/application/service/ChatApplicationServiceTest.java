@@ -17,6 +17,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import ec.edu.upse.redsocial.domain.exception.ParticipanteNoEncontradoException;
+import ec.edu.upse.redsocial.domain.model.ConversacionChat;
 import ec.edu.upse.redsocial.domain.model.MensajeChat;
 import ec.edu.upse.redsocial.domain.model.ResultadoEnvio;
 import ec.edu.upse.redsocial.domain.port.out.CanalChatPort;
@@ -271,5 +272,50 @@ class ChatApplicationServiceTest {
 
             assertTrue(service.historial("carlos", "paulo").isEmpty());
         }
+    }
+
+    @Nested
+    @DisplayName("Bandeja de conversaciones")
+    class Conversaciones {
+
+        @Test
+        @DisplayName("Delega tal cual en la persistencia")
+        void delegaEnLaPersistencia() {
+            ConversacionChat esperado = conversacion("paulo-orrala");
+            when(grafoPersistencePort.obtenerConversacionesChat("carlos"))
+                    .thenReturn(List.of(esperado));
+
+            List<ConversacionChat> resultado = service.conversaciones("carlos");
+
+            assertEquals(List.of(esperado), resultado);
+            verify(grafoPersistencePort).obtenerConversacionesChat("carlos");
+        }
+
+        @Test
+        @DisplayName("Quien nunca ha escrito con nadie recibe una lista vacía, no un error")
+        void vacioSinConversaciones() {
+            when(grafoPersistencePort.obtenerConversacionesChat("carlos")).thenReturn(List.of());
+
+            assertTrue(service.conversaciones("carlos").isEmpty());
+        }
+
+        @Test
+        @DisplayName("La bandeja no toca el canal, que solo entrega mensajes")
+        void noAbreElCanal() {
+            when(grafoPersistencePort.obtenerConversacionesChat("carlos")).thenReturn(List.of());
+
+            service.conversaciones("carlos");
+
+            verifyNoInteractions(canalChatPort);
+        }
+    }
+
+    private static ConversacionChat conversacion(String interlocutorId) {
+        ConversacionChat conversacion = new ConversacionChat();
+        conversacion.setInterlocutorId(interlocutorId);
+        conversacion.setInterlocutorUsername("paulo");
+        conversacion.setUltimoMensaje("hola");
+        conversacion.setFechaUltimoMensaje(1700000005000L);
+        return conversacion;
     }
 }

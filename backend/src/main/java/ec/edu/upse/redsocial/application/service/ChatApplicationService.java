@@ -1,6 +1,7 @@
 package ec.edu.upse.redsocial.application.service;
 
 import ec.edu.upse.redsocial.domain.exception.ParticipanteNoEncontradoException;
+import ec.edu.upse.redsocial.domain.model.ConversacionChat;
 import ec.edu.upse.redsocial.domain.model.MensajeChat;
 import ec.edu.upse.redsocial.domain.model.ResultadoEnvio;
 import ec.edu.upse.redsocial.domain.port.in.GestionarChatUseCase;
@@ -95,5 +96,15 @@ public class ChatApplicationService implements GestionarChatUseCase {
     @Override
     public List<MensajeChat> historial(String usuarioA, String usuarioB) {
         return grafoPersistencePort.obtenerHistorialChat(usuarioA, usuarioB);
+    }
+
+    @Override
+    public List<ConversacionChat> conversaciones(String usuarioId) {
+        // Delega sin validar. La llamada mal formada la responde el recurso con un 400, que es
+        // donde se decide el código que ve el cliente, y repetir esa comprobación aquí solo
+        // devolvería una bandeja vacía a quien ya se le dijo que la llamada iba mal. Con un
+        // identificador ausente la consulta no encuentra filas y la lista sale vacía, que tampoco
+        // molesta a nadie: es la misma respuesta que la de quien no ha escrito con nadie.
+        return grafoPersistencePort.obtenerConversacionesChat(usuarioId);
     }
 }

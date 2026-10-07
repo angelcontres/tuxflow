@@ -1,6 +1,7 @@
 package ec.edu.upse.redsocial.domain.port.out;
 
 import ec.edu.upse.redsocial.domain.exception.PostNoEncontradoException;
+import ec.edu.upse.redsocial.domain.model.ConversacionChat;
 import ec.edu.upse.redsocial.domain.model.EstadoReaccion;
 import ec.edu.upse.redsocial.domain.model.MensajeChat;
 import ec.edu.upse.redsocial.domain.model.Post;
@@ -132,11 +133,18 @@ public interface GrafoPersistencePort {
     List<MensajeChat> obtenerHistorialChat(String usuarioA, String usuarioB);
 
     /**
-     * Devuelve la bandeja de conversaciones del usuario: una fila por interlocutor con el último
-     * mensaje intercambiado.
+     * Conversaciones en las que participa un usuario, una fila por interlocutor y con el último
+     * mensaje de esa pareja.
+     *
+     * <p>El filtro es simétrico por la misma razón que en {@link #obtenerHistorialChat}: la
+     * conversación no tiene dirección, así que cuentan tanto los enviados como los recibidos. Una
+     * fila por interlocutor y no un mensaje por mensaje es lo que la convierte en una bandeja en
+     * vez de un historial sin filtro.
+     *
+     * @return las conversaciones, de la más reciente a la más antigua; lista vacía si nunca se
+     *     escribió con nadie
      */
-    java.util.List<ec.edu.upse.redsocial.domain.model.ConversacionChat> obtenerConversacionesChat(
-            String userId);
+    List<ConversacionChat> obtenerConversacionesChat(String userId);
 
     default void eliminarSuscripcionPush(String usuarioId, String pushSubscriptionJson) {
         // Implementación por defecto: no-op hasta completar infraestructura

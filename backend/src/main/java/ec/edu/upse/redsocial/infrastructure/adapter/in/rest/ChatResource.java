@@ -1,6 +1,7 @@
 package ec.edu.upse.redsocial.infrastructure.adapter.in.rest;
 
 import ec.edu.upse.redsocial.domain.port.in.GestionarChatUseCase;
+import ec.edu.upse.redsocial.infrastructure.adapter.in.rest.dto.ConversacionChatResponse;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
@@ -70,5 +71,43 @@ public class ChatResource {
         }
 
         return Response.ok(gestionarChatUseCase.historial(userA, userB)).build();
+    }
+
+    /**
+     * Bandeja de conversaciones de un usuario, con el último mensaje de cada una.
+     *
+     * <p>Es lo que permite abrir el chat sin escribir el identificador de nadie a mano: antes había
+     * que teclearlo, y quien no probara eso no tenía forma de saber con quién había hablado.
+     *
+     * <p>Devuelve un DTO y no el modelo de dominio, al contrario que el historial. La fila de la
+     * bandeja es una persona con nombre y avatar, y fijar el contrato aquí evita arrastrar el
+     * dominio a la pantalla; ver {@link ConversacionChatResponse} para el detalle. El historial se
+     * queda con el modelo porque {@code MensajeChat} no lleva nada que esconder.
+     *
+     * <p>El identificador va como parámetro de consulta y no se toma de un token porque el resto de
+     * la API tampoco lo hace: {@code /users/{userId}/follows} y el propio historial reciben la
+     * identidad por parámetro. Cuando haya autenticación de verdad en el servidor, este endpoint
+     * cambia de la misma manera que los demás, y no antes.
+     *
+     * @return las conversaciones, de la más reciente a la más antigua
+     */
+    @GET
+    @Path("/conversaciones")
+    public Response obtenerConversaciones(@QueryParam("userId") String userId) {
+        // Sin esta validación la consulta correría sin interlocutor y no devolvería nada: la
+        // respuesta sería 200 con la bandeja vacía, idéntica a la de quien nunca ha escrito con
+        // nadie, y el cliente no podría distinguir un resultado legítimo de una llamada mal
+        // formada. Es el mismo motivo por el que el historial y /api/users/comunes responden 400.
+        if (userId == null || userId.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("error", "El campo 'userId' es obligatorio"))
+                    .build();
+        }
+
+        return Response.ok(
+                        gestionarChatUseCase.conversaciones(userId).stream()
+                                .map(ConversacionChatResponse::from)
+                                .toList())
+                .build();
     }
 }

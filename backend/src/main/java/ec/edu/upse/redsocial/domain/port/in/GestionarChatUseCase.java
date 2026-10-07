@@ -1,12 +1,13 @@
 package ec.edu.upse.redsocial.domain.port.in;
 
+import ec.edu.upse.redsocial.domain.model.ConversacionChat;
 import ec.edu.upse.redsocial.domain.model.MensajeChat;
 import ec.edu.upse.redsocial.domain.model.ResultadoEnvio;
 import java.util.List;
 
 /**
- * Caso de entrada del chat 1 a 1: enviar un mensaje en tiempo real y recuperar el historial de una
- * conversación.
+ * Caso de entrada del chat 1 a 1: enviar un mensaje en tiempo real, recuperar el historial de una
+ * conversación y listar las conversaciones del usuario.
  */
 public interface GestionarChatUseCase {
 
@@ -32,4 +33,17 @@ public interface GestionarChatUseCase {
      * @return la lista, vacía si la pareja nunca se escribió
      */
     List<MensajeChat> historial(String usuarioA, String usuarioB);
+
+    /**
+     * Bandeja de conversaciones del usuario: una fila por interlocutor, con su último mensaje.
+     *
+     * <p>Va por HTTP y no por el canal porque es una consulta, no un suceso: el socket entrega
+     * mensajes según llegan y no admite "¿con quién he hablado?". Es lo que permite abrir el chat
+     * sin escribir el identificador de nadie a mano.
+     *
+     * @param usuarioId quien abre su bandeja
+     * @return las conversaciones, de la más reciente a la más antigua; vacía si nunca se escribió
+     *     con nadie
+     */
+    List<ConversacionChat> conversaciones(String usuarioId);
 }

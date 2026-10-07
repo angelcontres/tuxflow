@@ -1,17 +1,22 @@
 package ec.edu.upse.redsocial.infrastructure.adapter.in.rest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import ec.edu.upse.redsocial.domain.model.ConversacionChat;
 import ec.edu.upse.redsocial.domain.model.MensajeChat;
 import ec.edu.upse.redsocial.domain.port.in.GestionarChatUseCase;
+import ec.edu.upse.redsocial.infrastructure.adapter.in.rest.dto.ConversacionChatResponse;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -108,5 +113,85 @@ class ChatResourceTest {
         conEspia.obtenerHistorial("carlos", "carlos");
 
         verifyNoInteractions(espia);
+    }
+
+    @Nested
+    @DisplayName("Bandeja de conversaciones")
+    class Bandeja {
+
+        @Test
+        @DisplayName("Devuelve 200 con una fila por conversación")
+        void devuelveLaBandeja() {
+            ConversacionChat conversacion = conversacion("paulo-orrala");
+            when(gestionarChatUseCase.conversaciones("carlos")).thenReturn(List.of(conversacion));
+
+            Response respuesta = resource.obtenerConversaciones("carlos");
+
+            assertEquals(200, respuesta.getStatus());
+            assertEquals(1, ((List<?>) respuesta.getEntity()).size());
+        }
+
+        @Test
+        @DisplayName("La fila viaja como DTO, sin los nombres del dominio")
+        void laFilaEsUnDto() {
+            when(gestionarChatUseCase.conversaciones("carlos"))
+                    .thenReturn(List.of(conversacion("paulo-orrala")));
+
+            Response respuesta = resource.obtenerConversaciones("carlos");
+
+            Object entidad = respuesta.getEntity();
+            assertInstanceOf(List.class, entidad);
+            Object fila = ((List<?>) entidad).get(0);
+            assertInstanceOf(ConversacionChatResponse.class, fila, "no debe verse el modelo");
+            // El prefijo `interlocutor` disappears en el DTO: la fila de la bandeja siempre es
+            // "esta
+            // persona", así que el prefijo no dice nada que el contenedor no diga ya.
+            assertFalse(
+                    fila.toString().contains("interlocutor"),
+                    "las propiedades públicas no llevan el prefijo del dominio: " + fila);
+        }
+
+        @Test
+        @DisplayName("Un usuario sin conversaciones responde 200 con lista vacía")
+        void sinConversaciones() {
+            when(gestionarChatUseCase.conversaciones("carlos")).thenReturn(List.of());
+
+            Response respuesta = resource.obtenerConversaciones("carlos");
+
+            assertEquals(200, respuesta.getStatus());
+            assertTrue(((List<?>) respuesta.getEntity()).isEmpty());
+        }
+
+        @Test
+        @DisplayName("Sin identificador responde 400 y no consulta el grafo")
+        void sinIdentificador() {
+            assertEquals(400, resource.obtenerConversaciones(null).getStatus());
+            assertEquals(400, resource.obtenerConversaciones("").getStatus());
+            assertEquals(400, resource.obtenerConversaciones("   ").getStatus());
+
+            // Sin el 400, "no has escrito con nadie" y "no me dijiste de quién" serían la misma
+            // respuesta y el cliente no podría distinguirlas.
+            verifyNoInteractions(gestionarChatUseCase);
+        }
+
+        @Test
+        @DisplayName("Pasa el identificador al caso de uso tal cual llegó")
+        void delegaElIdentificador() {
+            when(gestionarChatUseCase.conversaciones("carlos")).thenReturn(List.of());
+
+            resource.obtenerConversaciones("carlos");
+
+            verify(gestionarChatUseCase).conversaciones("carlos");
+        }
+
+        private ConversacionChat conversacion(String interlocutorId) {
+            ConversacionChat conversacion = new ConversacionChat();
+            conversacion.setInterlocutorId(interlocutorId);
+            conversacion.setInterlocutorUsername("paulo");
+            conversacion.setInterlocutorNombre("Paulo Orrala");
+            conversacion.setUltimoMensaje("que tal");
+            conversacion.setFechaUltimoMensaje(1700000005000L);
+            return conversacion;
+        }
     }
 }

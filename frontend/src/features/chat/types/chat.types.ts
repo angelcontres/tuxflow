@@ -37,6 +37,54 @@ export interface ChatMessage {
 /** Estado real del socket, que es lo que el indicador tiene que pintar. */
 export type EstadoConexion = 'conectado' | 'conectando' | 'desconectado';
 
+/**
+ * Fila de la bandeja de conversaciones que devuelve `GET /chat/conversaciones`.
+ *
+ * Solo lleva el último mensaje de la pareja, no su historial: una fila de la bandeja es una línea
+ * de la lista, y meterle dentro todos los mensajes convertiría esa pantalla en una descarga del buzón
+ * entero. El historial se pide al abrir la conversación, que es cuando hace falta.
+ *
+ * `nombre` y `avatarUrl` son opcionales porque en Neo4j guardar `null` borra la propiedad: hay
+ * personas sin nombre registrado y sin avatar subido, y quien abra la bandeja pone el `@username` en
+ * su lugar.
+ */
+export interface ConversacionChat {
+  /** Identificador del interlocutor: es lo que se le pasa al historial. */
+  id: string;
+  username: string;
+  nombre?: string;
+  avatarUrl?: string;
+  /** Texto del último mensaje, en cualquiera de los dos sentidos. */
+  ultimoMensaje: string;
+  /** Marca de tiempo del servidor de ese mensaje, en milisegundos. */
+  fechaUltimoMensaje: number;
+}
+
+/**
+ * Fila de la lista de destino del chat, ya combinada.
+ *
+ * La lista no es solo la bandeja: incluye también a quien se sigue y con quien todavía no se ha
+ * hablado, porque si no, escribirle por primera vez a alguien a quien sigues exigiría salir del chat a
+ * buscarlo en otro sitio. `conMensajes` distingue las dos filas, y `ultimoMensaje` queda sin definir
+ * cuando la conversación aún no existe.
+ *
+ * No extiende a `ConversacionChat` a propósito: aquí el último mensaje es opcional, y en la fila del
+ * servidor es obligatorio. Forzar la herencia obligaría a inventar un texto vacío para las
+ * conversaciones que aún no existen, y ese texto vacío acabaría pintado como si fuera un mensaje.
+ */
+export interface FilaChat {
+  id: string;
+  username: string;
+  nombre?: string;
+  avatarUrl?: string;
+  /** Texto del último mensaje; solo si `conMensajes`. */
+  ultimoMensaje?: string;
+  /** Marca de tiempo del último mensaje, en milisegundos; solo si `conMensajes`. */
+  fechaUltimoMensaje?: number;
+  /** Si esa pareja ya tiene mensajes, y por tanto aparece con su último. */
+  conMensajes: boolean;
+}
+
 export interface EstadoChat {
   estado: EstadoConexion;
   /**
