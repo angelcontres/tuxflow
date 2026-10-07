@@ -1,0 +1,30 @@
+# Fin de línea del repositorio: LF, en todas las plataformas.
+#
+# Por qué existe: `frontend/.prettierrc.json` fija `endOfLine: "lf"`, y sin este archivo Git
+# decide por su cuenta según la plataforma. En Windows, con `core.autocrlf = true`, convierte
+# LF a CRLF al hacer checkout, y Prettier marca los archivos como mal formateados aunque su
+# contenido sea correcto. Lo que se veía era `pnpm run format:check` en rojo sobre 22 archivos
+# que nadie había tocado, y por lo tanto el CI en rojo de forma permanente.
+#
+# `text=auto` deja que Git decida qué es texto y qué es binario: las imágenes y los .jar no se
+# tocan. `eol=lf` obliga a LF tanto al escribir en el repositorio como al hacer checkout, así
+# que el archivo es idéntico en la máquina de cualquiera.
+#
+# El repositorio ya tenía los 252 archivos commiteados con LF, así que añadir esto no cambia
+# ni un byte de lo que está en el historial: sólo evita que se conviertan al bajar.
+* text=auto eol=lf
+
+# Estos sí son binarios. `text=auto` ya los protegería, pero dejarlo explícito evita que
+# alguien lea el repositorio y dude de si un cambio de fin de línea los puede tocar.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.jar binary
+*.woff binary
+*.woff2 binary
+
+# Los archivos de la semilla se cargan por stdin a `cypher-shell`, que decodifica usando el
+# locale del contenedor. LF es lo que espera el `docker/seed.sh` para no romper los acentos.
+*.cql text eol=lf
