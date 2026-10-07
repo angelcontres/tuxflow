@@ -3,6 +3,7 @@ import { Navbar } from './shared/components/Navbar';
 import { CreatePostForm } from './features/feed/components/CreatePostForm';
 import { FeedList } from './features/feed/components/FeedList';
 import { UserSuggestionsCard } from './features/network/components/UserSuggestionsCard';
+import { TrendingSidebar } from './features/feed/components/TrendingSidebar';
 import { ConexionesComunesPanel } from './features/network/components/ConexionesComunesPanel';
 import { ChatWidget } from './features/chat/components/ChatWidget';
 import { PerfilAjeno } from './features/user/components/PerfilAjeno';
@@ -12,6 +13,7 @@ import { fetchFeedBySocialGraph } from './features/feed/services/feedApi';
 import { fetchSeguidos, fetchSugerenciasGrafo } from './features/network/services/networkApi';
 import { Post } from './features/feed/types/post.types';
 import { FilaRed, SugerenciaUsuario, Usuario } from './features/network/types/network.types';
+import { initWebPush } from './features/notifications/services/pushService';
 
 export function fusionarRed(seguidos: Usuario[], sugerencias: SugerenciaUsuario[]): FilaRed[] {
   const filas: FilaRed[] = [];
@@ -123,6 +125,12 @@ export const App: React.FC = () => {
     loadAllData();
   }, [isAuthenticated, currentUserId, loadAllData]);
 
+  useEffect(() => {
+    if (isAuthenticated && currentUserId) {
+      initWebPush(currentUserId);
+    }
+  }, [isAuthenticated, currentUserId]);
+
   const handleLogin = (userId: string, username: string) => {
     setCurrentUserId(userId);
     setCurrentUsername(username);
@@ -203,8 +211,11 @@ export const App: React.FC = () => {
             )}
           </section>
 
-          {/* BARRA LATERAL DERECHA: SESIÓN + SUGERENCIAS */}
+          {/* BARRA LATERAL DERECHA: TENDENCIAS + SUGERENCIAS + CONEXIONES + CHAT */}
           <aside className="lg:col-span-5 space-y-6">
+            {/* Tendencias de la red extendida (US-11): va primero por decisión de producto */}
+            <TrendingSidebar currentUserId={currentUserId} />
+
             {/* Tu red: sugerencias + seguidos */}
             <UserSuggestionsCard
               filas={red}

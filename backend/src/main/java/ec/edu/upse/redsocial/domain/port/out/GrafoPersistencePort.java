@@ -130,4 +130,26 @@ public interface GrafoPersistencePort {
      * @return los mensajes ordenados cronológicamente; lista vacía si la pareja nunca se escribió
      */
     List<MensajeChat> obtenerHistorialChat(String usuarioA, String usuarioB);
+
+    default void eliminarSuscripcionPush(String usuarioId, String pushSubscriptionJson) {
+        // Implementación por defecto: no-op hasta completar infraestructura
+    }
+
+    default void guardarSuscripcionPush(String usuarioId, String pushSubscriptionJson) {
+        // Implementación por defecto: no-op hasta completar infraestructura
+    }
+
+    void guardarNotificacionInApp(
+            String userId, ec.edu.upse.redsocial.domain.model.NotificacionInApp notificacion);
+
+    List<ec.edu.upse.redsocial.domain.model.NotificacionInApp> obtenerNotificacionesInApp(
+            String userId);
+
+    long obtenerConteoNoLeidas(String userId);
+
+    void marcarComoLeida(String userId, String notificacionId);
+
+    List<String> obtenerSeguidoresId(String autorId);
+
+    String obtenerAutorDePost(String postId);
 }

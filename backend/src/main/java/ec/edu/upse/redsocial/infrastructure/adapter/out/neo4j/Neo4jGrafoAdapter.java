@@ -408,17 +408,45 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
         //
         // Con `.milliseconds` el síntoma es idéntico al original: sigue devolviendo vacío, y lo
         // peor es que el Cypher parece correcto al leerlo.
+        //
+        // El ranking NO es el de la Cypher 5 obligatoria del ticket, que ordena por total de
+        // reacciones: la decisión de producto (TUX-62) es la **puntuación neta**, likes menos
+        // dislikes, para que un post polémico no encabece la lista por volumen solo. Se conserva
+        // el esqueleto de la consulta obligatoria —mismo MATCH de 1 a 2 saltos, misma ventana—
+        // y `totalReacciones` viaja en el RETURN para el criterio de aceptación. El límite baja
+        // de 10 a 5 (decisión D6): la tarjeta de la barra lateral pinta un top 5.
+        //
+        // Dos salvaguardas sobre los datos:
+        //   * `WITH DISTINCT p, autor, reactor, r.tipo` es lo que impide que la multiplicidad de
+        //     caminos del `*1..2` duplique los totales: sin ese DISTINCT, un autor alcanzable por
+        //     dos rutas contaría cada reacción dos veces, y el error crecería justo con la
+        //     conectividad del autor.
+        //   * `autor <> u` excluye al usuario de su propia ventana. El recorrido arranca en el
+        //     usuario, así que cualquier ciclo lo vuelve alcanzable de sí mismo y sus propias
+        //     reacciones inflarían su propio ranking.
         String cypher =
                 """
             MATCH (u:Usuario {id: $userId})-[:SIGUE*1..2]->(autor:Usuario)-[:PUBLICA]->(p:Post)
-            WHERE p.fechaCreacion >= datetime().epochMillis - duration('P7D').days * 86400000
-            MATCH (reactor:Usuario)-[:REACCIONA {tipo: 'LIKE'}]->(p)
+            WHERE autor <> u
+              AND p.fechaCreacion IS NOT NULL
+              AND p.fechaCreacion >= datetime().epochMillis - duration('P7D').days * 86400000
+            MATCH (reactor:Usuario)-[r:REACCIONA]->(p)
+            WITH DISTINCT p, autor, reactor, r.tipo AS tipo
+            WITH p, autor,
+                 sum(CASE WHEN tipo = 'LIKE' THEN 1 ELSE 0 END) AS likes,
+                 sum(CASE WHEN tipo = 'DISLIKE' THEN 1 ELSE 0 END) AS dislikes
+            WITH p, autor, likes, dislikes,
+                 likes - dislikes AS puntuacionNeta,
+                 likes + dislikes AS totalReacciones
             RETURN p.id AS id,
                    p.texto AS texto,
                    autor.username AS autor,
-                   count(DISTINCT reactor) AS totalReacciones
-            ORDER BY totalReacciones DESC
-            LIMIT 10;
+                   likes,
+                   dislikes,
+                   totalReacciones,
+                   puntuacionNeta
+            ORDER BY puntuacionNeta DESC, totalReacciones DESC
+            LIMIT 5;
             """;
 
         try (var session = driver.session()) {
@@ -432,7 +460,10 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                             item.put("id", record.get("id").asString());
                             item.put("texto", record.get("texto").asString());
                             item.put("autor", record.get("autor").asString());
+                            item.put("likes", record.get("likes").asLong());
+                            item.put("dislikes", record.get("dislikes").asLong());
                             item.put("totalReacciones", record.get("totalReacciones").asLong());
+                            item.put("puntuacionNeta", record.get("puntuacionNeta").asLong());
                             trends.add(item);
                         }
                         return trends;
@@ -953,8 +984,8 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
         String cypher =
                 """
             MATCH (seguidor:Usuario)-[:SIGUE]->(autor:Usuario {id: $autorId})
-            WHERE seguidor.pushSubscriptionJson IS NOT NULL
-            RETURN seguidor.pushSubscriptionJson AS pushJson
+            UNWIND coalesce(seguidor.pushSubscriptions, []) AS pushJson
+            RETURN pushJson
             """;
         try (var session = driver.session()) {
             return session.executeRead(
@@ -965,6 +996,32 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                             list.add(res.next().get("pushJson").asString());
                         }
                         return list;
+                    });
+        }
+    }
+
+    @Override
+    public void eliminarSuscripcionPush(String usuarioId, String pushSubscriptionJson) {
+        if (usuarioId == null || pushSubscriptionJson == null || pushSubscriptionJson.isBlank()) {
+            return;
+        }
+        String cypher =
+                """
+            MATCH (u:Usuario {id: $usuarioId})
+            SET u.pushSubscriptions = [sub IN coalesce(u.pushSubscriptions, []) WHERE sub <> $subJson]
+            """;
+        try (var session = driver.session()) {
+            session.executeWrite(
+                    tx -> {
+                        tx.run(
+                                        cypher,
+                                        Values.parameters(
+                                                "usuarioId",
+                                                usuarioId,
+                                                "subJson",
+                                                pushSubscriptionJson))
+                                .consume();
+                        return null;
                     });
         }
     }
@@ -1001,6 +1058,7 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
         try (var session = driver.session()) {
             session.executeWrite(
                     tx -> {
+<<<<<<< HEAD
                         var resultado =
                                 tx.run(
                                         cypher,
@@ -1027,6 +1085,33 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                             throw new ParticipanteNoEncontradoException(
                                     mensaje.getDestinatarioId());
                         }
+                        return null;
+                    });
+        }
+    }
+
+    @Override
+    public void guardarSuscripcionPush(String usuarioId, String pushSubscriptionJson) {
+        if (usuarioId == null || pushSubscriptionJson == null || pushSubscriptionJson.isBlank()) {
+            return;
+        }
+        String cypher =
+                """
+            MATCH (u:Usuario {id: $usuarioId})
+            WHERE NOT $subJson IN coalesce(u.pushSubscriptions, [])
+            SET u.pushSubscriptions = coalesce(u.pushSubscriptions, []) + $subJson
+            """;
+        try (var session = driver.session()) {
+            session.executeWrite(
+                    tx -> {
+                        tx.run(
+                                        cypher,
+                                        Values.parameters(
+                                                "usuarioId",
+                                                usuarioId,
+                                                "subJson",
+                                                pushSubscriptionJson))
+                                .consume();
                         return null;
                     });
         }
@@ -1082,6 +1167,136 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                             mensajes.add(mensaje);
                         }
                         return mensajes;
+
+    @Override
+    public void guardarNotificacionInApp(
+            String userId, ec.edu.upse.redsocial.domain.model.NotificacionInApp notificacion) {
+        String cypher =
+                """
+            MATCH (u:Usuario {id: $userId})
+            MERGE (n:NotificacionInApp {id: $id})
+            ON CREATE SET n.tipo = $tipo, n.titulo = $titulo, n.mensaje = $mensaje, n.leido = $leido, n.fechaCreacion = $fechaCreacion, n.url = $url
+            MERGE (u)-[:RECIBE]->(n)
+            """;
+        try (var session = driver.session()) {
+            session.executeWrite(
+                    tx -> {
+                        tx.run(
+                                        cypher,
+                                        Values.parameters(
+                                                "userId", userId,
+                                                "id", notificacion.getId(),
+                                                "tipo", notificacion.getTipo(),
+                                                "titulo", notificacion.getTitulo(),
+                                                "mensaje", notificacion.getMensaje(),
+                                                "leido", notificacion.isLeido(),
+                                                "fechaCreacion", notificacion.getFechaCreacion(),
+                                                "url", notificacion.getUrl()))
+                                .consume();
+                        return null;
+                    });
+        }
+    }
+
+    @Override
+    public List<ec.edu.upse.redsocial.domain.model.NotificacionInApp> obtenerNotificacionesInApp(
+            String userId) {
+        String cypher =
+                "MATCH (u:Usuario {id: $userId})-[:RECIBE]->(n:NotificacionInApp) RETURN n ORDER BY n.fechaCreacion DESC LIMIT 20";
+        try (var session = driver.session()) {
+            return session.executeRead(
+                    tx -> {
+                        var res = tx.run(cypher, Values.parameters("userId", userId));
+                        List<ec.edu.upse.redsocial.domain.model.NotificacionInApp> list =
+                                new ArrayList<>();
+                        while (res.hasNext()) {
+                            var record = res.next();
+                            var nNode = record.get("n").asNode();
+                            var noti = new ec.edu.upse.redsocial.domain.model.NotificacionInApp();
+                            noti.setId(nNode.get("id").asString());
+                            noti.setTipo(
+                                    nNode.get("tipo").isNull()
+                                            ? null
+                                            : nNode.get("tipo").asString());
+                            noti.setTitulo(
+                                    nNode.get("titulo").isNull()
+                                            ? null
+                                            : nNode.get("titulo").asString());
+                            noti.setMensaje(
+                                    nNode.get("mensaje").isNull()
+                                            ? null
+                                            : nNode.get("mensaje").asString());
+                            noti.setLeido(nNode.get("leido").asBoolean(false));
+                            noti.setFechaCreacion(nNode.get("fechaCreacion").asLong(0L));
+                            noti.setUrl(
+                                    nNode.get("url").isNull() ? null : nNode.get("url").asString());
+                            list.add(noti);
+                        }
+                        return list;
+                    });
+        }
+    }
+
+    @Override
+    public long obtenerConteoNoLeidas(String userId) {
+        String cypher =
+                "MATCH (u:Usuario {id: $userId})-[:RECIBE]->(n:NotificacionInApp) WHERE n.leido = false RETURN count(n) AS conteo";
+        try (var session = driver.session()) {
+            return session.executeRead(
+                    tx -> {
+                        var res = tx.run(cypher, Values.parameters("userId", userId));
+                        if (res.hasNext()) {
+                            return res.next().get("conteo").asLong();
+                        }
+                        return 0L;
+                    });
+        }
+    }
+
+    @Override
+    public void marcarComoLeida(String userId, String notificacionId) {
+        String cypher =
+                "MATCH (u:Usuario {id: $userId})-[:RECIBE]->(n:NotificacionInApp {id: $notificacionId}) SET n.leido = true";
+        try (var session = driver.session()) {
+            session.executeWrite(
+                    tx -> {
+                        tx.run(
+                                        cypher,
+                                        Values.parameters(
+                                                "userId", userId, "notificacionId", notificacionId))
+                                .consume();
+                        return null;
+                    });
+        }
+    }
+
+    @Override
+    public List<String> obtenerSeguidoresId(String autorId) {
+        String cypher = "MATCH (s:Usuario)-[:SIGUE]->(a:Usuario {id: $autorId}) RETURN s.id AS id";
+        try (var session = driver.session()) {
+            return session.executeRead(
+                    tx -> {
+                        var res = tx.run(cypher, Values.parameters("autorId", autorId));
+                        List<String> list = new ArrayList<>();
+                        while (res.hasNext()) {
+                            list.add(res.next().get("id").asString());
+                        }
+                        return list;
+                    });
+        }
+    }
+
+    @Override
+    public String obtenerAutorDePost(String postId) {
+        String cypher = "MATCH (u:Usuario)-[:PUBLICA]->(p:Post {id: $postId}) RETURN u.id AS id";
+        try (var session = driver.session()) {
+            return session.executeRead(
+                    tx -> {
+                        var res = tx.run(cypher, Values.parameters("postId", postId));
+                        if (res.hasNext()) {
+                            return res.next().get("id").asString();
+                        }
+                        return null;
                     });
         }
     }
