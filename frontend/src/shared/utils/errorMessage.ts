@@ -16,6 +16,10 @@ import axios from 'axios';
  */
 const MENSAJES_POR_ESTADO: Record<number, string> = {
   413: 'La imagen es demasiado grande. El máximo permitido es 20 MB.',
+  // El 429 lo produce el `@RateLimit` de la búsqueda de usuarios: se alcanzó el tope de
+  // peticiones por ventana. El mensaje es propio del cliente porque el backend responde el 429
+  // con un cuerpo vacío o con el detalle del SDK, que aquí no se puede enseñar.
+  429: 'Has buscado demasiadas veces seguidas. Espera un momento e inténtalo de nuevo.',
 };
 
 /**

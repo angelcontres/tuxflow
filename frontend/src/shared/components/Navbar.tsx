@@ -2,18 +2,28 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, Edit3, Upload, Check, AlertCircle, X, Share2, LogOut } from 'lucide-react';
 import { Usuario } from '../../features/user/types/user.types';
 import {
+  fetchMiPerfil,
   fetchUsuario,
   registerOrUpdateUsuario,
   uploadAvatar,
 } from '../../features/user/services/userApi';
 import { getUserFacingError } from '../utils/errorMessage';
 import { NotificationCenter } from '../../features/notifications/components/NotificationCenter';
+import { UserSearchBox } from '../../features/user/components/UserSearchBox';
 
 interface NavbarProps {
   currentUserId: string;
   currentUsername: string;
   onProfileUpdated?: () => void;
   onLogout?: () => void;
+  /**
+   * Abre el perfil de una persona buscada por nombre (US-14).
+   *
+   * Es el mismo manejador que ya usan las sugerencias y el perfil ajeno, para que la navegación por
+   * la comunidad tenga un solo camino en vez de uno por pantalla. Es opcional: sin él, el buscador
+   * sigue funcionando y sólo deja de poder abrir el perfil, en vez de romper el `Navbar` entero.
+   */
+  onOpenPerfil?: (usuarioId: string) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -21,6 +31,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentUsername,
   onProfileUpdated,
   onLogout,
+  onOpenPerfil,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'view' | 'edit'>('view');
@@ -40,20 +51,41 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load current user profile
+  // Perfil del usuario activo, CON su correo.
+  //
+  // El correo ya no viene de `GET /users/{userId}`: ese endpoint es la lectura pública de un perfil
+  // y no puede devolver el correo de nadie, ni siquiera del propio (US-14 lo dejó de exponer). Se lee
+  // de `GET /auth/me`, que exige sesión y es donde el correo debe estar: es un dato de contacto de
+  // la cuenta, no del perfil.
+  //
+  // Si `/auth/me` falla, el perfil se degrada a lo público y el campo de correo queda vacío en vez de
+  // romper el Navbar entero: perder la edición del correo es un problema, perder la sesión es otro.
   const loadProfile = useCallback(async () => {
     try {
-      const data = await fetchUsuario(currentUserId);
-      setCurrentUserProfile(data);
-      setEditNombre(data.nombre || '');
-      setEditEmail(data.email || '');
-      setEditAvatarUrl(data.avatarUrl || '');
-    } catch {
+      const data = await fetchMiPerfil();
       setCurrentUserProfile({
         id: currentUserId,
         username: currentUsername,
-        nombre: currentUsername,
+        nombre: data.nombre || currentUsername,
+        email: data.email,
+        avatarUrl: data.avatarUrl,
       });
+      setEditNombre(data.nombre || currentUsername);
+      setEditEmail(data.email || '');
+      setEditAvatarUrl(data.avatarUrl || '');
+    } catch {
+      // Sin sesión válida el Navbar sigue vivo, sólo sin correo. El token ya lo limpia el
+      // interceptor de `client.ts` cuando el backend responde 401.
+      try {
+        const publico = await fetchUsuario(currentUserId);
+        setCurrentUserProfile(publico);
+      } catch {
+        setCurrentUserProfile({
+          id: currentUserId,
+          username: currentUsername,
+          nombre: currentUsername,
+        });
+      }
       setEditNombre(currentUsername);
       setEditEmail('');
       setEditAvatarUrl('');
@@ -150,6 +182,19 @@ export const Navbar: React.FC<NavbarProps> = ({
               </span>
             </div>
           </div>
+
+          {/* Buscador de personas (US-14). Va junto al logo y no junto al perfil porque es una
+              acción de la comunidad, no una pieza de la sesión: se usa igual desde el feed que
+              desde un perfil ajeno.
+
+              Sin `hidden` en móvil a propósito: el buscador es la mitad del circuito que US-12
+              dejó a medias y en un teléfono es la única forma de llegar a alguien que no está en
+              tu red. El campo es estrecho (`max-w-xs`) y el logo y las acciones se adaptan. */}
+          {onOpenPerfil && (
+            <div className="flex-1 max-w-xs min-w-0">
+              <UserSearchBox onOpenPerfil={onOpenPerfil} />
+            </div>
+          )}
 
           {/* Acciones de Usuario */}
           <div className="flex items-center gap-3">
