@@ -63,7 +63,7 @@ Para que tengas usuarios de prueba (Carlos, Beatriz, Paulo, Angel, David, Elena)
   ```
 
 - **Alternativa Visual (Neo4j Browser):**
-  Abre [http://localhost:7474](http://localhost:7474), ingresa usuario `neo4j` y contraseña `password123`. Abre el archivo [`docker/neo4j-seed.cql`](file:///C:/Users/OMEN/nuevo-proyecto/docker/neo4j-seed.cql), copia todo su contenido, pégalo en la barra superior de Cypher y presiona **Ctrl + Enter**.
+  Abre [http://localhost:7474](http://localhost:7474), ingresa usuario `neo4j` y contraseña `password123`. Abre el archivo [`docker/neo4j-seed.cql`](../docker/neo4j-seed.cql), copia todo su contenido, pégalo en la barra superior de Cypher y presiona **Ctrl + Enter**.
 
 ### Paso 3: Iniciar Backend Quarkus en Modo Dev
 Abre una terminal dedicada para el backend:
@@ -80,9 +80,10 @@ mvn quarkus:dev
 Abre una segunda terminal para el frontend:
 ```bash
 cd frontend
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
+* **Nota:** Si usas `npm` en lugar de `pnpm`, los comandos serían `npm install` y `npm run dev`.
 * **Estado:** La aplicación web abrirá en [http://localhost:3000](http://localhost:3000).
 * **Proxy automático:** Vite redirige transparentemente las llamadas `/api/*` a `http://localhost:8080` y los sockets `/chat/*` a `ws://localhost:8080`, por lo que no tendrás problemas de CORS.
 
