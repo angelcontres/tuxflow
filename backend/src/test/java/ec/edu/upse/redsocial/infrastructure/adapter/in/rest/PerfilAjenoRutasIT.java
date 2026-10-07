@@ -381,4 +381,104 @@ class PerfilAjenoRutasIT {
         // Y con dos caracteres sí busca: si el mínimo estuviera mal, nadie encontraría a nadie.
         given().when().get("/api/users/buscar?q=be").then().statusCode(200);
     }
+
+    // --- Guard de sesion sobre HTTP real ---
+
+    /**
+     * El guard es el unico codigo de la cadena que decide si una escritura pasa, y su
+     * comportamiento con un token de verdad no se puede comprobar con un mock: un mock devuelve lo
+     * que le digan,incluido lo que haria un token manipulado.
+     */
+    private static String tokenDe(String userId) {
+        return io.smallrye.jwt.build.Jwt.issuer("https://redsocial.upse.edu.ec")
+                .upn(userId)
+                .claim("username", userId)
+                .expiresIn(1)
+                .sign();
+    }
+
+    /**
+     * Token firmado con la clave privada del classpath y el issuer que declara
+     * mp.jwt.verify.issuer. Si el issuer no coincide, la validacion devuelve 401 siempre y las
+     * pruebas de 403 y de sesion valida darian verde por el motivo equivocado.
+     */
+    private static final String TOKEN_DE_CARLOS = tokenDe("carlos-patino");
+
+    @Test
+    @DisplayName("POST /follow sin sesion responde 401 y no escribe la relacion")
+    void seguirSinSesionResponde401() {
+        // El recurso declara @Consumes(APPLICATION_JSON), asi que sin cuerpo la capa HTTP
+        // responde 415 ANTES de que el guard llegue a ejecutarse. El cuerpo va para llegar al
+        // guard.
+        given().when()
+                .contentType(ContentType.JSON)
+                .body("{}")
+                .post("/api/users/carlos-patino/follow/beatriz-silva")
+                .then()
+                .statusCode(401);
+    }
+
+    @Test
+    @DisplayName("POST /follow desde la cuenta de otra persona responde 403")
+    void seguirDesdeLaCuentaDeOtroResponde403() {
+        // El token es valido, pero es de Carlos y la ruta dice que sigue Elena. Con 403 y no 401
+        // porque la sesion no caduco: el frontend no debe cerrar la sesion de Carlos por esto.
+        given().when()
+                .contentType(ContentType.JSON)
+                .body("{}")
+                .header("Authorization", "Bearer " + TOKEN_DE_CARLOS)
+                .post("/api/users/elena-vega/follow/beatriz-silva")
+                .then()
+                .statusCode(403);
+    }
+
+    @Test
+    @DisplayName("POST /follow desde la propia cuenta NO lo corta el guard")
+    void seguirDesdeLaPropiaCuentaNoLoCortaElGuard() {
+        // El codigo importa mas que el numero. El guard responde 401 sin sesion y 403 si la sesion
+        // es de otra persona; cualquier otro codigo significa que la peticion lo supero y llego al
+        // caso de uso.
+        //
+        // No se espera 200 porque el doble de prueba lanza UnsupportedOperationException a
+        // proposito
+        // en todo lo que escribe, para que una prueba de recurso no toque el grafo. Eso produce un
+        // 500, y el 500 aqui es la senal de que el guard NO bloqueo -- que es justo lo que se
+        // comprueba. Un 401 o un 403 en esta prueba serian el defecto.
+        int status =
+                given().when()
+                        .contentType(ContentType.JSON)
+                        .body("{}")
+                        .header("Authorization", "Bearer " + TOKEN_DE_CARLOS)
+                        .post("/api/users/carlos-patino/follow/paulo-orrala")
+                        .then()
+                        .extract()
+                        .statusCode();
+
+        org.junit.jupiter.api.Assertions.assertNotEquals(
+                401, status, "El guard lo corto sin sesion");
+        org.junit.jupiter.api.Assertions.assertNotEquals(
+                403, status, "El guard lo corto por no ser el dueno");
+    }
+
+    @Test
+    @DisplayName("DELETE /follow desde la cuenta de otra persona responde 403")
+    void dejarDeSeguirDesdeLaCuentaDeOtroResponde403() {
+        given().when()
+                .header("Authorization", "Bearer " + TOKEN_DE_CARLOS)
+                .delete("/api/users/elena-vega/follow/beatriz-silva")
+                .then()
+                .statusCode(403);
+    }
+
+    @Test
+    @DisplayName("un token manipulado no abre ninguna escritura")
+    void unTokenManipuladoResponde401() {
+        given().when()
+                .contentType(ContentType.JSON)
+                .body("{}")
+                .header("Authorization", "Bearer eyJhbGciOiJub25lIn0.eyJ1cG4iOiJjYXJsb3MifQ.x")
+                .post("/api/users/carlos-patino/follow/beatriz-silva")
+                .then()
+                .statusCode(401);
+    }
 }

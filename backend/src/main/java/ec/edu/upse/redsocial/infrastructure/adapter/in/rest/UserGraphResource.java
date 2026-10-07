@@ -7,12 +7,14 @@ import ec.edu.upse.redsocial.infrastructure.adapter.in.rest.dto.UsuarioRequest;
 import ec.edu.upse.redsocial.infrastructure.adapter.in.rest.dto.UsuarioResponse;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.jboss.logging.Logger;
 import org.jboss.resteasy.reactive.RestForm;
 import org.jboss.resteasy.reactive.multipart.FileUpload;
@@ -25,6 +27,8 @@ public class UserGraphResource {
     private static final Logger LOG = Logger.getLogger(UserGraphResource.class);
 
     @Inject GestionarGrafoSocialUseCase gestionarGrafoSocialUseCase;
+
+    @Inject GuardDeSesion guardDeSesion;
 
     /**
      * Búsqueda de personas por nombre o nombre de usuario (US-14).
@@ -134,16 +138,27 @@ public class UserGraphResource {
     @POST
     @Path("/avatar")
     @Consumes(MediaType.MULTIPART_FORM_DATA)
-    public Response subirAvatarSinUsuario(@RestForm("file") FileUpload file) {
-        return procesarSubidaAvatar(null, file);
+    public Response subirAvatarSinUsuario(
+            @RestForm("file") FileUpload file,
+            @HeaderParam(HttpHeaders.AUTHORIZATION) String authorization) {
+        // Sin identificador no hay a quién atribuírselo, así que sólo se acepta con sesión: si no,
+        // el archivo se sube a MinIO y se pierde sin quedar en ningún nodo.
+        Optional<Response> sinSesion = guardDeSesion.sinSesion(authorization);
+        return sinSesion.orElseGet(() -> procesarSubidaAvatar(null, file));
     }
 
     @POST
     @Path("/{userId}/avatar")
     @Consumes(MediaType.MULTIPART_FORM_DATA)
     public Response subirAvatarUsuario(
-            @PathParam("userId") String userId, @RestForm("file") FileUpload file) {
-        return procesarSubidaAvatar(userId, file);
+            @PathParam("userId") String userId,
+            @RestForm("file") FileUpload file,
+            @HeaderParam(HttpHeaders.AUTHORIZATION) String authorization) {
+        // Antes cualquiera escribía el avatar de quien fuera poniendo su identificador en la URL:
+        // no se comprobaba ni que hubiera sesión ni que fuera su propio perfil. Con un token
+        // válido de otra persona bastaba con cambiar el identificador de la ruta.
+        Optional<Response> noAutorizado = guardDeSesion.siNoEsElDueño(authorization, userId);
+        return noAutorizado.orElseGet(() -> procesarSubidaAvatar(userId, file));
     }
 
     private Response procesarSubidaAvatar(String userId, FileUpload file) {
@@ -176,7 +191,16 @@ public class UserGraphResource {
     @POST
     @Path("/{seguidorId}/follow/{seguidoId}")
     public Response seguirUsuario(
-            @PathParam("seguidorId") String seguidorId, @PathParam("seguidoId") String seguidoId) {
+            @PathParam("seguidorId") String seguidorId,
+            @PathParam("seguidoId") String seguidoId,
+            @HeaderParam(HttpHeaders.AUTHORIZATION) String authorization) {
+        // La relación se escribe en el grafo de `seguidorId`, así que la sesión tiene que ser la de
+        // esa persona: con el token de Carlos se podía seguir y dejar de seguir desde la cuenta de
+        // cualquiera, y modificar su red sin saberlo.
+        Optional<Response> noAutorizado = guardDeSesion.siNoEsElDueño(authorization, seguidorId);
+        if (noAutorizado.isPresent()) {
+            return noAutorizado.get();
+        }
         gestionarGrafoSocialUseCase.seguir(seguidorId, seguidoId);
         return Response.ok(Map.of("mensaje", "Usuario seguido exitosamente")).build();
     }
@@ -184,7 +208,13 @@ public class UserGraphResource {
     @DELETE
     @Path("/{seguidorId}/follow/{seguidoId}")
     public Response dejarDeSeguir(
-            @PathParam("seguidorId") String seguidorId, @PathParam("seguidoId") String seguidoId) {
+            @PathParam("seguidorId") String seguidorId,
+            @PathParam("seguidoId") String seguidoId,
+            @HeaderParam(HttpHeaders.AUTHORIZATION) String authorization) {
+        Optional<Response> noAutorizado = guardDeSesion.siNoEsElDueño(authorization, seguidorId);
+        if (noAutorizado.isPresent()) {
+            return noAutorizado.get();
+        }
         gestionarGrafoSocialUseCase.dejarDeSeguir(seguidorId, seguidoId);
         return Response.ok(Map.of("mensaje", "Has dejado de seguir al usuario")).build();
     }

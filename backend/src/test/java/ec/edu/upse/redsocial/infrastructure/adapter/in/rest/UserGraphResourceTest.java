@@ -7,7 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -37,10 +39,29 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class UserGraphResourceTest {
+    // El guard se stubea prueba por prueba, sin un default en `beforeEach`.
+    //
+    // Un default con `any()` parece más cómodo pero rompe: matchea la llamada de todas las pruebas,
+    // gana sobre el stub específico de las que esperan un bloqueo, y Mockito marca ese específico
+    // como innecesario. Stubeando sólo lo que cada prueba necesita, el intend es explícito y sólo
+    // las pruebas del guard lo tocan.
 
     @Mock GestionarGrafoSocialUseCase gestionarGrafoSocialUseCase;
 
+    /**
+     * El guard real, con el servicio de token stubeado: estas pruebas no quieren probar el guard,
+     * sino que el recurso lo use.
+     *
+     * <p>Es un mock y no el real porque su comportamiento está cubierto en {@link
+     * GuardDeSesionTest} y stubeado aquí deja la intention clara: "con esta sesión, este
+     * identificador".
+     */
+    @Mock GuardDeSesion guardDeSesion;
+
     @InjectMocks UserGraphResource resource;
+
+    /** Cabecera de una sesión cuyo titular es {@code u1}. */
+    private static final String SESION_DE_U1 = "Bearer token-de-u1";
 
     @Test
     @DisplayName("POST / responde 201 con el UsuarioResponse, sin el password del dominio")
@@ -556,7 +577,9 @@ class UserGraphResourceTest {
     @Test
     @DisplayName("POST /avatar sin archivo responde 400 con mensaje para el usuario")
     void subirAvatarSinArchivoResponde400() {
-        Response respuesta = resource.subirAvatarSinUsuario(null);
+        when(guardDeSesion.sinSesion(eq(SESION_DE_U1))).thenReturn(Optional.empty());
+
+        Response respuesta = resource.subirAvatarSinUsuario(null, SESION_DE_U1);
 
         assertEquals(400, respuesta.getStatus());
         @SuppressWarnings("unchecked")
@@ -565,9 +588,149 @@ class UserGraphResourceTest {
     }
 
     @Test
+    @DisplayName("POST /{userId}/avatar sin sesión responde 401 y no toca el almacenamiento")
+    void subirAvatarSinSesionResponde401() throws Exception {
+        // El defecto que motiva el guard: cualquiera escribía el avatar de quien indicara la URL,
+        // sin comprobar ni que hubiera sesión ni que fuera su propio perfil.
+        // `eq((String) null)` y no `isNull()`: el primero se compara por igualdad y por eso Mockito
+        // lo
+        // empareja con la llamada real, mientras que `isNull()` se registra como un matcher que la
+        // invocación con null no llega a satisfacer, y el stub queda marcado como no usado.
+        when(guardDeSesion.siNoEsElDueño(eq((String) null), eq("beatriz-silva")))
+                .thenReturn(error(401));
+
+        Response respuesta =
+                resource.subirAvatarUsuario("beatriz-silva", archivoQueNoLlegaAMirarse(), null);
+
+        assertEquals(401, respuesta.getStatus());
+        verify(gestionarGrafoSocialUseCase, never())
+                .subirAvatar(any(), any(), anyLong(), any(), any());
+    }
+
+    @Test
+    @DisplayName("POST /{userId}/avatar de otra persona responde 403, no 401")
+    void subirAvatarDeOtraPersonaResponde403() throws Exception {
+        // 403 y no 401 porque la sesión es válida: lo que no vale es que sea de otra persona. Con
+        // un 401 el frontend cerraría la sesión de quien lo intentó, que no tiene nada que ver.
+        when(guardDeSesion.siNoEsElDueño(eq(SESION_DE_U1), eq("beatriz-silva")))
+                .thenReturn(error(403));
+
+        Response respuesta =
+                resource.subirAvatarUsuario(
+                        "beatriz-silva", archivoQueNoLlegaAMirarse(), SESION_DE_U1);
+
+        assertEquals(403, respuesta.getStatus());
+        verify(gestionarGrafoSocialUseCase, never())
+                .subirAvatar(any(), any(), anyLong(), any(), any());
+    }
+
+    @Test
+    @DisplayName("POST /{userId}/avatar del propio usuario sí guarda")
+    void subirAvatarPropioSiGuarda() throws Exception {
+        when(guardDeSesion.siNoEsElDueño(eq(SESION_DE_U1), eq("u1"))).thenReturn(Optional.empty());
+        when(gestionarGrafoSocialUseCase.subirAvatar(any(), any(), anyLong(), any(), any()))
+                .thenReturn("http://localhost:9000/redsocial-media/u1.png");
+
+        Response respuesta = resource.subirAvatarUsuario("u1", archivoConMetadatos(), SESION_DE_U1);
+
+        assertEquals(200, respuesta.getStatus());
+        verify(gestionarGrafoSocialUseCase).subirAvatar(eq("u1"), any(), anyLong(), any(), any());
+    }
+
+    @Test
+    @DisplayName("POST /{seguidorId}/follow de otra persona responde 403 y no escribe la relación")
+    void seguirDesdeLaCuentaDeOtroResponde403() {
+        // Con el token de u1 se podía seguir y dejar de seguir desde la cuenta de cualquiera: la
+        // relación se escribe en el nodo del `seguidorId` de la ruta, que no tenía por qué ser el
+        // de la sesión.
+        when(guardDeSesion.siNoEsElDueño(eq(SESION_DE_U1), eq("u2"))).thenReturn(error(403));
+
+        Response respuesta = resource.seguirUsuario("u2", "u3", SESION_DE_U1);
+
+        assertEquals(403, respuesta.getStatus());
+        verify(gestionarGrafoSocialUseCase, never()).seguir(any(), any());
+    }
+
+    @Test
+    @DisplayName("POST /{seguidorId}/follow del propio usuario sí escribe la relación")
+    void seguirDesdeLaPropiaCuentaSiEscribe() {
+        when(guardDeSesion.siNoEsElDueño(eq(SESION_DE_U1), eq("u1"))).thenReturn(Optional.empty());
+
+        Response respuesta = resource.seguirUsuario("u1", "u3", SESION_DE_U1);
+
+        assertEquals(200, respuesta.getStatus());
+        verify(gestionarGrafoSocialUseCase).seguir("u1", "u3");
+    }
+
+    @Test
+    @DisplayName("DELETE /{seguidorId}/follow de otra persona responde 403 y no borra la relación")
+    void dejarDeSeguirDesdeLaCuentaDeOtroResponde403() {
+        when(guardDeSesion.siNoEsElDueño(eq(SESION_DE_U1), eq("u2"))).thenReturn(error(403));
+
+        Response respuesta = resource.dejarDeSeguir("u2", "u3", SESION_DE_U1);
+
+        assertEquals(403, respuesta.getStatus());
+        verify(gestionarGrafoSocialUseCase, never()).dejarDeSeguir(any(), any());
+    }
+
+    @Test
+    @DisplayName("DELETE /{seguidorId}/follow del propio usuario sí borra la relación")
+    void dejarDeSeguirDesdeLaPropiaCuentaSiBorra() {
+        when(guardDeSesion.siNoEsElDueño(eq(SESION_DE_U1), eq("u1"))).thenReturn(Optional.empty());
+
+        Response respuesta = resource.dejarDeSeguir("u1", "u3", SESION_DE_U1);
+
+        assertEquals(200, respuesta.getStatus());
+        verify(gestionarGrafoSocialUseCase).dejarDeSeguir("u1", "u3");
+    }
+
+    @Test
+    @DisplayName("POST /avatar sin identificador exige sesión igual")
+    void subirAvatarSinIdentificadorExigeSesion() {
+        // Sin identificador no hay a quién atribuírselo, así que sólo se acepta con sesión.
+        when(guardDeSesion.sinSesion(eq((String) null))).thenReturn(error(401));
+
+        Response respuesta = resource.subirAvatarSinUsuario(null, null);
+
+        assertEquals(401, respuesta.getStatus());
+        verifyNoInteractions(gestionarGrafoSocialUseCase);
+    }
+
+    /** Respuesta de error del guard, con el cuerpo que el cliente ya sabe leer. */
+    private static Optional<Response> error(int status) {
+        return Optional.of(
+                Response.status(status).entity(Map.of("error", "Sesión no válida")).build());
+    }
+
+    /**
+     * Un `FileUpload` sin nada detrás, para las pruebas en las que el guard bloquea.
+     *
+     * <p>El guard corta <b>antes</b> de mirar el archivo, así que un mock con todo sin stbear sirve
+     * y además es lo correcto: si estas pruebas revertieran la protección, fallarían por no tener
+     * archivo, no por un stub que ya no se usa. Stbear aquí el nombre, el tipo o el contenido los
+     * convertiría en stubs innecesarios, que Mockito rechaza.
+     */
+    private FileUpload archivoQueNoLlegaAMirarse() {
+        return mock(FileUpload.class);
+    }
+
+    /** Archivo de 3 bytes con sus metadatos, para cuando la subida sí llega al almacenamiento. */
+    private FileUpload archivoConMetadatos() throws Exception {
+        FileUpload file = mock(FileUpload.class);
+        Path temp = Files.createTempFile("avatar-test", ".png");
+        Files.write(temp, new byte[] {1, 2, 3});
+        when(file.uploadedFile()).thenReturn(temp);
+        when(file.fileName()).thenReturn("avatar.png");
+        when(file.contentType()).thenReturn("image/png");
+        when(file.size()).thenReturn(3L);
+        return file;
+    }
+
+    @Test
     @DisplayName(
             "POST /{userId}/avatar propaga el fallo del almacenamiento como 500 con mensaje, no una excepcion")
     void subirAvatarConErrorDeAlmacenamientoResponde500() throws Exception {
+        when(guardDeSesion.siNoEsElDueño(eq(SESION_DE_U1), eq("u1"))).thenReturn(Optional.empty());
         when(gestionarGrafoSocialUseCase.subirAvatar(any(), any(), anyLong(), any(), any()))
                 .thenThrow(
                         new IllegalStateException(
@@ -582,7 +745,7 @@ class UserGraphResourceTest {
         when(file.contentType()).thenReturn("image/png");
         when(file.size()).thenReturn(3L);
 
-        Response respuesta = resource.subirAvatarUsuario("u1", file);
+        Response respuesta = resource.subirAvatarUsuario("u1", file, SESION_DE_U1);
 
         assertEquals(500, respuesta.getStatus());
         @SuppressWarnings("unchecked")
