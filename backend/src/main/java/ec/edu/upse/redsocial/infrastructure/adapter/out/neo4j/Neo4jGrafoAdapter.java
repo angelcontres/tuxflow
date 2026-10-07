@@ -231,7 +231,7 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
             MATCH (s:Usuario)-[:SIGUE]->(u:Usuario {id: $userId})
             RETURN s.id AS id, s.username AS username, s.nombre AS nombre, s.avatarUrl AS avatarUrl
             ORDER BY s.username ASC
-            LIMIT $limite
+
             """;
 
         try (var session = driver.session()) {
@@ -1058,7 +1058,7 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
         try (var session = driver.session()) {
             session.executeWrite(
                     tx -> {
-<<<<<<< HEAD
+
                         var resultado =
                                 tx.run(
                                         cypher,
@@ -1167,6 +1167,9 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                             mensajes.add(mensaje);
                         }
                         return mensajes;
+                    });
+        }
+    }
 
     @Override
     public void guardarNotificacionInApp(
@@ -1282,6 +1285,62 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                             list.add(res.next().get("id").asString());
                         }
                         return list;
+                    });
+        }
+    }
+
+    @Override
+    public List<ec.edu.upse.redsocial.domain.model.ConversacionChat> obtenerConversacionesChat(
+            String userId) {
+        String cypher =
+                """
+            MATCH (parte:Usuario)-[:ENVIA]->(m:MensajeChat)-[:DIRIGIDO_A]->(otra:Usuario)
+            WHERE (parte.id = $userId OR otra.id = $userId) AND m.fechaEnvio IS NOT NULL
+            WITH
+                CASE WHEN parte.id = $userId THEN otra ELSE parte END AS interlocutor,
+                m
+            ORDER BY fechaEnvio DESC
+            WITH interlocutor, head(collect(m)) AS ultimo
+            RETURN
+                interlocutor.id AS interlocutorId,
+                interlocutor.username AS interlocutorUsername,
+                interlocutor.nombre AS interlocutorNombre,
+                interlocutor.avatarUrl AS interlocutorAvatarUrl,
+                ultimo.contenido AS ultimoMensaje,
+                ultimo.fechaEnvio AS fechaUltimoMensaje
+            ORDER BY ultimo.fechaEnvio DESC
+            LIMIT $tope
+            """;
+        try (var session = driver.session()) {
+            return session.executeRead(
+                    tx -> {
+                        var resultado =
+                                tx.run(
+                                        cypher,
+                                        Values.parameters("userId", userId, "tope", 50L));
+                        List<ec.edu.upse.redsocial.domain.model.ConversacionChat> conversaciones =
+                                new ArrayList<>();
+                        while (resultado.hasNext()) {
+                            var fila = resultado.next();
+                            var c = new ec.edu.upse.redsocial.domain.model.ConversacionChat();
+                            c.setInterlocutorId(fila.get("interlocutorId").asString());
+                            c.setInterlocutorUsername(
+                                    fila.get("interlocutorUsername").isNull()
+                                            ? null
+                                            : fila.get("interlocutorUsername").asString());
+                            c.setInterlocutorNombre(
+                                    fila.get("interlocutorNombre").isNull()
+                                            ? null
+                                            : fila.get("interlocutorNombre").asString());
+                            c.setInterlocutorAvatarUrl(
+                                    fila.get("interlocutorAvatarUrl").isNull()
+                                            ? null
+                                            : fila.get("interlocutorAvatarUrl").asString());
+                            c.setUltimoMensaje(fila.get("ultimoMensaje").asString());
+                            c.setFechaUltimoMensaje(fila.get("fechaUltimoMensaje").asLong());
+                            conversaciones.add(c);
+                        }
+                        return conversaciones;
                     });
         }
     }

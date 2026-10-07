@@ -131,6 +131,13 @@ public interface GrafoPersistencePort {
      */
     List<MensajeChat> obtenerHistorialChat(String usuarioA, String usuarioB);
 
+    /**
+     * Devuelve la bandeja de conversaciones del usuario: una fila por interlocutor con el último
+     * mensaje intercambiado.
+     */
+    java.util.List<ec.edu.upse.redsocial.domain.model.ConversacionChat> obtenerConversacionesChat(
+            String userId);
+
     default void eliminarSuscripcionPush(String usuarioId, String pushSubscriptionJson) {
         // Implementación por defecto: no-op hasta completar infraestructura
     }
