@@ -1,4 +1,4 @@
-﻿import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { UserSearchBox } from './UserSearchBox';
 import { buscarUsuarios } from '../services/userApi';
@@ -259,7 +259,32 @@ describe('UserSearchBox', () => {
       );
     });
 
-    it('vuelve a preguntar después de un fallo', async () => {
+    it('explica el 429 como "espera un momento", no como un fallo generico', async () => {
+      // El backend corta la busqueda cuando una direccion IP supera el tope por ventana. Si el
+      // cliente lo pintara como un error cualquiera, quien estuviera buscando se pensaria que la
+      // aplicacion esta rota en vez de que tiene que esperar un segundo.
+      buscarMock.mockRejectedValue({ isAxiosError: true, response: { status: 429 } });
+      montar();
+
+      escribir('beatriz');
+      await correrElDebounce();
+
+      expect(screen.getByRole('alert')).toHaveTextContent(/espera un momento/i);
+    });
+
+    it('el 429 es un fallo y no se confunde con "no hay nadie"', async () => {
+      buscarMock.mockRejectedValue({ isAxiosError: true, response: { status: 429 } });
+      montar();
+
+      escribir('beatriz');
+      await correrElDebounce();
+
+      // Un 429 disfrazado de "no encontramos a nadie" es la peor version de este fallo: la persona
+      // cree que esa persona no existe en la comunidad y deja de buscarla.
+      expect(screen.queryByText(/no encontramos a nadie/i)).not.toBeInTheDocument();
+    });
+
+    it('vuelve a preguntar despues de un fallo', async () => {
       buscarMock.mockRejectedValueOnce(new Error('Network Error'));
       montar();
 
@@ -273,6 +298,36 @@ describe('UserSearchBox', () => {
 
       expect(screen.getByText('Beatriz Silva')).toBeInTheDocument();
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+    it('explica el 429 como "espera un momento", no como un fallo genérico', async () => {
+      // El backend corta la búsqueda cuando una dirección IP supera el tope por ventana. Si el
+      // cliente lo pintara como un error cualquiera, quien estuviera buscando se pensaría que la
+      // aplicación está rota en vez de que tiene que esperar un segundo.
+      buscarMock.mockRejectedValue({
+        isAxiosError: true,
+        response: { status: 429, data: undefined },
+      });
+      montar();
+
+      escribir('beatriz');
+      await correrElDebounce();
+
+      expect(screen.getByRole('alert')).toHaveTextContent(/espera un momento/i);
+    });
+
+    it('el 429 es un fallo y no se confunde con "no hay nadie"', async () => {
+      buscarMock.mockRejectedValue({
+        isAxiosError: true,
+        response: { status: 429, data: undefined },
+      });
+      montar();
+
+      escribir('beatriz');
+      await correrElDebounce();
+
+      // Un 429 disfrazado de "no encontramos a nadie" es la peor versión de este fallo: la
+      // persona cree que esa persona no existe en la comunidad y deja de buscarla.
+      expect(screen.queryByText(/no encontramos a nadie/i)).not.toBeInTheDocument();
     });
   });
 
