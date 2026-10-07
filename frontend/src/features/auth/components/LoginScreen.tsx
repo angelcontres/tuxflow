@@ -1,5 +1,16 @@
 import React, { useState } from 'react';
-import { LogIn, UserPlus, AlertCircle, Eye, EyeOff, Mail, Lock, User, Sun, Moon } from 'lucide-react';
+import {
+  LogIn,
+  UserPlus,
+  AlertCircle,
+  Eye,
+  EyeOff,
+  Mail,
+  Lock,
+  User,
+  Sun,
+  Moon,
+} from 'lucide-react';
 import { loginUser, registerUser } from '../services/authApi';
 import { getUserFacingError } from '../../../shared/utils/errorMessage';
 import { useTheme } from '../../../shared/context/ThemeContext';
@@ -207,7 +218,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                 <div className="p-6 space-y-4">
                   <div className="text-center mb-2">
                     <h2 className="text-lg font-bold text-slateDark-text">Crear Cuenta Nueva</h2>
-                    <p className="text-xs text-slateDark-textMuted">Regístrate para unirte a TuxFlow</p>
+                    <p className="text-xs text-slateDark-textMuted">
+                      Regístrate para unirte a TuxFlow
+                    </p>
                   </div>
 
                   {error && (
@@ -302,7 +315,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             )}
           </div>
 
-          <p className="text-center text-xs text-slateDark-textMuted/60 mt-4">TuxFlow · Red Social Distribuida</p>
+          <p className="text-center text-xs text-slateDark-textMuted/60 mt-4">
+            TuxFlow · Red Social Distribuida
+          </p>
         </div>
       </div>
     </div>

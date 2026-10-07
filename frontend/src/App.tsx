@@ -209,7 +209,9 @@ const AppContent: React.FC = () => {
                 {loading ? (
                   <div className="bg-slateDark-surface rounded-xl p-8 text-center border border-slateDark-borderSubtle shadow-xs">
                     <div className="animate-spin w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full mx-auto mb-3" />
-                    <p className="text-xs text-slateDark-textMuted font-medium">Cargando publicaciones...</p>
+                    <p className="text-xs text-slateDark-textMuted font-medium">
+                      Cargando publicaciones...
+                    </p>
                   </div>
                 ) : (
                   <FeedList posts={posts} currentUserId={currentUserId} />

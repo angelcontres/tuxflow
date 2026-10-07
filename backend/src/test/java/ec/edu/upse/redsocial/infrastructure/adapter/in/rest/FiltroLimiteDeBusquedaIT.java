@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.quarkus.test.junit.QuarkusTest;
 import java.util.stream.IntStream;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -28,6 +30,16 @@ class FiltroLimiteDeBusquedaIT {
 
     /** Peticiones que se lanzan en paralelo. Alto a propósito para pasarse del tope de 20. */
     private static final int RAFAGA = 40;
+
+    @AfterEach
+    void limpiarDespuesDePrueba() {
+        FiltroLimiteDeBusqueda.reiniciar();
+    }
+
+    @AfterAll
+    static void limpiarAlTerminar() {
+        FiltroLimiteDeBusqueda.reiniciar();
+    }
 
     @Test
     @DisplayName("una ráfaga por encima del tope recibe 429 y el resto funciona")

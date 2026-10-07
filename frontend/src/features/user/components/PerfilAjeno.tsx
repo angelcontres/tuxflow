@@ -227,123 +227,123 @@ export const PerfilAjeno: React.FC<PerfilAjenoProps> = ({
         {perfil.tipo === 'listo' && (
           <>
             {/* Banner Estético Superior */}
-              <div
-                className={`h-28 sm:h-36 w-full bg-gradient-to-r ${bannerTheme.gradient} relative overflow-hidden flex items-end justify-end p-3`}
-              >
-                <div className="absolute inset-0 opacity-15 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:14px_14px]" />
-                <div className="relative z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-md text-[10px] font-semibold text-white/95 border border-white/10 shadow-xs">
-                  <Sparkles className="w-3 h-3 text-cyan-300" />
-                  <span>{bannerTheme.nombre}</span>
-                </div>
+            <div
+              className={`h-28 sm:h-36 w-full bg-gradient-to-r ${bannerTheme.gradient} relative overflow-hidden flex items-end justify-end p-3`}
+            >
+              <div className="absolute inset-0 opacity-15 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:14px_14px]" />
+              <div className="relative z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-md text-[10px] font-semibold text-white/95 border border-white/10 shadow-xs">
+                <Sparkles className="w-3 h-3 text-cyan-300" />
+                <span>{bannerTheme.nombre}</span>
+              </div>
+            </div>
+
+            <div className="p-5 pt-0">
+              <div className="flex items-end justify-between -mt-10 sm:-mt-12 mb-3 gap-3">
+                {perfil.datos.avatarUrl && !avatarCaido ? (
+                  <div className="w-20 h-20 rounded-full overflow-hidden bg-slateDark-surfaceSubtle shrink-0 ring-4 ring-white dark:ring-[#27272A] shadow-md">
+                    <img
+                      src={perfil.datos.avatarUrl}
+                      alt={`Avatar de @${perfil.datos.username}`}
+                      className="w-full h-full object-cover"
+                      onError={() => setAvatarCaido(true)}
+                    />
+                  </div>
+                ) : (
+                  // Respaldo con la inicial. El identificador siempre llega: es la clave del MERGE
+                  // de guardarUsuario, así que hay algo que inicializar aunque falte el nombre.
+                  <div className="w-20 h-20 rounded-full bg-slateDark-primary text-white flex items-center justify-center font-bold text-2xl shrink-0 shadow-md ring-4 ring-white dark:ring-[#27272A]">
+                    {(perfil.datos.nombre || perfil.datos.username || '?').charAt(0).toUpperCase()}
+                  </div>
+                )}
+
+                {/* El botón no aparece sobre el perfil propio: no hay botón de "dejar de seguirte a
+                      ti mismo", y ahí la pregunta no tiene sentido. */}
+                {!esPropio && siguiendo !== null && (
+                  <button
+                    type="button"
+                    onClick={() => void handleToggleSeguir()}
+                    disabled={enVuelo}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-slateDark-primary hover:bg-slateDark-primaryHover disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-lg transition-colors cursor-pointer shrink-0 shadow-xs active:scale-95"
+                  >
+                    {siguiendo ? (
+                      <UserMinus className="w-3.5 h-3.5" />
+                    ) : (
+                      <UserPlus className="w-3.5 h-3.5" />
+                    )}
+                    <span>{siguiendo ? 'Dejar de seguir' : 'Seguir'}</span>
+                  </button>
+                )}
               </div>
 
-              <div className="p-5 pt-0">
-                <div className="flex items-end justify-between -mt-10 sm:-mt-12 mb-3 gap-3">
-                  {perfil.datos.avatarUrl && !avatarCaido ? (
-                    <div className="w-20 h-20 rounded-full overflow-hidden bg-slateDark-surfaceSubtle shrink-0 ring-4 ring-white dark:ring-[#27272A] shadow-md">
-                      <img
-                        src={perfil.datos.avatarUrl}
-                        alt={`Avatar de @${perfil.datos.username}`}
-                        className="w-full h-full object-cover"
-                        onError={() => setAvatarCaido(true)}
-                      />
-                    </div>
-                  ) : (
-                    // Respaldo con la inicial. El identificador siempre llega: es la clave del MERGE
-                    // de guardarUsuario, así que hay algo que inicializar aunque falte el nombre.
-                    <div className="w-20 h-20 rounded-full bg-slateDark-primary text-white flex items-center justify-center font-bold text-2xl shrink-0 shadow-md ring-4 ring-white dark:ring-[#27272A]">
-                      {(perfil.datos.nombre || perfil.datos.username || '?').charAt(0).toUpperCase()}
-                    </div>
-                  )}
-
-                  {/* El botón no aparece sobre el perfil propio: no hay botón de "dejar de seguirte a
-                      ti mismo", y ahí la pregunta no tiene sentido. */}
-                  {!esPropio && siguiendo !== null && (
-                    <button
-                      type="button"
-                      onClick={() => void handleToggleSeguir()}
-                      disabled={enVuelo}
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-slateDark-primary hover:bg-slateDark-primaryHover disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-lg transition-colors cursor-pointer shrink-0 shadow-xs active:scale-95"
-                    >
-                      {siguiendo ? (
-                        <UserMinus className="w-3.5 h-3.5" />
-                      ) : (
-                        <UserPlus className="w-3.5 h-3.5" />
-                      )}
-                      <span>{siguiendo ? 'Dejar de seguir' : 'Seguir'}</span>
-                    </button>
-                  )}
-                </div>
-
-                <div>
-                  {/* Sin nombre, el encabezado cae al @username en vez de quedar en blanco: el
+              <div>
+                {/* Sin nombre, el encabezado cae al @username en vez de quedar en blanco: el
                       identificador siempre llega, porque es la clave del MERGE de guardarUsuario. */}
-                  <h2 className="text-lg font-bold text-slateDark-text truncate">
-                    {perfil.datos.nombre || `@${perfil.datos.username}`}
-                  </h2>
-                  <p className="text-sm text-slateDark-textMuted">
-                    {perfil.datos.nombre ? `@${perfil.datos.username}` : 'Sin nombre registrado'}
-                  </p>
-                </div>
+                <h2 className="text-lg font-bold text-slateDark-text truncate">
+                  {perfil.datos.nombre || `@${perfil.datos.username}`}
+                </h2>
+                <p className="text-sm text-slateDark-textMuted">
+                  {perfil.datos.nombre ? `@${perfil.datos.username}` : 'Sin nombre registrado'}
+                </p>
+              </div>
 
-                {errorSeguimiento && (
-                  <p role="alert" className="mt-3 text-xs text-rose-400 font-medium">
-                    {errorSeguimiento}
+              {errorSeguimiento && (
+                <p role="alert" className="mt-3 text-xs text-rose-400 font-medium">
+                  {errorSeguimiento}
+                </p>
+              )}
+
+              {/* Separadores y estado de la distancia */}
+              <div className="mt-4 pt-4 border-t border-slateDark-borderSubtle">
+                <button
+                  type="button"
+                  onClick={() => void handleCalcularDistancia()}
+                  disabled={distancia.tipo === 'cargando'}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-slateDark-textMuted hover:text-slateDark-primaryLight bg-slateDark-surfaceSubtle hover:bg-slateDark-borderSubtle border border-slateDark-borderSubtle px-3 py-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Route className="w-3.5 h-3.5" />
+                  <span>
+                    {distancia.tipo === 'cargando'
+                      ? 'Calculando...'
+                      : `Distancia con @${viewerUsername}`}
+                  </span>
+                </button>
+
+                {distancia.tipo === 'error' && (
+                  <p role="alert" className="mt-2 text-xs text-rose-400 font-medium">
+                    {distancia.mensaje}
                   </p>
                 )}
 
-            {/* Separadores y estado de la distancia */}
-            <div className="mt-4 pt-4 border-t border-slateDark-borderSubtle">
-              <button
-                type="button"
-                onClick={() => void handleCalcularDistancia()}
-                disabled={distancia.tipo === 'cargando'}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-slateDark-textMuted hover:text-slateDark-primaryLight bg-slateDark-surfaceSubtle hover:bg-slateDark-borderSubtle border border-slateDark-borderSubtle px-3 py-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Route className="w-3.5 h-3.5" />
-                <span>
-                  {distancia.tipo === 'cargando'
-                    ? 'Calculando...'
-                    : `Distancia con @${viewerUsername}`}
-                </span>
-              </button>
-
-              {distancia.tipo === 'error' && (
-                <p role="alert" className="mt-2 text-xs text-rose-400 font-medium">
-                  {distancia.mensaje}
-                </p>
-              )}
-
-              {distancia.tipo === 'listo' && distancia.datos.rutaConexion.length === 0 && (
-                <p className="mt-2 text-xs text-slateDark-textMuted">
-                  No hay conexión con @{usernameMostrado} dentro de los 6 grados de separación.
-                </p>
-              )}
-
-              {distancia.tipo === 'listo' && distancia.datos.rutaConexion.length > 0 && (
-                <div className="mt-2 text-xs text-slateDark-textMuted">
-                  <p className="font-medium text-slateDark-primaryLight">
-                    {distancia.datos.saltosTotales}{' '}
-                    {distancia.datos.saltosTotales === 1 ? 'salto' : 'saltos'} de separación
+                {distancia.tipo === 'listo' && distancia.datos.rutaConexion.length === 0 && (
+                  <p className="mt-2 text-xs text-slateDark-textMuted">
+                    No hay conexión con @{usernameMostrado} dentro de los 6 grados de separación.
                   </p>
-                  <ol className="mt-1 flex flex-wrap items-center gap-1">
-                    {distancia.datos.rutaConexion.map((nodo, indice) => (
-                      <li
-                        key={`${nodo.id ?? nodo.username}-${indice}`}
-                        className="flex items-center gap-1"
-                      >
-                        {indice > 0 && <span className="text-slateDark-border">&rarr;</span>}
-                        <span className="font-medium text-slateDark-text">@{nodo.username}</span>
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-              )}
+                )}
+
+                {distancia.tipo === 'listo' && distancia.datos.rutaConexion.length > 0 && (
+                  <div className="mt-2 text-xs text-slateDark-textMuted">
+                    <p className="font-medium text-slateDark-primaryLight">
+                      {distancia.datos.saltosTotales}{' '}
+                      {distancia.datos.saltosTotales === 1 ? 'salto' : 'saltos'} de separación
+                    </p>
+                    <ol className="mt-1 flex flex-wrap items-center gap-1">
+                      {distancia.datos.rutaConexion.map((nodo, indice) => (
+                        <li
+                          key={`${nodo.id ?? nodo.username}-${indice}`}
+                          className="flex items-center gap-1"
+                        >
+                          {indice > 0 && <span className="text-slateDark-border">&rarr;</span>}
+                          <span className="font-medium text-slateDark-text">@{nodo.username}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </>
-      )}
-    </section>
+          </>
+        )}
+      </section>
 
       {/* Seguidores */}
       <section className="bg-slateDark-surface rounded-xl border border-slateDark-borderSubtle shadow-xs p-5">
@@ -391,7 +391,9 @@ export const PerfilAjeno: React.FC<PerfilAjenoProps> = ({
         {publicaciones.tipo === 'cargando' && (
           <div className="bg-slateDark-surface rounded-xl p-8 text-center border border-slateDark-borderSubtle shadow-xs">
             <div className="animate-spin w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full mx-auto mb-3" />
-            <p className="text-xs text-slateDark-textMuted font-medium">Cargando publicaciones...</p>
+            <p className="text-xs text-slateDark-textMuted font-medium">
+              Cargando publicaciones...
+            </p>
           </div>
         )}
 
@@ -403,7 +405,9 @@ export const PerfilAjeno: React.FC<PerfilAjenoProps> = ({
 
         {publicaciones.tipo === 'listo' && publicaciones.datos.length === 0 && (
           <div className="bg-slateDark-surface rounded-xl p-8 text-center border border-slateDark-borderSubtle shadow-xs">
-            <p className="text-xs text-slateDark-textMuted">Esta persona todavía no ha publicado nada.</p>
+            <p className="text-xs text-slateDark-textMuted">
+              Esta persona todavía no ha publicado nada.
+            </p>
           </div>
         )}
 

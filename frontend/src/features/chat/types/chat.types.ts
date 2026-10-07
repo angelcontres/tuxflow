@@ -7,4 +7,3 @@ export interface ChatMessage {
   timestamp?: number;
   status?: MessageStatus;
 }
-

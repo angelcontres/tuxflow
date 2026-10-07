@@ -191,9 +191,7 @@ export const ConexionesComunesPanel: React.FC<ConexionesComunesPanelProps> = ({
 
       {estado.tipo === 'listo' && estado.conexiones.length === 0 && (
         <div className="mt-3.5 py-4 text-center rounded-lg bg-slateDark-surfaceSubtle border border-slateDark-borderSubtle/60">
-          <p className="text-xs text-slateDark-textMuted">
-            No tienen conexiones en común.
-          </p>
+          <p className="text-xs text-slateDark-textMuted">No tienen conexiones en común.</p>
         </div>
       )}
 

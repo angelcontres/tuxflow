@@ -33,7 +33,8 @@ export const POST_CARD_THEMES: Record<string, PostCardTheme> = {
   sunset: {
     key: 'sunset',
     nombre: 'Atardecer',
-    gradientClass: 'bg-gradient-to-br from-amber-700 via-orange-600 to-rose-700 text-white shadow-md',
+    gradientClass:
+      'bg-gradient-to-br from-amber-700 via-orange-600 to-rose-700 text-white shadow-md',
     badgeStyle: 'bg-white/20 text-white border-white/30',
     quoteColor: 'text-amber-200/40',
     textColor: 'text-white',
@@ -43,7 +44,8 @@ export const POST_CARD_THEMES: Record<string, PostCardTheme> = {
   emerald: {
     key: 'emerald',
     nombre: 'Esmeralda',
-    gradientClass: 'bg-gradient-to-br from-emerald-800 via-teal-700 to-cyan-800 text-white shadow-md',
+    gradientClass:
+      'bg-gradient-to-br from-emerald-800 via-teal-700 to-cyan-800 text-white shadow-md',
     badgeStyle: 'bg-white/20 text-white border-white/30',
     quoteColor: 'text-emerald-200/40',
     textColor: 'text-white',
@@ -53,7 +55,8 @@ export const POST_CARD_THEMES: Record<string, PostCardTheme> = {
   midnight: {
     key: 'midnight',
     nombre: 'Medianoche',
-    gradientClass: 'bg-gradient-to-br from-zinc-900 via-slate-900 to-zinc-950 text-zinc-100 shadow-md border border-zinc-700/60',
+    gradientClass:
+      'bg-gradient-to-br from-zinc-900 via-slate-900 to-zinc-950 text-zinc-100 shadow-md border border-zinc-700/60',
     badgeStyle: 'bg-white/10 text-zinc-300 border-white/10',
     quoteColor: 'text-slate-400/30',
     textColor: 'text-zinc-100',

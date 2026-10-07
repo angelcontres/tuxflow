@@ -1,10 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  isThemePost,
-  extractThemeKey,
-  getPostCardTheme,
-  POST_CARD_THEMES,
-} from './postThemes';
+import { isThemePost, extractThemeKey, getPostCardTheme, POST_CARD_THEMES } from './postThemes';
 
 describe('postThemes utility', () => {
   it('detecta correctamente si un post usa un tema de fondo estético', () => {

@@ -2,22 +2,34 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { ChatWidget } from './ChatWidget';
 import { chatSocketManager } from '../services/chatSocket';
+import { ChatMessage } from '../types/chat.types';
+
+interface MockChatSocketManager {
+  _simulateMessage: (msg: ChatMessage) => void;
+  _simulateStatus: (status: boolean) => void;
+}
 
 vi.mock('../services/chatSocket', () => {
-  let messageHandler: ((msg: any) => void) | null = null;
+  let messageHandler: ((msg: ChatMessage) => void) | null = null;
   let statusHandler: ((conectado: boolean) => void) | null = null;
 
   return {
     chatSocketManager: {
-      connect: vi.fn((_userId: string, onMsg: any, onStatus: any) => {
-        messageHandler = onMsg;
-        statusHandler = onStatus;
-        if (onStatus) onStatus(true);
-      }),
+      connect: vi.fn(
+        (
+          _userId: string,
+          onMsg: (msg: ChatMessage) => void,
+          onStatus?: (conectado: boolean) => void,
+        ) => {
+          messageHandler = onMsg;
+          statusHandler = onStatus ?? null;
+          if (onStatus) onStatus(true);
+        },
+      ),
       sendMessage: vi.fn(() => true),
       disconnect: vi.fn(),
       isConnected: vi.fn(() => true),
-      _simulateMessage: (msg: any) => messageHandler?.(msg),
+      _simulateMessage: (msg: ChatMessage) => messageHandler?.(msg),
       _simulateStatus: (status: boolean) => statusHandler?.(status),
     },
   };
@@ -107,7 +119,7 @@ describe('ChatWidget', () => {
 
     // Simular recepción de mensaje vía WebSocket mientras el chat está minimizado
     act(() => {
-      (chatSocketManager as any)._simulateMessage({
+      (chatSocketManager as unknown as MockChatSocketManager)._simulateMessage({
         emisorId: 'beatriz',
         destinatarioId: 'usuario-1',
         contenido: 'Nuevo mensaje entrante en tiempo real',

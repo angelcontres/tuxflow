@@ -229,7 +229,9 @@ export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
 
       {filas.length === 0 ? (
         <div className="py-4 text-center">
-          <p className="text-xs text-slateDark-textMuted">No hay nuevas recomendaciones por ahora.</p>
+          <p className="text-xs text-slateDark-textMuted">
+            No hay nuevas recomendaciones por ahora.
+          </p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -244,7 +246,10 @@ export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
             const errorCalculo = errorDistancia[fila.id];
             const calculandoDistancia = calculando[fila.id] === true;
             return (
-              <div key={fila.id} className="p-2 rounded-lg hover:bg-slateDark-surfaceSubtle transition-colors">
+              <div
+                key={fila.id}
+                className="p-2 rounded-lg hover:bg-slateDark-surfaceSubtle transition-colors"
+              >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     {mostrarAvatar ? (
@@ -272,7 +277,9 @@ export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
                           @{fila.username}
                         </button>
                       ) : (
-                        <h4 className="text-xs font-semibold text-slateDark-text">@{fila.username}</h4>
+                        <h4 className="text-xs font-semibold text-slateDark-text">
+                          @{fila.username}
+                        </h4>
                       )}
                       <p className="text-[11px] text-slateDark-textMuted">
                         {esSugerencia(fila)

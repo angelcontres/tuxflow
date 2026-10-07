@@ -5,7 +5,11 @@ export class ChatSocketManager {
   private onMessageCallback: ((msg: ChatMessage) => void) | null = null;
   private onStatusCallback: ((conectado: boolean) => void) | null = null;
 
-  connect(userId: string, onMessage: (msg: ChatMessage) => void, onStatus?: (conectado: boolean) => void) {
+  connect(
+    userId: string,
+    onMessage: (msg: ChatMessage) => void,
+    onStatus?: (conectado: boolean) => void,
+  ) {
     this.onMessageCallback = onMessage;
     if (onStatus) {
       this.onStatusCallback = onStatus;

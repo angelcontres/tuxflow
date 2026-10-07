@@ -30,8 +30,8 @@ describe('GraphExplorerModal', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (networkApi.fetchSeguidos as any).mockResolvedValue(mockSeguidos);
-    (networkApi.fetchSugerenciasGrafo as any).mockResolvedValue(mockSugerencias);
+    vi.mocked(networkApi.fetchSeguidos).mockResolvedValue(mockSeguidos);
+    vi.mocked(networkApi.fetchSugerenciasGrafo).mockResolvedValue(mockSugerencias);
 
     // Mock HTMLCanvasElement.getContext
     HTMLCanvasElement.prototype.getContext = vi.fn().mockReturnValue({
@@ -71,7 +71,7 @@ describe('GraphExplorerModal', () => {
         currentUserId="user-1"
         currentUsername="testuser"
         onClose={handleClose}
-      />
+      />,
     );
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
@@ -86,11 +86,7 @@ describe('GraphExplorerModal', () => {
 
   it('calcula y muestra las estadísticas de nodos y aristas', async () => {
     render(
-      <GraphExplorerModal
-        currentUserId="user-1"
-        currentUsername="testuser"
-        onClose={vi.fn()}
-      />
+      <GraphExplorerModal currentUserId="user-1" currentUsername="testuser" onClose={vi.fn()} />,
     );
 
     await waitFor(() => {
@@ -103,11 +99,7 @@ describe('GraphExplorerModal', () => {
 
   it('permite cambiar entre los filtros de visualización', async () => {
     render(
-      <GraphExplorerModal
-        currentUserId="user-1"
-        currentUsername="testuser"
-        onClose={vi.fn()}
-      />
+      <GraphExplorerModal currentUserId="user-1" currentUsername="testuser" onClose={vi.fn()} />,
     );
 
     await waitFor(() => {
@@ -130,7 +122,7 @@ describe('GraphExplorerModal', () => {
         currentUserId="user-1"
         currentUsername="testuser"
         onClose={handleClose}
-      />
+      />,
     );
 
     const closeBtn = screen.getByRole('button', { name: /cerrar explorador de grafo/i });
@@ -145,7 +137,7 @@ describe('GraphExplorerModal', () => {
         currentUserId="user-1"
         currentUsername="testuser"
         onClose={handleClose}
-      />
+      />,
     );
 
     fireEvent.keyDown(window, { key: 'Escape' });
@@ -154,11 +146,7 @@ describe('GraphExplorerModal', () => {
 
   it('permite pausar y reanudar la simulación física', async () => {
     render(
-      <GraphExplorerModal
-        currentUserId="user-1"
-        currentUsername="testuser"
-        onClose={vi.fn()}
-      />
+      <GraphExplorerModal currentUserId="user-1" currentUsername="testuser" onClose={vi.fn()} />,
     );
 
     const pauseBtn = screen.getByTitle(/pausar simulación física/i);
@@ -172,11 +160,7 @@ describe('GraphExplorerModal', () => {
 
   it('permite controlar el zoom y restablecer la cámara', async () => {
     render(
-      <GraphExplorerModal
-        currentUserId="user-1"
-        currentUsername="testuser"
-        onClose={vi.fn()}
-      />
+      <GraphExplorerModal currentUserId="user-1" currentUsername="testuser" onClose={vi.fn()} />,
     );
 
     expect(screen.getByText('100%')).toBeInTheDocument();
@@ -192,26 +176,18 @@ describe('GraphExplorerModal', () => {
 
   it('muestra el panel vacío informativo cuando ningún nodo está seleccionado', async () => {
     render(
-      <GraphExplorerModal
-        currentUserId="user-1"
-        currentUsername="testuser"
-        onClose={vi.fn()}
-      />
+      <GraphExplorerModal currentUserId="user-1" currentUsername="testuser" onClose={vi.fn()} />,
     );
 
     expect(screen.getByText('Selecciona un Nodo')).toBeInTheDocument();
     expect(
-      screen.getByText(/haz clic en cualquier persona para inspeccionar sus grados de separación/i)
+      screen.getByText(/haz clic en cualquier persona para inspeccionar sus grados de separación/i),
     ).toBeInTheDocument();
   });
 
   it('selecciona un nodo al hacer clic sobre su posición en el canvas', async () => {
     render(
-      <GraphExplorerModal
-        currentUserId="user-1"
-        currentUsername="testuser"
-        onClose={vi.fn()}
-      />
+      <GraphExplorerModal currentUserId="user-1" currentUsername="testuser" onClose={vi.fn()} />,
     );
 
     await waitFor(() => {

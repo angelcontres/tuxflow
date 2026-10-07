@@ -5,10 +5,7 @@ interface TuxFlowLogoProps {
   size?: number;
 }
 
-export const TuxFlowLogo: React.FC<TuxFlowLogoProps> = ({
-  className = 'w-9 h-9',
-  size = 36,
-}) => {
+export const TuxFlowLogo: React.FC<TuxFlowLogoProps> = ({ className = 'w-9 h-9', size = 36 }) => {
   return (
     <svg
       viewBox="0 0 48 48"

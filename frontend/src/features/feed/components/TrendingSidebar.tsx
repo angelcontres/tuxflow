@@ -110,7 +110,9 @@ export const TrendingSidebar: React.FC<TrendingSidebarProps> = ({ currentUserId 
                   {tendencia.texto}
                 </p>
                 <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slateDark-textMuted">
-                  <span className="font-medium text-slateDark-primaryLight">@{tendencia.autor}</span>
+                  <span className="font-medium text-slateDark-primaryLight">
+                    @{tendencia.autor}
+                  </span>
                   <span className="inline-flex items-center gap-0.5">
                     <ThumbsUp className="w-3 h-3" aria-hidden="true" />
                     {tendencia.likes}

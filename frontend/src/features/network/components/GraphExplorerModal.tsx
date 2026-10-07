@@ -180,9 +180,7 @@ export const GraphExplorerModal: React.FC<GraphExplorerModalProps> = ({
           // Conectar con el seguidor que actúa de puente en común
           if (sug.seguidosEnComun && sug.seguidosEnComun.length > 0) {
             const puente = seguidos.find((s) =>
-              sug.seguidosEnComun.some(
-                (p) => p.toLowerCase() === s.username.toLowerCase(),
-              ),
+              sug.seguidosEnComun.some((p) => p.toLowerCase() === s.username.toLowerCase()),
             );
             if (puente) {
               aristasConstruidas.push({
@@ -342,8 +340,8 @@ export const GraphExplorerModal: React.FC<GraphExplorerModalProps> = ({
     ctx.strokeStyle = esModoOscuro ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.04)';
     ctx.lineWidth = 1;
     const step = 40 * zoom;
-    const startX = ((width / 2 + camX * zoom) % step + step) % step;
-    const startY = ((height / 2 + camY * zoom) % step + step) % step;
+    const startX = (((width / 2 + camX * zoom) % step) + step) % step;
+    const startY = (((height / 2 + camY * zoom) % step) + step) % step;
 
     ctx.beginPath();
     for (let gx = startX; gx < width; gx += step) {
@@ -444,8 +442,8 @@ export const GraphExplorerModal: React.FC<GraphExplorerModalProps> = ({
       ctx.beginPath();
       ctx.arc(node.x, node.y, node.radio, 0, Math.PI * 2);
 
-      let relleno = '#4F46E5';
-      let borde = '#FFFFFF';
+      let relleno: string;
+      let borde: string;
 
       if (node.tipo === 'yo') {
         relleno = '#4F46E5';
@@ -482,11 +480,7 @@ export const GraphExplorerModal: React.FC<GraphExplorerModalProps> = ({
       // Subtexto de rol
       ctx.font = '10px sans-serif';
       ctx.fillStyle =
-        node.tipo === 'yo'
-          ? '#818CF8'
-          : node.tipo === 'seguido'
-            ? '#10B981'
-            : '#F59E0B';
+        node.tipo === 'yo' ? '#818CF8' : node.tipo === 'seguido' ? '#10B981' : '#F59E0B';
       const badge =
         node.tipo === 'yo' ? 'Tú' : node.tipo === 'seguido' ? 'Siguiendo' : 'Sugerencia';
       ctx.fillText(badge, node.x, node.y + node.radio + 19);
@@ -694,9 +688,7 @@ export const GraphExplorerModal: React.FC<GraphExplorerModalProps> = ({
       if (node.seguido) {
         await unfollowUserInGraph(currentUserId, node.id);
         setNodes((prev) =>
-          prev.map((n) =>
-            n.id === node.id ? { ...n, seguido: false, tipo: 'sugerencia' } : n,
-          ),
+          prev.map((n) => (n.id === node.id ? { ...n, seguido: false, tipo: 'sugerencia' } : n)),
         );
         setSelectedNode((prev) =>
           prev?.id === node.id ? { ...prev, seguido: false, tipo: 'sugerencia' } : prev,
@@ -704,9 +696,7 @@ export const GraphExplorerModal: React.FC<GraphExplorerModalProps> = ({
       } else {
         await followUserInGraph(currentUserId, node.id);
         setNodes((prev) =>
-          prev.map((n) =>
-            n.id === node.id ? { ...n, seguido: true, tipo: 'seguido' } : n,
-          ),
+          prev.map((n) => (n.id === node.id ? { ...n, seguido: true, tipo: 'seguido' } : n)),
         );
         setSelectedNode((prev) =>
           prev?.id === node.id ? { ...prev, seguido: true, tipo: 'seguido' } : prev,
@@ -738,7 +728,10 @@ export const GraphExplorerModal: React.FC<GraphExplorerModalProps> = ({
             <TuxFlowLogo className="w-8 h-8 rounded-lg shadow-xs" size={32} />
             <div>
               <div className="flex items-center gap-2">
-                <h2 id="titulo-grafo" className="font-bold text-base text-slate-900 dark:text-zinc-100">
+                <h2
+                  id="titulo-grafo"
+                  className="font-bold text-base text-slate-900 dark:text-zinc-100"
+                >
                   Explorador de Grafo Social
                 </h2>
                 <span className="text-[10px] font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/60 px-2 py-0.5 rounded-full flex items-center gap-1">
@@ -870,11 +863,15 @@ export const GraphExplorerModal: React.FC<GraphExplorerModalProps> = ({
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full bg-emerald-500" />
-                <span className="text-slate-700 dark:text-zinc-300 font-medium">Seguidos (1er salto)</span>
+                <span className="text-slate-700 dark:text-zinc-300 font-medium">
+                  Seguidos (1er salto)
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full bg-amber-500" />
-                <span className="text-slate-700 dark:text-zinc-300 font-medium">Sugerencias (2do salto)</span>
+                <span className="text-slate-700 dark:text-zinc-300 font-medium">
+                  Sugerencias (2do salto)
+                </span>
               </div>
             </div>
 
@@ -1004,7 +1001,8 @@ export const GraphExplorerModal: React.FC<GraphExplorerModalProps> = ({
                           <>
                             <p className="font-semibold text-indigo-600 dark:text-indigo-400">
                               {caminoCalculado.saltosTotales}{' '}
-                              {caminoCalculado.saltosTotales === 1 ? 'salto' : 'saltos'} de distancia
+                              {caminoCalculado.saltosTotales === 1 ? 'salto' : 'saltos'} de
+                              distancia
                             </p>
                             <div className="flex flex-wrap items-center gap-1 text-[11px] font-mono">
                               {caminoCalculado.rutaConexion.map((paso, idx) => (
@@ -1076,8 +1074,8 @@ export const GraphExplorerModal: React.FC<GraphExplorerModalProps> = ({
                   Selecciona un Nodo
                 </h4>
                 <p className="text-[11px] leading-relaxed">
-                  Haz clic en cualquier persona para inspeccionar sus grados de separación, conexiones
-                  en común y seguirlo en tiempo real.
+                  Haz clic en cualquier persona para inspeccionar sus grados de separación,
+                  conexiones en común y seguirlo en tiempo real.
                 </p>
               </div>
             )}

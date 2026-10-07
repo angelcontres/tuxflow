@@ -189,7 +189,10 @@ export const UserSearchBox: React.FC<UserSearchBoxProps> = ({ onOpenPerfil }) =>
           )}
 
           {estado.tipo === 'error' && (
-            <p role="alert" className="px-3 py-3 text-xs text-rose-400 flex items-start gap-2 bg-rose-950/20">
+            <p
+              role="alert"
+              className="px-3 py-3 text-xs text-rose-400 flex items-start gap-2 bg-rose-950/20"
+            >
               <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" />
               <span>{estado.mensaje}</span>
             </p>
@@ -231,7 +234,9 @@ export const UserSearchBox: React.FC<UserSearchBoxProps> = ({ onOpenPerfil }) =>
                         <p className="text-xs font-semibold text-slateDark-text truncate">
                           {persona.nombre || `@${persona.username}`}
                         </p>
-                        <p className="text-[11px] text-slateDark-textMuted truncate">@{persona.username}</p>
+                        <p className="text-[11px] text-slateDark-textMuted truncate">
+                          @{persona.username}
+                        </p>
                       </div>
                     </button>
                   </li>

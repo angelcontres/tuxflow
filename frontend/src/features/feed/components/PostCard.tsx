@@ -186,7 +186,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         <div
           className={`rounded-2xl p-6 sm:p-7 mb-3 relative overflow-hidden flex flex-col items-center justify-center text-center min-h-[130px] ${cardTheme.gradientClass}`}
         >
-          <Quote className={`w-10 h-10 absolute top-2.5 left-3 opacity-20 ${cardTheme.quoteColor}`} />
+          <Quote
+            className={`w-10 h-10 absolute top-2.5 left-3 opacity-20 ${cardTheme.quoteColor}`}
+          />
           <div className="relative z-10 text-base sm:text-lg font-medium leading-relaxed max-w-xl break-words">
             {renderFormattedText(post.texto, cardTheme.tagClass)}
           </div>
@@ -263,7 +265,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
             isDisliked ? 'text-amber-500 font-semibold' : 'hover:text-amber-400'
           }`}
         >
-          <ThumbsDown className={`w-4 h-4 transition-transform ${isDisliked ? 'fill-amber-500 text-amber-500 scale-110' : ''}`} />
+          <ThumbsDown
+            className={`w-4 h-4 transition-transform ${isDisliked ? 'fill-amber-500 text-amber-500 scale-110' : ''}`}
+          />
           <span>{dislikesCount}</span>
         </button>
 

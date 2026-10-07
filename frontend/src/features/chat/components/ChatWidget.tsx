@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   MessageSquare,
   Sparkles,
@@ -20,11 +20,7 @@ import { ChatMessage } from '../types/chat.types';
 import { chatSocketManager } from '../services/chatSocket';
 
 const EMOJIS_RAPIDOS = ['❤️', '🔥', '👍', '😂', '🎉', '🚀', '👋', '✨'];
-const SUGERENCIAS_INICIO = [
-  '👋 ¡Hola!',
-  '🚀 ¿Cómo va el proyecto?',
-  '✨ ¡Mucho gusto!',
-];
+const SUGERENCIAS_INICIO = ['👋 ¡Hola!', '🚀 ¿Cómo va el proyecto?', '✨ ¡Mucho gusto!'];
 
 const formatearHora = (timestamp?: number): string => {
   if (!timestamp) return '';
@@ -197,7 +193,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
     });
   };
 
-  const conectarSocket = () => {
+  const conectarSocket = useCallback(() => {
     chatSocketManager.connect(
       currentUserId,
       (nuevoMensaje) => {
@@ -227,9 +223,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
 
           // Auto-cerrar toast tras 6 segundos
           setTimeout(() => {
-            setIncomingToast((prev) =>
-              prev?.contenido === nuevoMensaje.contenido ? null : prev,
-            );
+            setIncomingToast((prev) => (prev?.contenido === nuevoMensaje.contenido ? null : prev));
           }, 6000);
         }
       },
@@ -237,7 +231,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
         setIsSocketConnected(conectado);
       },
     );
-  };
+  }, [currentUserId]);
 
   useEffect(() => {
     conectarSocket();
@@ -245,7 +239,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
     return () => {
       chatSocketManager.disconnect();
     };
-  }, [currentUserId]);
+  }, [conectarSocket]);
 
   useEffect(() => {
     if (isOpen && activeView === 'conversation' && scrollRef.current) {
@@ -399,7 +393,9 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
             <div className="min-w-0">
               <p className="font-semibold text-slate-900 dark:text-zinc-100 truncate flex items-center gap-1">
                 <span>@{incomingToast.emisorId}</span>
-                <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-normal">te escribió</span>
+                <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-normal">
+                  te escribió
+                </span>
               </p>
               <p className="text-[11px] text-slate-500 dark:text-zinc-400 truncate">
                 {incomingToast.contenido}
@@ -464,7 +460,9 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-slate-900 dark:text-zinc-100">Mensajes</span>
+              <span className="text-xs font-semibold text-slate-900 dark:text-zinc-100">
+                Mensajes
+              </span>
               {unreadCount > 0 && (
                 <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-indigo-600 text-white animate-bounce shadow-xs">
                   {unreadCount}
@@ -641,7 +639,9 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') handleSeleccionarConversacion(c);
                       }}
-                      style={{ backgroundColor: esActivo ? undefined : 'rgb(var(--color-surface))' }}
+                      style={{
+                        backgroundColor: esActivo ? undefined : 'rgb(var(--color-surface))',
+                      }}
                       className={`flex items-center gap-3 p-3.5 transition-colors cursor-pointer text-left ${
                         esActivo
                           ? 'bg-slate-100 dark:bg-[#27272A] border-l-[3.5px] border-indigo-600'
@@ -684,7 +684,9 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
                           >
                             {c.nombre}
                           </span>
-                          <span className="text-[10px] text-slate-400 dark:text-zinc-500">{c.tiempo}</span>
+                          <span className="text-[10px] text-slate-400 dark:text-zinc-500">
+                            {c.tiempo}
+                          </span>
                         </div>
                         <p className="text-[11px] text-slate-400 dark:text-zinc-500 font-mono truncate">
                           @{c.username}
@@ -871,10 +873,14 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
                           </div>
                         )}
 
-                        <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[78%]`}>
+                        <div
+                          className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[78%]`}
+                        >
                           {/* Globo de Mensaje: Índigo normal para propios, Superficie sólida para recibidos */}
                           <div
-                            style={!isMe ? { backgroundColor: 'rgb(var(--color-surface))' } : undefined}
+                            style={
+                              !isMe ? { backgroundColor: 'rgb(var(--color-surface))' } : undefined
+                            }
                             className={`text-xs px-3.5 py-2 leading-relaxed ${
                               isMe
                                 ? 'bg-indigo-600 text-white rounded-2xl rounded-br-xs shadow-xs font-normal'

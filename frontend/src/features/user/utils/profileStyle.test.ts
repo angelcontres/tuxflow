@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import {
-  getBannerTheme,
-  getUserSavedBanner,
-  saveUserBanner,
-} from './profileStyle';
+import { getBannerTheme, getUserSavedBanner, saveUserBanner } from './profileStyle';
 
 describe('profileStyle utility', () => {
   beforeEach(() => {
