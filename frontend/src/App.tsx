@@ -176,6 +176,7 @@ export const App: React.FC = () => {
         currentUsername={currentUsername}
         onProfileUpdated={loadAllData}
         onLogout={handleLogout}
+        onOpenPerfil={handleOpenPerfil}
       />
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 pt-6">

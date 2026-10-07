@@ -8,12 +8,21 @@ import {
 } from '../../features/user/services/userApi';
 import { getUserFacingError } from '../utils/errorMessage';
 import { NotificationCenter } from '../../features/notifications/components/NotificationCenter';
+import { UserSearchBox } from '../../features/user/components/UserSearchBox';
 
 interface NavbarProps {
   currentUserId: string;
   currentUsername: string;
   onProfileUpdated?: () => void;
   onLogout?: () => void;
+  /**
+   * Abre el perfil de una persona buscada por nombre (US-14).
+   *
+   * Es el mismo manejador que ya usan las sugerencias y el perfil ajeno, para que la navegación por
+   * la comunidad tenga un solo camino en vez de uno por pantalla. Es opcional: sin él, el buscador
+   * sigue funcionando y sólo deja de poder abrir el perfil, en vez de romper el `Navbar` entero.
+   */
+  onOpenPerfil?: (usuarioId: string) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -21,6 +30,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentUsername,
   onProfileUpdated,
   onLogout,
+  onOpenPerfil,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'view' | 'edit'>('view');
@@ -150,6 +160,19 @@ export const Navbar: React.FC<NavbarProps> = ({
               </span>
             </div>
           </div>
+
+          {/* Buscador de personas (US-14). Va junto al logo y no junto al perfil porque es una
+              acción de la comunidad, no una pieza de la sesión: se usa igual desde el feed que
+              desde un perfil ajeno.
+
+              Sin `hidden` en móvil a propósito: el buscador es la mitad del circuito que US-12
+              dejó a medias y en un teléfono es la única forma de llegar a alguien que no está en
+              tu red. El campo es estrecho (`max-w-xs`) y el logo y las acciones se adaptan. */}
+          {onOpenPerfil && (
+            <div className="flex-1 max-w-xs min-w-0">
+              <UserSearchBox onOpenPerfil={onOpenPerfil} />
+            </div>
+          )}
 
           {/* Acciones de Usuario */}
           <div className="flex items-center gap-3">

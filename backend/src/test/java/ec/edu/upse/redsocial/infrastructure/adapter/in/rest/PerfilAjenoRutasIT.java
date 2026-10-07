@@ -7,7 +7,9 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+import ec.edu.upse.redsocial.infrastructure.adapter.in.rest.dto.UsuarioRequest;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import org.junit.jupiter.api.DisplayName;
@@ -244,7 +246,7 @@ class PerfilAjenoRutasIT {
     @DisplayName("El cuerpo de error usa la forma que el cliente ya lee")
     void errorConFormaConocida() {
         // `getUserFacingError` del frontend lee el campo `error`. Si un endpoint devolviera otra
-        // clave, el mensaje del servidor no llegaría nunca a pantalla y saldría el texto genérico.
+        // clave, el mensaje del servidor no llegaría nunca a pantalla y salaría el texto genérico.
         //
         // La validación de "identificador en blanco" de /autor/{userId} no se puede disparar por el
         // path (ver la prueba del `%20`), así que aquí se comprueba la forma con `/comunes`, que sí
@@ -255,5 +257,120 @@ class PerfilAjenoRutasIT {
                 .statusCode(400)
                 .body("$", hasKey("error"))
                 .body("error", not(org.hamcrest.Matchers.nullValue()));
+    }
+
+    // --- Búsqueda de personas (US-14) ---
+    //
+    // Estas tres no se pueden probar llamando al método Java: pasan aunque la ruta no resuelva. Lo
+    // que
+    // se comprueba aquí es el choque entre `/api/users/buscar` y `/api/users/{userId}`, que sólo se
+    // ve
+    // cuando el servidor resuelve la URL, y el hecho de que el directorio completo ya no exista.
+
+    @Test
+    @DisplayName("GET /api/users/buscar?q= resuelve y devuelve la lista")
+    void laBusquedaResuelve() {
+        given().when()
+                .get("/api/users/buscar?q=beatriz")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("$", hasSize(1))
+                .body("[0].id", equalTo("beatriz-silva"))
+                .body("[0].username", equalTo("beatriz"));
+    }
+
+    @Test
+    @DisplayName("GET /api/users/buscar no se confunde con GET /api/users/{userId}")
+    void laBusquedaNoColisionaConElPerfil() {
+        // `buscar` es un segmento literal que compite con `{userId}`. Si el servidor lo tomara como
+        // un identificador, buscaría a una persona llamada "buscar" y devolvería 404 en vez de la
+        // lista, que es la forma silenciosa de este defecto: un 404 por identificador inexistente y
+        // un 404 por ruta mal declarada son indistinguibles desde fuera.
+        given().when().get("/api/users/buscar?q=beatriz").then().statusCode(200);
+
+        // Y al revés: el perfil sigue resolviendo como perfil, no como búsqueda.
+        given().when()
+                .get("/api/users/beatriz-silva")
+                .then()
+                .statusCode(200)
+                .body("id", equalTo("beatriz-silva"))
+                .body("username", equalTo("beatriz"));
+    }
+
+    @Test
+    @DisplayName("GET /api/users ya no devuelve el directorio con correos")
+    void elDirectorioYaNoExiste() {
+        // Este endpoint devolvía TODOS los usuarios con su correo y sin pedir autenticación.
+        //
+        // Lo que responde es 405 y no el 404 que dice el ticket, y la razón es que no puede ser
+        // 404: `POST /api/users` --el registro de US-01-- sigue declarado en esta misma ruta, así
+        // que
+        // la ruta existe y lo que no existe es el GET. En JAX-RS eso es "existe pero no por este
+        // método". El 404 del ticket sólo sería alcanzable borrando también el registro, que no es
+        // de
+        // esta historia.
+        //
+        // El defecto está cerrado igual: no hay forma de leer el directorio. Y el 405 es más exacto
+        // que el 404, porque distingue "esta ruta no existe" de "existe pero no por GET".
+        String crudo = given().when().get("/api/users").then().statusCode(405).extract().asString();
+
+        assertFalse(crudo.contains("beatriz@upse.edu.ec"), "El directorio se filtró: " + crudo);
+        assertFalse(crudo.contains("username"), "El directorio se filtró: " + crudo);
+        assertFalse(crudo.contains("nombre"), "El directorio se filtró: " + crudo);
+    }
+
+    @Test
+    @DisplayName("POST /api/users sigue declarado: cerrar el directorio no cerró el registro")
+    void elRegistroDeUsuariosSigueDeclarado() throws NoSuchMethodException {
+        // El registro de US-01 comparte ruta con el directorio que US-14 cierra, y es justo por eso
+        // que `GET /api/users` responde 405 y no 404 (ver la prueba anterior). Si esta ruta
+        // desapareciera, el alta de usuarios de US-01 se rompería.
+        //
+        // No se espera un 201: el doble de prueba que sustituye al caso de uso lanza
+        // UnsupportedOperationException a propósito en todo lo que escribe, porque estas pruebas no
+        // tocan el grafo. Lo que se comprueba aquí es que la ruta y el verbo siguen declarados, que
+        // es lo que depende de esta historia.
+        assertNotNull(
+                UserGraphResource.class.getDeclaredMethod("registrarUsuario", UsuarioRequest.class),
+                "El registro de usuarios dejó de estar declarado");
+    }
+
+    @Test
+    @DisplayName("GET /api/users/buscar no filtra correo, contraseña ni suscripción push")
+    void laBusquedaNoFiltraDatosDeSesion() {
+        // La búsqueda es la lectura más amplia de la comunidad que tiene la API: cualquiera que
+        // adivine dos letras puede preguntar por todos. La respuesta tiene que ser la más estrecha.
+        String crudo =
+                given().when()
+                        .get("/api/users/buscar?q=beatriz")
+                        .then()
+                        .statusCode(200)
+                        .extract()
+                        .asString();
+
+        assertFalse(crudo.contains("no-debe-aparecer"), "La contraseña se filtró: " + crudo);
+        assertFalse(crudo.contains("upse.edu.ec"), "El correo se filtró: " + crudo);
+        assertFalse(crudo.contains("fcm"), "La suscripción push se filtró: " + crudo);
+        org.junit.jupiter.api.Assertions.assertTrue(
+                crudo.contains("Beatriz Silva"), "El nombre debería venir: " + crudo);
+    }
+
+    @Test
+    @DisplayName("GET /api/users/buscar con menos de dos caracteres responde 400")
+    void laBusquedaConPocoTextoResponde400() {
+        // La mitigación tiene que estar en el servidor, no sólo en el navegador: en el frontend no
+        // mitiga nada contra un curl. Y responde 400 y no la lista vacía, porque una llamada mal
+        // formada no puede parecerse a "no hay nadie".
+        given().when()
+                .get("/api/users/buscar?q=a")
+                .then()
+                .statusCode(400)
+                .body("$", hasKey("error"));
+
+        given().when().get("/api/users/buscar").then().statusCode(400).body("$", hasKey("error"));
+
+        // Y con dos caracteres sí busca: si el mínimo estuviera mal, nadie encontraría a nadie.
+        given().when().get("/api/users/buscar?q=be").then().statusCode(200);
     }
 }

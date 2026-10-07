@@ -26,14 +26,61 @@ public class UserGraphResource {
 
     @Inject GestionarGrafoSocialUseCase gestionarGrafoSocialUseCase;
 
+    /**
+     * Búsqueda de personas por nombre o nombre de usuario (US-14).
+     *
+     * <p>La ruta compite con {@code /{userId}}, y por eso hay una prueba sobre HTTP real que la
+     * comprueba: en RESTEasy Reactive el segmento literal gana al de plantilla, así que resuelve
+     * bien, pero eso no se verifica leyendo el código sino levantando el servidor.
+     *
+     * <p>Responde {@link UsuarioPublicoResponse} y no {@link UsuarioResponse}: la búsqueda es la
+     * lectura más amplia de la comunidad que tiene la API —cualquiera que adivine dos letras puede
+     * preguntar por todos—, así que la respuesta es la más estrecha posible. El correo no se busca
+     * ni se devuelve: buscarlo convertiría el endpoint en un oráculo de "este correo existe en la
+     * comunidad".
+     */
     @GET
-    public Response listarUsuarios() {
-        List<UsuarioResponse> safe =
-                gestionarGrafoSocialUseCase.listarUsuarios().stream()
-                        .map(UsuarioResponse::from)
+    @Path("/buscar")
+    public Response buscarUsuarios(@QueryParam("q") String q) {
+        // El mínimo de dos caracteres se comprueba aquí y no sólo en el navegador, por el mismo
+        // motivo que /comunes valida sus parámetros: un cliente puede ser cualquiera, y una
+        // mitigación que sólo existe en el frontend no mitiga nada contra un curl. Con un carácter,
+        // "a" devuelve casi toda la comunidad y el endpoint es un GET /api/users con otro nombre.
+        //
+        // Y responde 400 y no la lista vacía: una llamada mal formada no puede parecerse a "no hay
+        // nadie", porque el cliente no tiene forma de distinguirlas y pintaría un resultado que no
+        // es un resultado.
+        if (q == null || q.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("error", "El campo 'q' es obligatorio"))
+                    .build();
+        }
+        if (q.strip().length() < MINIMO_CARACTERES_BUSQUEDA) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(
+                            Map.of(
+                                    "error",
+                                    "Escribe al menos "
+                                            + MINIMO_CARACTERES_BUSQUEDA
+                                            + " caracteres para buscar"))
+                    .build();
+        }
+
+        List<UsuarioPublicoResponse> resultados =
+                gestionarGrafoSocialUseCase.buscarUsuarios(q).stream()
+                        .map(UsuarioPublicoResponse::from)
                         .toList();
-        return Response.ok(safe).build();
+        return Response.ok(resultados).build();
     }
+
+    /**
+     * Mínimo de caracteres para buscar.
+     *
+     * <p>Es una mitigación y no una solución: con dos caracteres también se pueden enumerar los
+     * nombres. Lo que falta es rate limiting, que no existe en ninguna parte de la API, y queda
+     * anotado como deuda con dueño.
+     */
+    static final int MINIMO_CARACTERES_BUSQUEDA = 2;
 
     @GET
     @Path("/{userId}")

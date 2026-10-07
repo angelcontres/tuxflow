@@ -14,7 +14,14 @@ public interface GestionarGrafoSocialUseCase {
 
     Optional<Usuario> buscarUsuarioPorCredenciales(String emailOrUsername);
 
-    List<Usuario> listarUsuarios();
+    /**
+     * Personas que se pueden encontrar escribiendo su nombre o su nombre de usuario.
+     *
+     * <p>Devuelve la lista ya ordenada por relevancia y limitada. El mínimo de caracteres se
+     * comprueba en el borde REST, no aquí: es una regla de la petición, como lo son los parámetros
+     * de {@code /comunes}.
+     */
+    List<Usuario> buscarUsuarios(String texto);
 
     String subirAvatar(
             String userId,

@@ -14,6 +14,7 @@ import {
   unfollowUserInGraph,
 } from './features/network/services/networkApi';
 import {
+  buscarUsuarios,
   fetchPostsDeUsuario,
   fetchSeguidores,
   fetchUsuario,
@@ -55,6 +56,11 @@ vi.mock('./features/user/services/userApi', () => ({
   fetchSeguidores: vi.fn(),
   registerOrUpdateUsuario: vi.fn(),
   uploadAvatar: vi.fn(),
+  // El buscador del Navbar (US-14) monta con App. Sin este stub devolviendo una promesa,
+  // resetAllMocks() en cada beforeEach lo deja en undefined y el render de App revienta con
+  // "Cannot read properties of undefined (reading 'then')". Es el mismo motivo que el de
+  // fetchTendencias en US-11.
+  buscarUsuarios: vi.fn(),
 }));
 
 vi.mock('./features/chat/services/chatSocket', () => ({
@@ -88,6 +94,7 @@ const postsAjenosMock = vi.mocked(fetchPostsDeUsuario);
 const seguidoresMock = vi.mocked(fetchSeguidores);
 const caminoMock = vi.mocked(fetchCaminoCorto);
 const comunesMock = vi.mocked(fetchConexionesComunes);
+const buscarMock = vi.mocked(buscarUsuarios);
 
 function postBeatriz(overrides: Partial<Post> = {}): Post {
   return {
@@ -336,5 +343,63 @@ describe('App (navegación al perfil ajeno, US-12)', () => {
 
     expect(await screen.findByRole('button', { name: /iniciar sesi/i })).toBeInTheDocument();
     expect(screen.queryByText('Beatriz Silva')).not.toBeInTheDocument();
+  });
+});
+
+describe('App (búsqueda de personas, US-14)', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    tendenciasMock.mockResolvedValue([]);
+    sesionMock.mockResolvedValue({
+      id: 'carlos-patino',
+      username: 'carlos',
+      email: 'carlos@upse.edu.ec',
+      nombre: 'Carlos',
+    });
+    feedMock.mockResolvedValue([]);
+    sugerenciasMock.mockResolvedValue([]);
+    seguidosMock.mockResolvedValue([]);
+    unfollowMock.mockResolvedValue(undefined);
+    postsAjenosMock.mockResolvedValue([]);
+    seguidoresMock.mockResolvedValue([]);
+    comunesMock.mockResolvedValue([]);
+    caminoMock.mockResolvedValue({ rutaConexion: [], saltosTotales: 0 });
+    buscarMock.mockResolvedValue([]);
+    perfilesConBeatriz();
+  });
+
+  it('busca a una persona y abre su perfil: el circuito que US-12 dejó a medias', async () => {
+    // Es el cierre de la historia: buscar → resultado → perfil → seguir. Lo que se comprueba aquí es
+    // que el resultado del buscador llega al MISMO manejador que usan las sugerencias, así que hay un
+    // solo camino de navegación y no uno por pantalla.
+    buscarMock.mockResolvedValue([
+      { id: 'beatriz-silva', username: 'beatriz', nombre: 'Beatriz Silva' },
+    ]);
+    render(<App />);
+
+    // Se espera a que la sesión se restaure antes de tocar el buscador: hasta entonces la pantalla
+    // es el spinner de carga y el Navbar no existe en el árbol.
+    const campo = await screen.findByLabelText(/buscar personas/i);
+
+    const user = userEvent.setup();
+    await user.type(campo, 'beatriz');
+
+    expect(await screen.findByText('Beatriz Silva', { selector: 'li *' })).toBeInTheDocument();
+    await waitFor(() => expect(buscarMock).toHaveBeenCalledWith('beatriz', expect.anything()));
+
+    await user.click(screen.getByRole('option', { name: /Beatriz Silva/ }));
+
+    // Y desde el perfil se ven sus publicaciones y sus seguidores: la búsqueda abre el circuito
+    // completo, no una pantalla a medias.
+    expect(postsAjenosMock).toHaveBeenCalledWith('beatriz-silva', 'carlos-patino');
+    expect(seguidoresMock).toHaveBeenCalledWith('beatriz-silva');
+    expect(screen.queryByPlaceholderText('¿Qué estás pensando hoy?')).not.toBeInTheDocument();
+  });
+
+  it('el buscador está en el Navbar y no pregunta nada al abrir la aplicación', async () => {
+    render(<App />);
+
+    expect(await screen.findByLabelText(/buscar personas/i)).toBeInTheDocument();
+    expect(buscarMock).not.toHaveBeenCalled();
   });
 });

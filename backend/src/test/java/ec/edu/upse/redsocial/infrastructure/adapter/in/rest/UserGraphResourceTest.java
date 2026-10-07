@@ -2,6 +2,7 @@ package ec.edu.upse.redsocial.infrastructure.adapter.in.rest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -19,8 +20,11 @@ import ec.edu.upse.redsocial.infrastructure.adapter.in.rest.dto.UsuarioResponse;
 import jakarta.ws.rs.core.Response;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.jboss.resteasy.reactive.multipart.FileUpload;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -365,6 +369,157 @@ class UserGraphResourceTest {
         resource.obtenerCaminoMasCorto("carlos-patino", "  ");
 
         verifyNoInteractions(gestionarGrafoSocialUseCase);
+    }
+
+    // --- Búsqueda de personas (US-14) ---
+
+    @Test
+    @DisplayName("GET /buscar responde 200 con la lista de resultados que devuelve el caso de uso")
+    void buscarUsuariosResponde200ConLaLista() {
+        when(gestionarGrafoSocialUseCase.buscarUsuarios("beatriz"))
+                .thenReturn(
+                        List.of(
+                                new Usuario(
+                                        "beatriz-silva",
+                                        "beatriz",
+                                        null,
+                                        "Beatriz Silva",
+                                        "https://cdn/b.png"),
+                                new Usuario("paulo-orrala", "paulo", null, "Paulo Orrala", null)));
+
+        Response respuesta = resource.buscarUsuarios("beatriz");
+
+        assertEquals(200, respuesta.getStatus());
+        @SuppressWarnings("unchecked")
+        List<UsuarioPublicoResponse> entity = (List<UsuarioPublicoResponse>) respuesta.getEntity();
+        assertEquals(2, entity.size());
+        assertEquals("beatriz-silva", entity.get(0).getId());
+        assertEquals("Beatriz Silva", entity.get(0).getNombre());
+    }
+
+    @Test
+    @DisplayName("GET /buscar no expone el Usuario de dominio, sino el DTO sin correo ni password")
+    void buscarUsuariosNoExponeElModeloDeDominio() {
+        // La búsqueda es la lectura más amplia de la comunidad que tiene la API: cualquiera que
+        // adivine dos letras puede preguntar por todos. Por eso la respuesta es la más estrecha
+        // posible, y por eso esto se comprueba sobre el cuerpo y no sólo sobre la clase.
+        Usuario conCredenciales =
+                new Usuario(
+                        "beatriz-silva", "beatriz", "beatriz@upse.edu.ec", "Beatriz Silva", null);
+        conCredenciales.setPassword("no-debe-aparecer");
+        conCredenciales.setPushSubscriptionJson("{\"endpoint\":\"https://fcm/secreto\"}");
+        when(gestionarGrafoSocialUseCase.buscarUsuarios("beatriz"))
+                .thenReturn(List.of(conCredenciales));
+
+        Response respuesta = resource.buscarUsuarios("beatriz");
+
+        @SuppressWarnings("unchecked")
+        List<UsuarioPublicoResponse> entity = (List<UsuarioPublicoResponse>) respuesta.getEntity();
+        assertEquals(UsuarioPublicoResponse.class, entity.get(0).getClass());
+        String cuerpo = respuesta.getEntity().toString();
+        assertFalse(cuerpo.contains("no-debe-aparecer"), "La contraseña se filtró: " + cuerpo);
+        assertFalse(cuerpo.contains("fcm"), "La suscripción push se filtró: " + cuerpo);
+        assertFalse(cuerpo.contains("@upse.edu.ec"), "El correo se filtró: " + cuerpo);
+    }
+
+    @Test
+    @DisplayName("GET /buscar sin resultados responde 200 con la lista vacía, no con un error")
+    void buscarUsuariosSinResultadosResponde200() {
+        // "No hay nadie con ese nombre" es un resultado legítimo y no puede compartir respuesta con
+        // una petición mal formada, que responde 400.
+        when(gestionarGrafoSocialUseCase.buscarUsuarios("zzzz")).thenReturn(List.of());
+
+        Response respuesta = resource.buscarUsuarios("zzzz");
+
+        assertEquals(200, respuesta.getStatus());
+        assertEquals(List.of(), respuesta.getEntity());
+    }
+
+    @Test
+    @DisplayName("GET /buscar con menos de dos caracteres responde 400 y no toca el grafo")
+    void buscarUsuariosConTextoCortoResponde400() {
+        // Con un carácter, "a" devuelve casi toda la comunidad y el endpoint es un GET /api/users
+        // con otro nombre. La mitigación tiene que estar en el servidor: en el navegador no
+        // mitiga nada contra un curl.
+        assertEquals(400, resource.buscarUsuarios("a").getStatus());
+        assertEquals(400, resource.buscarUsuarios(" ").getStatus());
+
+        verifyNoInteractions(gestionarGrafoSocialUseCase);
+    }
+
+    @Test
+    @DisplayName("GET /buscar sin q responde 400 en vez de devolver la comunidad entera")
+    void buscarUsuariosSinQueryResponde400() {
+        // Sin esta validación, una petición sin parámetro devolvía toda la lista de resultados
+        // posibles. Y no puede devolver la lista vacía: "no le pasaste el parámetro" y "no hay
+        // nadie" son la misma respuesta y el cliente no puede distinguirlas.
+        assertEquals(400, resource.buscarUsuarios(null).getStatus());
+        assertEquals(400, resource.buscarUsuarios("").getStatus());
+
+        verifyNoInteractions(gestionarGrafoSocialUseCase);
+    }
+
+    @Test
+    @DisplayName("GET /buscar cuenta los espacios que sobran antes de medir el mínimo")
+    void buscarUsuariosMideElTextoSinLosEspaciosSobrantes() {
+        // "  a  " tiene cinco caracteres pero sólo uno útil. Medir el texto sin limpiar haría que
+        // "  a  " pasara el mínimo y pidiera una búsqueda que el servidor va a rechazar.
+        Response respuesta = resource.buscarUsuarios("  a  ");
+
+        assertEquals(400, respuesta.getStatus());
+        verifyNoInteractions(gestionarGrafoSocialUseCase);
+    }
+
+    @Test
+    @DisplayName("GET /buscar con dos caracteres sí consulta, porque ése es el mínimo")
+    void buscarUsuariosConDosCaracteresConsulta() {
+        when(gestionarGrafoSocialUseCase.buscarUsuarios("be")).thenReturn(List.of());
+
+        Response respuesta = resource.buscarUsuarios("be");
+
+        assertEquals(200, respuesta.getStatus());
+        verify(gestionarGrafoSocialUseCase).buscarUsuarios("be");
+    }
+
+    @Test
+    @DisplayName("GET /buscar devuelve el motivo en el campo 'error', que es el que lee el cliente")
+    void buscarUsuariosDevuelveElMotivoEnError() {
+        // `getUserFacingError` del frontend lee el campo `error`. Si el endpoint devolviera otra
+        // clave, el mensaje del servidor no llegaría nunca a pantalla.
+        @SuppressWarnings("unchecked")
+        Map<String, String> entity = (Map<String, String>) resource.buscarUsuarios("a").getEntity();
+
+        assertNotNull(entity.get("error"));
+        assertTrue(entity.get("error").contains("2"));
+    }
+
+    @Test
+    @DisplayName("Ya no existe GET /api/users: el directorio con correos se cerró")
+    void elDirectorioDeUsuariosYaNoExiste() {
+        // Este endpoint devolvía TODOS los usuarios con su correo y sin pedir autenticación. No
+        // borrarlo por completo --dejar listarUsuarios en el servicio-- dejaría la puerta abierta
+        // con el mismo defecto detrás, así que la comprobación es sobre la superficie pública del
+        // recurso y no sobre un caso concreto.
+        //
+        // Se filtran los métodos sintéticos y las lambdas que genera el compilador: si no, esta
+        // prueba fallaría por motivos que no tienen que ver con lo que comprueba.
+        Set<String> metodos =
+                Arrays.stream(UserGraphResource.class.getDeclaredMethods())
+                        .filter(metodo -> !metodo.isSynthetic())
+                        .map(java.lang.reflect.Method::getName)
+                        .filter(nombre -> !nombre.startsWith("lambda$"))
+                        .collect(Collectors.toSet());
+
+        assertFalse(
+                metodos.contains("listarUsuarios"),
+                "El directorio volvió a exponerse en el recurso: " + metodos);
+        assertTrue(
+                metodos.contains("buscarUsuarios"),
+                "La búsqueda no está en el recurso: " + metodos);
+        // El registro sigue en pie: es otra ruta del mismo recurso, y cerrarlo sería romper US-01.
+        assertTrue(
+                metodos.contains("registrarUsuario"),
+                "El registro de usuarios se cerró por error: " + metodos);
     }
 
     @Test

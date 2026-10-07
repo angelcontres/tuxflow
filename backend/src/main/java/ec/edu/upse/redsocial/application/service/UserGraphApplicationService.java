@@ -15,6 +15,19 @@ import java.util.Optional;
 @ApplicationScoped
 public class UserGraphApplicationService implements GestionarGrafoSocialUseCase {
 
+    /**
+     * Tope de resultados de la búsqueda.
+     *
+     * <p>El límite lo decide el servidor y no el cliente por dos razones: una búsqueda con dos
+     * caracteres puede pedir el mismo recorte que con veinte y no tiene por qué conocer el tope, y
+     * el número no es un parámetro de la petición, así que nadie puede subirlo desde fuera.
+     *
+     * <p>Veinte es suficiente para la lista corta que espera quien escribe en el buscador. Con más,
+     * la búsqueda dejaría de ser una búsqueda y volvería a ser el directorio con filtro que US-14
+     * cierra.
+     */
+    private static final long LIMITE_BUSQUEDA = 20;
+
     @Inject GrafoPersistencePort grafoPersistencePort;
     @Inject StorageMultimediaPort storageMultimediaPort;
 
@@ -29,8 +42,8 @@ public class UserGraphApplicationService implements GestionarGrafoSocialUseCase 
     }
 
     @Override
-    public List<Usuario> listarUsuarios() {
-        return grafoPersistencePort.listarUsuarios();
+    public List<Usuario> buscarUsuarios(String texto) {
+        return grafoPersistencePort.buscarUsuarios(texto, LIMITE_BUSQUEDA);
     }
 
     @Override
