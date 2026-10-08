@@ -79,7 +79,7 @@ services:
       - S3_ENDPOINT=http://minio:9000
       # El que se devuelve al navegador. "minio" solo existe dentro de la red de
       # Docker, asi que guardarlo en la base deja el <img> roto.
-      - S3_PUBLIC_ENDPOINT=http://localhost:9000
+      - S3_PUBLIC_ENDPOINT=${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
       - S3_BUCKET=redsocial-media
       - S3_ACCESS_KEY=minioadmin
       - S3_SECRET_KEY=minioadmin
@@ -101,9 +101,22 @@ services:
       dockerfile: Dockerfile
     container_name: redsocial-frontend
     ports:
-      - "3000:80"
+      - "${FRONTEND_PORT:-3000}:80"
     depends_on:
       - backend
+    networks:
+      - red-distribuida
+
+  # Cloudflare Tunnel (Opcional - se activa con --profile tunnel si se define CLOUDFLARE_TUNNEL_TOKEN)
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: redsocial-tunnel
+    restart: unless-stopped
+    profiles:
+      - tunnel
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:-}
     networks:
       - red-distribuida
 
