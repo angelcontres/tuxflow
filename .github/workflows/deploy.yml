@@ -80,12 +80,19 @@ jobs:
           fi
           echo "Neo4j está listo."
 
-      - name: Cargar datos semilla (Seed inicial)
+      - name: Cargar datos semilla (Solo si la base de datos está vacía)
         run: |
           chmod +x docker/seed.sh
-          if [ -f "docker/neo4j-seed.cql" ]; then
-            echo "Inyectando datos semilla en Neo4j..."
-            docker/seed.sh --wipe docker/neo4j-seed.cql || true
+          # Consultamos la cantidad de nodos de usuario existentes en Neo4j
+          USER_COUNT=$(docker exec redsocial-neo4j cypher-shell -u neo4j -p password123 --format plain "MATCH (u:Usuario) RETURN count(u);" 2>/dev/null | tail -n 1 | tr -d '[:space:]' || echo "0")
+          echo "Usuarios encontrados en la base de datos: ${USER_COUNT:-0}"
+          if [ "$USER_COUNT" = "0" ] || [ -z "$USER_COUNT" ]; then
+            if [ -f "docker/neo4j-seed.cql" ]; then
+              echo "Base de datos vacía detectada. Inyectando datos semilla iniciales..."
+              docker/seed.sh --wipe docker/neo4j-seed.cql || true
+            fi
+          else
+            echo "La base de datos ya contiene información ($USER_COUNT usuarios). Conservando datos de usuarios sin sobrescribir."
           fi
 
       - name: Verificar estado de los contenedores

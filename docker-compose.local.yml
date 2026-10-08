@@ -6,7 +6,6 @@
 # O ejecutando directamente: desplegar.bat (Windows) / ./desplegar.sh (Linux/macOS)
 # ==============================================================================
 
-version: '3.8'
 
 services:
   # Base de Datos de Grafos (Neo4j)
