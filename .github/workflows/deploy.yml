@@ -24,6 +24,11 @@ jobs:
       - name: Descargar código fuente
         uses: actions/checkout@v4
 
+      - name: Preparar servidor (Instalar Docker / Swap automáticamente si falta)
+        run: |
+          chmod +x setup-aws.sh
+          ./setup-aws.sh
+
       - name: Configurar variables de entorno (.env)
         run: |
           if [ ! -f .env ]; then
