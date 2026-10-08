@@ -23,7 +23,6 @@ import { ChatMessage, ConversacionChat, EstadoChat, FilaChat } from '../types/ch
 import { chatSocketManager } from '../services/chatSocket';
 import { obtenerConversaciones, obtenerHistorial } from '../services/chatApi';
 import { fetchSeguidos } from '../../network/services/networkApi';
-import { fetchUsuario } from '../../user/services/userApi';
 import { resolveMediaUrl } from '../../../shared/utils/mediaUrl';
 
 const EMOJIS_RAPIDOS = ['❤️', '🔥', '👍', '😂', '🎉', '🚀', '👋', '✨'];
@@ -177,7 +176,6 @@ export function fusionarFilas(
 
 export interface ChatWidgetProps {
   currentUserId: string;
-  currentUserAvatar?: string;
   isOpenExternal?: boolean;
   onToggleExternal?: () => void;
   onCloseExternal?: () => void;
@@ -185,7 +183,6 @@ export interface ChatWidgetProps {
 
 export const ChatWidget: React.FC<ChatWidgetProps> = ({
   currentUserId,
-  currentUserAvatar,
   isOpenExternal,
   onToggleExternal,
   onCloseExternal,
@@ -193,20 +190,6 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
   // Apertura: la controla App si pasa las props, y si no el propio widget.
   const [internalIsOpen, setInternalIsOpen] = useState<boolean>(false);
   const isOpen = isOpenExternal !== undefined ? isOpenExternal : internalIsOpen;
-
-  const [myAvatarUrl, setMyAvatarUrl] = useState<string | undefined>(currentUserAvatar);
-
-  useEffect(() => {
-    if (currentUserAvatar) {
-      setMyAvatarUrl(currentUserAvatar);
-      return;
-    }
-    if (currentUserId) {
-      fetchUsuario(currentUserId)
-        .then((u) => setMyAvatarUrl(u.avatarUrl))
-        .catch(() => {});
-    }
-  }, [currentUserId, currentUserAvatar]);
 
   const [activeView, setActiveView] = useState<'inbox' | 'conversation'>('inbox');
   const [contactoActivo, setContactoActivo] = useState<FilaChat | null>(null);

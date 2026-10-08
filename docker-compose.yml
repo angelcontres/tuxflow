@@ -11,6 +11,8 @@ services:
     environment:
       - NEO4J_AUTH=neo4j/password123
       - NEO4J_PLUGINS=["apoc"]
+      - LANG=C.UTF-8
+      - LC_ALL=C.UTF-8
     volumes:
       - neo4j_data:/data
     networks:
