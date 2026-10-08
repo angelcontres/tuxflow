@@ -20,6 +20,7 @@ import {
   uploadAvatar,
 } from '../../features/user/services/userApi';
 import { getUserFacingError } from '../utils/errorMessage';
+import { resolveMediaUrl } from '../utils/mediaUrl';
 import { NotificationCenter } from '../../features/notifications/components/NotificationCenter';
 import { UserSearchBox } from '../../features/user/components/UserSearchBox';
 import { useTheme } from '../context/ThemeContext';
@@ -194,7 +195,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
   };
 
-  const avatarSrc = currentUserProfile?.avatarUrl || '';
+  const avatarSrc = resolveMediaUrl(currentUserProfile?.avatarUrl);
   const initial = (currentUserProfile?.nombre || currentUsername || '?').charAt(0).toUpperCase();
 
   return (
@@ -418,7 +419,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <div className="flex items-center gap-3.5 mb-3">
                             {currentUserProfile?.avatarUrl ? (
                               <img
-                                src={currentUserProfile.avatarUrl}
+                                src={resolveMediaUrl(currentUserProfile.avatarUrl)}
                                 alt={currentUserProfile.nombre}
                                 className="w-14 h-14 rounded-full object-cover ring-2 ring-slateDark-border shadow-xs shrink-0"
                                 onError={(e) => {
@@ -511,7 +512,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <div className="flex items-center gap-3">
                       {editAvatarUrl ? (
                         <img
-                          src={editAvatarUrl}
+                          src={resolveMediaUrl(editAvatarUrl)}
                           alt="Avatar preview"
                           className="w-12 h-12 rounded-full object-cover ring-2 ring-slateDark-primary shrink-0"
                         />

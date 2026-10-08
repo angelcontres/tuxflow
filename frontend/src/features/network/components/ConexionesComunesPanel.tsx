@@ -3,6 +3,7 @@ import { AlertCircle, Link2, Search, UserCheck } from 'lucide-react';
 import { fetchConexionesComunes } from '../services/networkApi';
 import type { ConexionComun } from '../types/network.types';
 import { getUserFacingError } from '../../../shared/utils/errorMessage';
+import { resolveMediaUrl } from '../../../shared/utils/mediaUrl';
 
 interface ConexionesComunesPanelProps {
   currentUserId: string;
@@ -220,7 +221,7 @@ export const ConexionesComunesPanel: React.FC<ConexionesComunesPanelProps> = ({
                   {mostrarAvatar ? (
                     <div className="w-9 h-9 rounded-full overflow-hidden bg-slateDark-surfaceSubtle shrink-0 ring-1 ring-slateDark-border">
                       <img
-                        src={conexion.avatar}
+                        src={resolveMediaUrl(conexion.avatar)}
                         alt={`Avatar de @${conexion.username}`}
                         className="w-full h-full object-cover"
                         onError={() => setAvatarCaido((prev) => ({ ...prev, [conexion.id]: true }))}

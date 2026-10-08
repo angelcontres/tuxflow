@@ -4,6 +4,7 @@ import { Post, ReactionResponse } from '../types/post.types';
 import { dislikePost, likePost, undislikePost, unlikePost } from '../services/feedApi';
 import { formatFecha } from '../utils/formatFecha';
 import { isThemePost, extractThemeKey, getPostCardTheme } from '../utils/postThemes';
+import { resolveMediaUrl } from '../../../shared/utils/mediaUrl';
 
 interface PostCardProps {
   post: Post;
@@ -146,7 +147,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   };
 
   const initial = (post.autorUsername || '?').charAt(0).toUpperCase();
-  const avatarUrl = post.autorAvatar;
+  const avatarUrl = resolveMediaUrl(post.autorAvatar);
   // Mismo patron que UserSuggestionsCard: con avatar caido se muestra la
   // inicial, nunca una imagen rota ni un círculo vacío (D3).
   const mostrarAvatar = Boolean(avatarUrl) && !avatarCaido;
@@ -209,7 +210,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
           {post.mediaUrl && !hasTheme && (
             <div className="rounded-xl overflow-hidden border border-slateDark-borderSubtle bg-slateDark-surfaceSubtle mb-3 max-h-[450px] flex items-center justify-center">
               <img
-                src={post.mediaUrl}
+                src={resolveMediaUrl(post.mediaUrl)}
                 alt="Contenido multimedia"
                 className="w-full max-h-[450px] object-cover"
                 loading="lazy"
