@@ -230,7 +230,7 @@ const AppContent: React.FC = () => {
           </section>
 
           {/* BARRA LATERAL DERECHA: SUGERENCIAS Y TENDENCIAS */}
-          <aside className="lg:col-span-5 space-y-6">
+          <aside className="lg:col-span-5 space-y-6 lg:sticky lg:top-24 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <UserSuggestionsCard
               filas={red}
               currentUserId={currentUserId}
