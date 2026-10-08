@@ -1,13 +1,22 @@
 import { Post, CreatePostPayload, ReactionResponse, Tendencia } from '../types/post.types';
 import { api } from '../../../shared/api/client';
+import { resolveMediaUrl } from '../../../shared/utils/mediaUrl';
 
 export const fetchFeedBySocialGraph = async (userId: string): Promise<Post[]> => {
   const response = await api.get<Post[]>(`/feed/${userId}`);
-  return response.data;
+  return response.data.map((p) => ({
+    ...p,
+    autorAvatar: resolveMediaUrl(p.autorAvatar),
+    mediaUrl: resolveMediaUrl(p.mediaUrl),
+  }));
 };
 
 export const submitPost = async (payload: CreatePostPayload): Promise<{ id: string }> => {
-  const response = await api.post<{ id: string }>('/posts', payload);
+  const cleanPayload = {
+    ...payload,
+    mediaUrl: resolveMediaUrl(payload.mediaUrl),
+  };
+  const response = await api.post<{ id: string }>('/posts', cleanPayload);
   return response.data;
 };
 

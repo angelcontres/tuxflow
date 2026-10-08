@@ -22,6 +22,7 @@ import { ChatMessage, ConversacionChat, EstadoChat, FilaChat } from '../types/ch
 import { chatSocketManager } from '../services/chatSocket';
 import { obtenerConversaciones, obtenerHistorial } from '../services/chatApi';
 import { fetchSeguidos } from '../../network/services/networkApi';
+import { resolveMediaUrl } from '../../../shared/utils/mediaUrl';
 
 const EMOJIS_RAPIDOS = ['❤️', '🔥', '👍', '😂', '🎉', '🚀', '👋', '✨'];
 const SUGERENCIAS_INICIO = ['👋 ¡Hola!', '🚀 ¿Cómo va el proyecto?', '✨ ¡Mucho gusto!'];
@@ -889,7 +890,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
                           <div className="relative shrink-0">
                             {c.avatarUrl ? (
                               <img
-                                src={c.avatarUrl}
+                                src={resolveMediaUrl(c.avatarUrl)}
                                 alt={nombre}
                                 className={`w-10 h-10 rounded-full object-cover transition-all ${
                                   esActivo
@@ -983,7 +984,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
                   <div className="relative shrink-0">
                     {contactoActivo.avatarUrl ? (
                       <img
-                        src={contactoActivo.avatarUrl}
+                        src={resolveMediaUrl(contactoActivo.avatarUrl)}
                         alt={contactoActivo.nombre || contactoActivo.username}
                         className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200 dark:ring-zinc-700"
                       />
@@ -1062,7 +1063,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
                     <div className="relative mb-2.5">
                       {contactoActivo.avatarUrl ? (
                         <img
-                          src={contactoActivo.avatarUrl}
+                          src={resolveMediaUrl(contactoActivo.avatarUrl)}
                           alt={contactoActivo.nombre || contactoActivo.username}
                           className="w-14 h-14 rounded-full object-cover ring-2 ring-slate-200 dark:ring-zinc-700 shadow-md"
                         />
@@ -1122,7 +1123,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
                           >
                             {contactoActivo.avatarUrl ? (
                               <img
-                                src={contactoActivo.avatarUrl}
+                                src={resolveMediaUrl(contactoActivo.avatarUrl)}
                                 alt=""
                                 className="w-full h-full rounded-full object-cover"
                               />

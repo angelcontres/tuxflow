@@ -10,6 +10,7 @@ import {
 } from '../../network/services/networkApi';
 import type { CaminoCorto } from '../../network/types/network.types';
 import { getUserFacingError } from '../../../shared/utils/errorMessage';
+import { resolveMediaUrl } from '../../../shared/utils/mediaUrl';
 import { fetchPostsDeUsuario, fetchSeguidores, fetchUsuario } from '../services/userApi';
 import type { Usuario } from '../types/user.types';
 import type { Post } from '../types/post.types';
@@ -246,7 +247,7 @@ export const PerfilAjeno: React.FC<PerfilAjenoProps> = ({
                   {perfil.datos.avatarUrl && !avatarCaido ? (
                     <div className="w-16 h-16 rounded-full overflow-hidden bg-slateDark-surfaceSubtle shrink-0 ring-2 ring-slateDark-border shadow-xs">
                       <img
-                        src={perfil.datos.avatarUrl}
+                        src={resolveMediaUrl(perfil.datos.avatarUrl)}
                         alt={`Avatar de @${perfil.datos.username}`}
                         className="w-full h-full object-cover"
                         onError={() => setAvatarCaido(true)}
@@ -457,7 +458,7 @@ const PersonaFila: React.FC<PersonaFilaProps> = ({ persona, onOpenPerfil }) => {
       {persona.avatarUrl && !avatarCaido ? (
         <div className="w-9 h-9 rounded-full overflow-hidden bg-slateDark-surfaceSubtle shrink-0 ring-1 ring-slateDark-border">
           <img
-            src={persona.avatarUrl}
+            src={resolveMediaUrl(persona.avatarUrl)}
             alt={`Avatar de @${persona.username}`}
             className="w-full h-full object-cover"
             onError={() => setAvatarCaido(true)}

@@ -1,14 +1,21 @@
 import { CaminoCorto, ConexionComun, SugerenciaUsuario, Usuario } from '../types/network.types';
 import { api } from '../../../shared/api/client';
+import { resolveMediaUrl } from '../../../shared/utils/mediaUrl';
 
 export const fetchSugerenciasGrafo = async (userId: string): Promise<SugerenciaUsuario[]> => {
   const response = await api.get<SugerenciaUsuario[]>(`/users/${userId}/sugerencias`);
-  return response.data;
+  return response.data.map((s) => ({
+    ...s,
+    avatar: resolveMediaUrl(s.avatar),
+  }));
 };
 
 export const fetchSeguidos = async (userId: string): Promise<Usuario[]> => {
   const response = await api.get<Usuario[]>(`/users/${userId}/follows`);
-  return response.data;
+  return response.data.map((u) => ({
+    ...u,
+    avatarUrl: resolveMediaUrl(u.avatarUrl),
+  }));
 };
 
 export const followUserInGraph = async (seguidorId: string, seguidoId: string): Promise<void> => {

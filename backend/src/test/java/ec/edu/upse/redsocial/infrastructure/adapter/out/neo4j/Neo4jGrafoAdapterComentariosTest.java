@@ -123,7 +123,7 @@ class Neo4jGrafoAdapterComentariosTest {
     void crearValidaYCrea() {
         runResponde(
                 cypher ->
-                        cypher.contains("EXISTS((:Usuario")
+                        cypher.contains("AS autorExiste")
                                 ? resultConFilas(validacion(true, true, true))
                                 : resultConFilas(filaComentario("com-1", null, false, 0)));
 
@@ -195,7 +195,7 @@ class Neo4jGrafoAdapterComentariosTest {
     void validacionDelPadreEsEstricta() {
         runResponde(
                 cypher ->
-                        cypher.contains("EXISTS((:Usuario")
+                        cypher.contains("AS autorExiste")
                                 ? resultConFilas(validacion(true, true, true))
                                 : resultConFilas(filaComentario("com-2", "com-1", false, 0)));
 

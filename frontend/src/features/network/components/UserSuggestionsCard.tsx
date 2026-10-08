@@ -4,6 +4,7 @@ import { FilaRed, esSugerencia } from '../types/network.types';
 import type { CaminoCorto } from '../types/network.types';
 import { fetchCaminoCorto, followUserInGraph, unfollowUserInGraph } from '../services/networkApi';
 import { getUserFacingError } from '../../../shared/utils/errorMessage';
+import { resolveMediaUrl } from '../../../shared/utils/mediaUrl';
 
 /**
  * Username comes from the graph in lowercase. The notice interpolates it into a
@@ -239,7 +240,7 @@ export const UserSuggestionsCard: React.FC<UserSuggestionsCardProps> = ({
             const seguido = seguidoVisible(fila);
             const error = errorPorId[fila.id];
             const cargando = enVuelo[fila.id] === true;
-            const avatarUrl = esSugerencia(fila) ? fila.avatar : fila.avatarUrl;
+            const avatarUrl = resolveMediaUrl(esSugerencia(fila) ? fila.avatar : fila.avatarUrl);
             const seguidosEnComun = esSugerencia(fila) ? fila.seguidosEnComun : null;
             const mostrarAvatar = Boolean(avatarUrl) && avatarCaido[fila.id] !== true;
             const distancia = distancias[fila.id];

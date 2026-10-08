@@ -4,6 +4,7 @@ import { submitPost } from '../services/feedApi';
 import { uploadAvatar } from '../../user/services/userApi';
 import { getUserFacingError } from '../../../shared/utils/errorMessage';
 import { THEME_LIST, getPostCardTheme } from '../utils/postThemes';
+import { resolveMediaUrl } from '../../../shared/utils/mediaUrl';
 
 interface CreatePostFormProps {
   currentUserId: string;
@@ -197,7 +198,7 @@ export const CreatePostForm: React.FC<CreatePostFormProps> = ({
         {mediaUrl && (
           <div className="mt-3 relative rounded-xl overflow-hidden border border-slateDark-borderSubtle bg-slateDark-surfaceSubtle">
             <img
-              src={mediaUrl}
+              src={resolveMediaUrl(mediaUrl)}
               alt="Vista previa de la imagen adjunta"
               className="w-full max-h-72 object-cover"
             />

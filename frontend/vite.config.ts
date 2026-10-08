@@ -15,6 +15,10 @@ export default defineConfig({
         target: 'ws://localhost:8080',
         ws: true,
       },
+      '/redsocial-media': {
+        target: 'http://localhost:9000',
+        changeOrigin: true,
+      },
     },
     watch: {
       usePolling: true,

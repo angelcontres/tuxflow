@@ -3,6 +3,7 @@ import { AlertCircle, Loader2, Search, X } from 'lucide-react';
 import { buscarUsuarios } from '../services/userApi';
 import type { ResultadoBusquedaUsuario } from '../types/user.types';
 import { getUserFacingError } from '../../../shared/utils/errorMessage';
+import { resolveMediaUrl } from '../../../shared/utils/mediaUrl';
 
 interface UserSearchBoxProps {
   /** Abre el perfil de la persona elegida. Es el mismo manejador de US-12. */
@@ -215,7 +216,7 @@ export const UserSearchBox: React.FC<UserSearchBoxProps> = ({ onOpenPerfil }) =>
                       {avatarVisible ? (
                         <div className="w-8 h-8 rounded-full overflow-hidden bg-slateDark-surfaceSubtle shrink-0 ring-1 ring-slateDark-border">
                           <img
-                            src={persona.avatarUrl}
+                            src={resolveMediaUrl(persona.avatarUrl)}
                             alt={`Avatar de @${persona.username}`}
                             className="w-full h-full object-cover"
                             onError={() =>

@@ -1,0 +1,96 @@
+# ==============================================================================
+# Red Social Distribuida - Despliegue Continuo (CD) en AWS (Self-Hosted Runner)
+# ==============================================================================
+
+name: CD - Despliegue en AWS
+
+on:
+  push:
+    branches: [main, develop]
+  # Permite ejecutar el despliegue manualmente desde la pestaña Actions en GitHub
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-aws
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Despliegue en AWS EC2 (Docker Compose)
+    runs-on: self-hosted
+    timeout-minutes: 25
+
+    steps:
+      - name: Descargar código fuente
+        uses: actions/checkout@v4
+
+      - name: Preparar servidor (Instalar Docker / Swap automáticamente si falta)
+        run: |
+          chmod +x setup-aws.sh
+          ./setup-aws.sh
+
+      - name: Configurar variables de entorno (.env)
+        run: |
+          if [ ! -f .env ]; then
+            touch .env
+          fi
+          # Aseguramos que FRONTEND_PORT esté definido
+          if ! grep -q "FRONTEND_PORT=" .env; then
+            echo "FRONTEND_PORT=3000" >> .env
+          fi
+          # Limpiamos cualquier endpoint con puerto :9000 para forzar ruta relativa limpia de Nginx
+          sed -i 's|S3_PUBLIC_ENDPOINT=.*|S3_PUBLIC_ENDPOINT=|g' .env 2>/dev/null || true
+          if ! grep -q "S3_PUBLIC_ENDPOINT=" .env; then
+            echo "S3_PUBLIC_ENDPOINT=" >> .env
+          fi
+          cat .env
+
+      - name: Desplegar contenedores con Docker Compose
+        run: |
+          echo "Deteniendo contenedores previos..."
+          docker compose down --remove-orphans
+
+          PROFILE_FLAG=""
+          if grep -q "CLOUDFLARE_TUNNEL_TOKEN=" .env 2>/dev/null && [ -n "$(grep CLOUDFLARE_TUNNEL_TOKEN .env | cut -d= -f2-)" ]; then
+            echo "Cloudflare Tunnel detectado. Activando perfil tunnel..."
+            PROFILE_FLAG="--profile tunnel"
+          fi
+
+          echo "Construyendo y levantando servicios actualizados..."
+          docker compose $PROFILE_FLAG up --build -d
+
+      - name: Esperar disponibilidad de Neo4j
+        run: |
+          echo "Esperando que Neo4j esté listo..."
+          RETRIES=35
+          NEO4J_READY=false
+          while [ $RETRIES -gt 0 ]; do
+            if docker exec redsocial-neo4j cypher-shell -u neo4j -p password123 "RETURN 1;" >/dev/null 2>&1; then
+              NEO4J_READY=true
+              break
+            fi
+            sleep 2
+            RETRIES=$((RETRIES-1))
+            echo "Esperando a Neo4j... (intentos restantes: $RETRIES)"
+          done
+
+          if [ "$NEO4J_READY" = false ]; then
+            echo "Error: Neo4j no respondió a tiempo."
+            exit 1
+          fi
+          echo "Neo4j está listo."
+
+      - name: Cargar datos semilla (Seed inicial)
+        run: |
+          chmod +x docker/seed.sh
+          if [ -f "docker/neo4j-seed.cql" ]; then
+            echo "Inyectando datos semilla en Neo4j..."
+            docker/seed.sh --wipe docker/neo4j-seed.cql || true
+          fi
+
+      - name: Verificar estado de los contenedores
+        run: |
+          echo "=== Contenedores en ejecución ==="
+          docker compose ps
+          echo "================================="
+          echo "Despliegue finalizado con éxito en AWS."
