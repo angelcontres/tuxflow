@@ -136,7 +136,8 @@
 
   /* Micro-levitación suave continua de burbuja */
   @keyframes bubbleFloatLoop {
-    0%, 100% {
+    0%,
+    100% {
       transform: translateY(0);
     }
     50% {
@@ -145,11 +146,15 @@
   }
 
   .animate-bubble-toast {
-    animation: bubbleRiseUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards, bubbleFloatLoop 3.6s ease-in-out infinite 0.45s;
+    animation:
+      bubbleRiseUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards,
+      bubbleFloatLoop 3.6s ease-in-out infinite 0.45s;
   }
 
   .animate-toast-float {
-    animation: bubbleRiseUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards, bubbleFloatLoop 3.6s ease-in-out infinite 0.45s;
+    animation:
+      bubbleRiseUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards,
+      bubbleFloatLoop 3.6s ease-in-out infinite 0.45s;
   }
 
   /* Animación suave de mensaje (foto + globo) que va subiendo al enviarse */
@@ -168,4 +173,3 @@
     animation: messageFloatUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 }
-
