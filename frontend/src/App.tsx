@@ -5,6 +5,7 @@ import { FeedList } from './features/feed/components/FeedList';
 import { UserSuggestionsCard } from './features/network/components/UserSuggestionsCard';
 import { TrendingSidebar } from './features/feed/components/TrendingSidebar';
 import { GraphExplorerModal } from './features/network/components/GraphExplorerModal';
+import { ConexionesComunesPanel } from './features/network/components/ConexionesComunesPanel';
 import { ChatWidget } from './features/chat/components/ChatWidget';
 import { PerfilAjeno } from './features/user/components/PerfilAjeno';
 import { LoginScreen } from './features/auth/components/LoginScreen';
@@ -230,6 +231,12 @@ const AppContent: React.FC = () => {
               onOpenGraphModal={() => setIsGraphModalOpen(true)}
             />
 
+            {/* Conexiones en común con otra persona */}
+            <ConexionesComunesPanel
+              currentUserId={currentUserId}
+              currentUsername={currentUsername}
+            />
+
             <TrendingSidebar currentUserId={currentUserId} />
 
             {/* Pie Informativo */}
@@ -241,8 +248,19 @@ const AppContent: React.FC = () => {
         </div>
       </main>
 
-      {/* Widget Flotante de Chat en Vivo (Dock en esquina inferior derecha) */}
+      {/*
+        Chat en Vivo por WebSocket. Va fuera del `main` porque es flotante de verdad: se fija a la
+        esquina con `position: fixed`, así que su lugar en el DOM solo sirve para declarar que
+        pertenece a la app y no a la barra lateral. Dentro de ella seguiría leyéndose como una
+        tarjeta más del sidebar.
+
+        `key={currentUserId}` fuerza que React desmonte el widget al cambiar de usuario y monte otro
+        limpio. Sin la clave, el componente se reutilizaría con las props nuevas y su efecto de
+        conexión ni volvería a correr, dejando el socket del usuario anterior vivo durante toda la
+        sesión: los mensajes seguirían llegando al chat de quien ya cerró su sesión.
+      */}
       <ChatWidget
+        key={currentUserId}
         currentUserId={currentUserId}
         isOpenExternal={isChatOpen}
         onToggleExternal={() => setIsChatOpen((prev) => !prev)}

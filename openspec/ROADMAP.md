@@ -234,7 +234,8 @@ Comprobados en `backend/src/main/java/ec/edu/upse/redsocial/`:
 | `toLower()` no quita acentos | consulta de búsqueda | **Corregido en US-14** con normalización en la consulta. Se descartaron tres alternativas que fallan en silencio; ver `odd/tasks/us-14-buscar-usuarios.md`. |
 | Búsqueda por `CONTAINS` es un escaneo de etiqueta | `Neo4jGrafoAdapter` | Aceptable para miles de nodos. La respuesta es un índice de texto completo de Neo4j, que además exige decidir si pliega acentos. |
 | `currentUserId` fijo en código | `frontend/src/App.tsx:13` | `'carlos-patino'`. `US-01`. |
-| `emisorId` vacío en el chat | `frontend/src/features/chat/services/chatSocket.ts:36` | `US-07`, después de `US-01`. |
+| `emisorId` vacío en el chat | `frontend/src/features/chat/services/chatSocket.ts:36` | **Corregido en US-07**: el cliente ya no lo envía y el servidor toma la identidad de la ruta de conexión, que es la única fuente fiable. |
+| Canal de chat sin autenticar | `backend/.../in/websocket/ChatWebSocket.java` | `US-07` abre `/chat/{userId}` creyendo el identificador de la ruta: cualquiera que lo adivine entra como ese usuario, lee su historial y le escribe. Es deuda de seguridad asumida de forma explícita, no un descuido: el ticket de US-07 la dejaba fuera y cerrar el canal exige un token de sesión para WebSocket que hoy no existe. |
 | Sin restricción de unicidad en reacciones | backend | Permite reaccionar dos veces; rompe el conteo de `US-11`. `US-06`. |
 | No se expone la clave pública VAPID | backend | `registerWebPush(vapidPublicKey)` nunca recibe valor. `US-08`. |
 | Llaves VAPID de ejemplo | arranque | No son claves válidas. `US-08`. |

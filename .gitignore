@@ -15,6 +15,9 @@ dist-ssr/
 *.local
 coverage/
 
+# Artefactos de sesión del navegador con el que se verifica a mano
+.playwright-mcp/
+
 # IDEs & OS
 .idea/
 *.iml

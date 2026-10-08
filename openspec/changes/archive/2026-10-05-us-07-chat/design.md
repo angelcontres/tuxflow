@@ -92,14 +92,78 @@ falso es peor que un indicador ausente, porque el usuario deja de mirar la seña
 funciona. Un estado que parpadea durante la reconexión comunica la verdad sin exigir que el usuario
 adivine.
 
+### D7. Un usuario puede tener varias sesiones abiertas a la vez
+
+**Decisión**: el registro pasa de `Map<String, Session>` a `Map<String, Set<Session>>`, con una
+instancia de `CanalChatPort` propia en infraestructura.
+
+**Por qué importa**: el mapa actual sobrescribe la sesión cuando el mismo usuario abre una segunda
+pestaña, y `@OnClose` / `@OnError` retiran la clave del usuario sin comprobar a qué sesión
+pertenecía. El resultado es que cerrar la segunda pestaña desregistra la primera, y el usuario deja
+de recibir mensajes sin haber cerrado nada: un fallo que solo aparece con dos pestañas del mismo
+usuario y que por eso no se ve probando con dos personas distintas.
+
+**Alternativas consideradas**:
+
+- *Dejar el mapa como estaba*: se descarta por el motivo anterior.
+- *Cerrar la sesión anterior al abrir una nueva*: rompe el caso legítimo de dos pestañas, que es
+  justo el que la prueba de consola del ticket provoca al abrir el mismo usuario en dos ventanas.
+
+**Consecuencia**: la clave del usuario desaparece solo cuando su conjunto de sesiones queda vacío. El
+endpoint WebSocket pasa a ser un adaptador delgado que delega el registro, porque el registro es
+infraestructura de canal y no dominio.
+
+### D8. La validación y el estado de entrega no se filtran al dominio del mensaje
+
+**Decisión**: `MensajeChat` describe lo que se persiste (emisor, destinatario, contenido, marca de
+tiempo, identificador). El estado de entrega vive en `ResultadoEnvio`, en el dominio pero fuera del
+mensaje, y el frame de transporte lo añade el adaptador.
+
+**Por qué importa**: `NO_ENTREGADO` es una propiedad del instante del envío, no del mensaje. Si se
+guardara en `MensajeChat`, el grafo tendría un mensaje marcado como no entregado que en el historial
+se lee igual que un mensaje entregado, y el cliente no tendría forma de saber en qué momento se
+decidió el estado.
+
+**Consecuencia**: `ChatApplicationService` no conoce `jakarta.websocket`. Recibe un caso de uso, lo
+ejecuta y devuelve un `ResultadoEnvio`; quién lo traduce a bytes es del adaptador. Eso además lo hace
+pruebable sin levantar el contenedor.
+
+**Consecuencia del formato del frame**: el mismo tipo serializa los dos sentidos, con dos fábricas:
+una para el frame que va al destinatario y otra para el acuse. La diferencia no es solo qué campos
+se rellenan, es que el destinatario NO puede recibir `estado`. Ese campo es la única señal con la que
+el cliente distingue un acuse de un mensaje nuevo, así que si el frame de entrega lo trajera, el
+cliente buscaría la burbuja a la que corresponde ese id, no hallaría ninguna porque el mensaje aún no
+se dibujó en su pantalla, y lo descartaría. El resultado sería que el destinatario no ve nunca los
+mensajes que le envían, sin error en ninguna capa: el servidor escribió, el emisor recibió un acuse de
+entrega y solo falta el mensaje en el otro lado. Por eso los nulos no se serializan tampoco, con
+`@JsonInclude(NON_NULL)` en el DTO y no confiando en la configuración global de Jackson, que es ajena
+a este contrato.
+
+### D9. El widget es flotante, y eso cambia su montaje
+
+**Decisión**: el widget se monta fuera de la barra lateral, como botón lanzador fijo en la esquina
+inferior derecha con panel expandible.
+
+**Por qué importa**: el ticket pide un componente flotante, y una tarjeta más en la barra lateral
+compite por el espacio con los paneles de sugerencias, conexiones en común y perfil. Flotante, el
+chat está disponible sobre cualquier vista, incluido el perfil ajeno, sin empujar el resto del
+layout.
+
+**Consecuencia**: se modifica `App.tsx`, que este change antes declaraba fuera de alcance. Es una
+decisión consciente: la restricción original protegía el layout ya documentado por US-09, US-10 y
+US-12, y con el montaje flotante ese layout deja de cambiar. El componente sigue recibiendo
+`currentUserId` como propiedad y no lee identidad por su cuenta.
+
 ## Estructura resultante
 
 El historial llega por HTTP y el tiempo real por WebSocket, con el socket como único camino de los
 mensajes nuevos. El estado de conexión vive en el servicio porque es compartido, y el componente solo
-lo refleja.
+lo refleja. El caso de uso de aplicación orquesta validar, persistir y despachar sin conocer ni el
+socket ni el grafo.
 
 ## Verificación
 
-- `cd backend && mvn compile`
-- `cd frontend && pnpm run build`
-- Prueba de consola del navegador del ticket, con dos pestañas y dos identidades distintas.
+- `cd backend && $MAVEN_HOME/bin/mvn verify` — compila, ejecuta Spotless, SpotBugs y Surefire
+- `cd frontend && pnpm run check` — `format:check`, `lint`, `test` y `build`
+- Prueba de consola del navegador del ticket, con dos pestañas y dos identidades distintas
+- Prueba de dos pestañas del **mismo** usuario, que es la que expone el defecto de D7
