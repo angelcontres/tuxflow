@@ -7,6 +7,7 @@ import {
   CheckCheck,
   CheckCircle2,
   ChevronUp,
+  ChevronRight,
   Clock,
   Loader2,
   MessageSquare,
@@ -22,6 +23,7 @@ import { ChatMessage, ConversacionChat, EstadoChat, FilaChat } from '../types/ch
 import { chatSocketManager } from '../services/chatSocket';
 import { obtenerConversaciones, obtenerHistorial } from '../services/chatApi';
 import { fetchSeguidos } from '../../network/services/networkApi';
+import { fetchUsuario } from '../../user/services/userApi';
 import { resolveMediaUrl } from '../../../shared/utils/mediaUrl';
 
 const EMOJIS_RAPIDOS = ['❤️', '🔥', '👍', '😂', '🎉', '🚀', '👋', '✨'];
@@ -175,6 +177,7 @@ export function fusionarFilas(
 
 export interface ChatWidgetProps {
   currentUserId: string;
+  currentUserAvatar?: string;
   isOpenExternal?: boolean;
   onToggleExternal?: () => void;
   onCloseExternal?: () => void;
@@ -182,6 +185,7 @@ export interface ChatWidgetProps {
 
 export const ChatWidget: React.FC<ChatWidgetProps> = ({
   currentUserId,
+  currentUserAvatar,
   isOpenExternal,
   onToggleExternal,
   onCloseExternal,
@@ -189,6 +193,20 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
   // Apertura: la controla App si pasa las props, y si no el propio widget.
   const [internalIsOpen, setInternalIsOpen] = useState<boolean>(false);
   const isOpen = isOpenExternal !== undefined ? isOpenExternal : internalIsOpen;
+
+  const [myAvatarUrl, setMyAvatarUrl] = useState<string | undefined>(currentUserAvatar);
+
+  useEffect(() => {
+    if (currentUserAvatar) {
+      setMyAvatarUrl(currentUserAvatar);
+      return;
+    }
+    if (currentUserId) {
+      fetchUsuario(currentUserId)
+        .then((u) => setMyAvatarUrl(u.avatarUrl))
+        .catch(() => {});
+    }
+  }, [currentUserId, currentUserAvatar]);
 
   const [activeView, setActiveView] = useState<'inbox' | 'conversation'>('inbox');
   const [contactoActivo, setContactoActivo] = useState<FilaChat | null>(null);
@@ -207,6 +225,8 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
   // Toast de notificación flotante para mensajes entrantes en segundo plano
   const [incomingToast, setIncomingToast] = useState<{
     emisorId: string;
+    nombre?: string;
+    avatarUrl?: string;
     contenido: string;
   } | null>(null);
 
@@ -218,6 +238,8 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
   const isOpenRef = useRef(isOpen);
   const contactoActivoRef = useRef(contactoActivo);
   const activeViewRef = useRef(activeView);
+  const filasRef = useRef(filas);
+  filasRef.current = filas;
 
   /**
    * Interlocutor vigente, legible desde el manejador del socket.
@@ -298,13 +320,21 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
 
     if (llegaDeOtro && estaEnOtroChat) {
       setUnreadCount((c) => c + 1);
-      setIncomingToast({ emisorId: nuevo.emisorId, contenido: nuevo.contenido });
+      const contacto = filasRef.current.find(
+        (f) => f.id.toLowerCase() === nuevo.emisorId.toLowerCase(),
+      );
+      setIncomingToast({
+        emisorId: nuevo.emisorId,
+        nombre: contacto?.nombre || contacto?.username,
+        avatarUrl: contacto?.avatarUrl,
+        contenido: nuevo.contenido,
+      });
 
-      // Auto-cerrar toast tras 6 segundos
+      // Auto-cerrar toast tras 7 segundos
       const contenido = nuevo.contenido;
       setTimeout(() => {
         setIncomingToast((prev) => (prev?.contenido === contenido ? null : prev));
-      }, 6000);
+      }, 7000);
     }
   };
 
@@ -587,66 +617,119 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
   }, [mensajes, contactoActivo]);
 
   return (
-    <div className="fixed bottom-0 right-4 sm:right-6 z-50">
-      {/* 1. TOAST FLOTANTE DE FEEDBACK PARA MENSAJE ENTRANTE */}
+    <div
+      className={
+        isOpen
+          ? 'fixed inset-0 sm:inset-auto sm:bottom-0 sm:right-6 z-50 flex flex-col justify-end pointer-events-none'
+          : 'fixed bottom-4 right-4 sm:bottom-0 sm:right-6 z-50'
+      }
+    >
+      {/* 1. NOTIFICACIÓN POPUP: BURBUJA FLOTANTE UNIFICADA Y ELEGANTE */}
       {incomingToast && (
         <div
           role="status"
           aria-live="polite"
-          style={{ backgroundColor: 'rgb(var(--color-surface))' }}
-          className="absolute bottom-14 right-0 w-80 sm:w-88 p-3 rounded-2xl bg-white dark:bg-[#27272A] border border-slate-200 dark:border-zinc-700 shadow-2xl flex items-center justify-between gap-3 text-xs text-slate-900 dark:text-zinc-100 animate-in slide-in-from-bottom-2 fade-in duration-200 z-50"
+          onClick={() => {
+            const contacto = filas.find(
+              (fila) => fila.id.toLowerCase() === incomingToast.emisorId.toLowerCase(),
+            ) || {
+              id: incomingToast.emisorId,
+              username: incomingToast.emisorId,
+              nombre: incomingToast.nombre || incomingToast.emisorId,
+              avatarUrl: incomingToast.avatarUrl,
+              conMensajes: true,
+              ultimoMensaje: incomingToast.contenido,
+              fechaUltimoMensaje: Date.now(),
+            };
+            handleSeleccionarConversacion(contacto);
+            if (!isOpen) handleToggle();
+            setIncomingToast(null);
+          }}
+          className="pointer-events-auto absolute bottom-20 sm:bottom-16 right-2 sm:right-0 max-w-[calc(100vw-2rem)] w-84 sm:w-92 z-50 animate-bubble-toast cursor-pointer select-none group"
         >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shrink-0 ring-1 ring-indigo-400/40 shadow-xs">
-              {incomingToast.emisorId.charAt(0).toUpperCase()}
+          <div
+            style={{ backgroundColor: 'rgb(var(--color-surface))' }}
+            className="flex items-center gap-3 p-3 sm:p-3.5 rounded-2xl sm:rounded-3xl bg-white/95 dark:bg-[#1C1C20]/95 backdrop-blur-xl border border-slate-200/90 dark:border-zinc-700/80 shadow-[0_12px_36px_rgba(0,0,0,0.12),0_4px_12px_rgba(99,102,241,0.08)] group-hover:shadow-[0_16px_40px_rgba(0,0,0,0.16),0_6px_16px_rgba(99,102,241,0.15)] group-hover:border-indigo-500/40 transition-all duration-200"
+          >
+            {/* Burbuja con Foto/Avatar del Remitente */}
+            <div className="relative shrink-0">
+              <div className="w-11 h-11 rounded-full overflow-hidden ring-2 ring-indigo-500/25 shadow-sm bg-slate-100 dark:bg-zinc-800 flex items-center justify-center transition-transform duration-200 group-hover:scale-105">
+                {incomingToast.avatarUrl ? (
+                  <img
+                    src={resolveMediaUrl(incomingToast.avatarUrl)}
+                    alt={incomingToast.nombre || incomingToast.emisorId}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white flex items-center justify-center font-bold text-sm">
+                    {(incomingToast.nombre || incomingToast.emisorId).charAt(0).toUpperCase()}
+                  </div>
+                )}
+              </div>
+              <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-zinc-900" />
             </div>
-            <div className="min-w-0">
-              <p className="font-semibold text-slate-900 dark:text-zinc-100 truncate flex items-center gap-1">
-                <span>@{incomingToast.emisorId}</span>
-                <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-normal">
+
+            {/* Contenido del Mensaje */}
+            <div className="flex-1 min-w-0 pr-1">
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <span className="font-semibold text-xs text-slate-900 dark:text-zinc-100 truncate">
+                  {incomingToast.nombre || `@${incomingToast.emisorId}`}
+                </span>
+                <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium px-1.5 py-0.2 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/60 dark:border-indigo-800/40 shrink-0">
                   te escribió
                 </span>
-              </p>
-              <p className="text-[11px] text-slate-500 dark:text-zinc-400 truncate">
+              </div>
+              <p className="text-xs text-slate-600 dark:text-zinc-300 line-clamp-2 leading-relaxed break-words font-sans">
                 {incomingToast.contenido}
               </p>
             </div>
-          </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              type="button"
-              onClick={() => {
-                const contacto = filas.find(
-                  (fila) => fila.id.toLowerCase() === incomingToast.emisorId.toLowerCase(),
-                ) || {
-                  id: incomingToast.emisorId,
-                  username: incomingToast.emisorId,
-                  nombre: incomingToast.emisorId,
-                  conMensajes: true,
-                  ultimoMensaje: incomingToast.contenido,
-                  fechaUltimoMensaje: Date.now(),
-                };
-                handleSeleccionarConversacion(contacto);
-                if (!isOpen) handleToggle();
-              }}
-              className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-semibold cursor-pointer transition-colors shadow-xs active:scale-95"
-            >
-              Ver
-            </button>
-            <button
-              type="button"
-              onClick={() => setIncomingToast(null)}
-              aria-label="Descartar notificación"
-              className="p-1 text-slate-400 hover:text-slate-600 dark:text-zinc-400 dark:hover:text-zinc-100 rounded-md cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
+            {/* Acciones: Cerrar y Ver */}
+            <div className="flex flex-col items-end justify-between shrink-0 self-stretch gap-1.5">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIncomingToast(null);
+                }}
+                aria-label="Descartar notificación"
+                className="p-1 text-slate-400 hover:text-slate-600 dark:text-zinc-400 dark:hover:text-zinc-100 rounded-full hover:bg-slate-100 dark:hover:bg-zinc-800 cursor-pointer transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const contacto = filas.find(
+                    (fila) => fila.id.toLowerCase() === incomingToast.emisorId.toLowerCase(),
+                  ) || {
+                    id: incomingToast.emisorId,
+                    username: incomingToast.emisorId,
+                    nombre: incomingToast.nombre || incomingToast.emisorId,
+                    avatarUrl: incomingToast.avatarUrl,
+                    conMensajes: true,
+                    ultimoMensaje: incomingToast.contenido,
+                    fechaUltimoMensaje: Date.now(),
+                  };
+                  handleSeleccionarConversacion(contacto);
+                  if (!isOpen) handleToggle();
+                  setIncomingToast(null);
+                }}
+                className="px-2.5 py-0.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full text-[11px] font-semibold cursor-pointer transition-all shadow-xs active:scale-95 flex items-center gap-0.5"
+              >
+                <span>Ver</span>
+                <ChevronRight className="w-3 h-3" />
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* 2. BARRA MINIMIZADA (DOCK LIMPIO Y SÓLIDO) */}
+      {/* 2. BARRA MINIMIZADA (DOCK EN DESKTOP / BURBUJA FLOTANTE EN MÓVIL) */}
       {!isOpen && (
         <div
           onClick={handleToggle}
@@ -657,9 +740,28 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
           }}
           aria-label="Abrir mensajes directos"
           style={{ backgroundColor: 'rgb(var(--color-surface))' }}
-          className="w-72 sm:w-80 h-12 bg-white dark:bg-[#27272A] hover:bg-slate-50 dark:hover:bg-[#323236] border-t border-x border-slate-200/90 dark:border-zinc-800 rounded-t-2xl shadow-xl px-4 flex items-center justify-between cursor-pointer transition-all duration-200 select-none group"
+          className="w-14 h-14 rounded-full sm:w-80 sm:h-12 sm:rounded-t-2xl sm:rounded-b-none bg-white dark:bg-[#27272A] hover:bg-slate-50 dark:hover:bg-[#323236] border border-slate-200/90 dark:border-zinc-800 sm:border-b-0 shadow-2xl sm:shadow-xl px-0 sm:px-4 flex items-center justify-center sm:justify-between cursor-pointer transition-all duration-300 select-none group active:scale-95 sm:active:scale-100"
         >
-          <div className="flex items-center gap-2.5">
+          {/* Vista móvil: Botón circular flotante con badges y efecto burbuja */}
+          <div className="sm:hidden relative flex items-center justify-center w-full h-full">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white flex items-center justify-center shadow-md">
+              <MessageSquare className="w-5 h-5" />
+            </div>
+            <span
+              aria-hidden="true"
+              className={`absolute top-2 right-2 w-2.5 h-2.5 rounded-full ring-2 ring-white dark:ring-zinc-800 ${
+                conectado ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'
+              }`}
+            />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500 text-white animate-bounce shadow-md">
+                {unreadCount}
+              </span>
+            )}
+          </div>
+
+          {/* Vista desktop: Barra dock clásica */}
+          <div className="hidden sm:flex items-center gap-2.5">
             <div className="relative">
               <div className="w-7 h-7 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-xs">
                 <MessageSquare className="w-3.5 h-3.5" />
@@ -684,7 +786,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 text-slate-500 dark:text-zinc-400 group-hover:text-slate-900 dark:group-hover:text-zinc-100 transition-colors">
+          <div className="hidden sm:flex items-center gap-1.5 text-slate-500 dark:text-zinc-400 group-hover:text-slate-900 dark:group-hover:text-zinc-100 transition-colors">
             {!conectado && (
               <span className="text-[10px] text-amber-500 flex items-center gap-1 font-medium">
                 <AlertTriangle className="w-3 h-3" />
@@ -700,7 +802,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
       {isOpen && (
         <div
           style={{ backgroundColor: 'rgb(var(--color-surface))' }}
-          className="w-80 sm:w-96 h-[520px] bg-white dark:bg-[#18181B] border-t border-x border-slate-200/90 dark:border-zinc-800 rounded-t-2xl shadow-2xl flex flex-col overflow-hidden transition-all duration-300"
+          className="pointer-events-auto w-full h-[100dvh] sm:w-96 sm:h-[540px] bg-white dark:bg-[#18181B] sm:border-t sm:border-x border-slate-200/90 dark:border-zinc-800 sm:rounded-t-2xl shadow-2xl flex flex-col overflow-hidden transition-all duration-300 relative"
         >
           {/* Aviso si el canal de chat no está conectado */}
           {!conectado && (

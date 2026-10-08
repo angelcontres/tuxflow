@@ -98,4 +98,74 @@
   .animate-sparkle-burst {
     animation: sparkleBurst 0.6s ease-out forwards;
   }
+
+  /* Animación suave y elástica para entrada de mensajes en el chat */
+  @keyframes messagePop {
+    0% {
+      opacity: 0;
+      transform: scale(0.92) translateY(8px);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+
+  .animate-bubble-pop {
+    animation: messagePop 0.22s ease-out forwards;
+  }
+
+  /* Animación física de burbuja flotante que sube suavemente */
+  @keyframes bubbleRiseUp {
+    0% {
+      opacity: 0;
+      transform: translateY(36px) scale(0.92);
+      filter: blur(3px);
+    }
+    75% {
+      opacity: 1;
+      transform: translateY(-3px) scale(1.01);
+      filter: blur(0px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      filter: blur(0px);
+    }
+  }
+
+  /* Micro-levitación suave continua de burbuja */
+  @keyframes bubbleFloatLoop {
+    0%, 100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-4px);
+    }
+  }
+
+  .animate-bubble-toast {
+    animation: bubbleRiseUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards, bubbleFloatLoop 3.6s ease-in-out infinite 0.45s;
+  }
+
+  .animate-toast-float {
+    animation: bubbleRiseUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards, bubbleFloatLoop 3.6s ease-in-out infinite 0.45s;
+  }
+
+  /* Animación suave de mensaje (foto + globo) que va subiendo al enviarse */
+  @keyframes messageFloatUp {
+    0% {
+      opacity: 0;
+      transform: translateY(18px) scale(0.96);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  .animate-message-float-up {
+    animation: messageFloatUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
 }
+

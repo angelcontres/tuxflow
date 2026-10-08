@@ -11,6 +11,7 @@ import {
   Sun,
   Moon,
   Network,
+  Trash2,
 } from 'lucide-react';
 import { Usuario } from '../../features/user/types/user.types';
 import {
@@ -467,7 +468,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               {/* TAB 2: EDITAR PERFIL */}
               {activeTab === 'edit' && (
-                <form onSubmit={handleSaveProfile} className="space-y-4">
+                <form onSubmit={handleSaveProfile} noValidate className="space-y-4">
                   <div>
                     <label className="block text-xs font-medium text-slateDark-textMuted mb-1">
                       Nombre Completo
@@ -504,7 +505,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </label>
                       {editAvatarUrl && (
                         <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
-                          <Check className="w-3 h-3" /> Imagen cargada
+                          <Check className="w-3 h-3" /> Imagen seleccionada
                         </span>
                       )}
                     </div>
@@ -515,6 +516,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                           src={resolveMediaUrl(editAvatarUrl)}
                           alt="Avatar preview"
                           className="w-12 h-12 rounded-full object-cover ring-2 ring-slateDark-primary shrink-0"
+                          onError={(e) => {
+                            (e.target as HTMLElement).style.display = 'none';
+                          }}
                         />
                       ) : (
                         <div className="w-12 h-12 rounded-full bg-slateDark-surface text-slateDark-textMuted flex items-center justify-center font-bold shrink-0 border border-slateDark-borderSubtle">
@@ -522,7 +526,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         </div>
                       )}
 
-                      <div className="flex-1">
+                      <div className="flex-1 flex gap-2">
                         <input
                           type="file"
                           ref={editFileInputRef}
@@ -534,20 +538,31 @@ export const Navbar: React.FC<NavbarProps> = ({
                           type="button"
                           disabled={isUploadingEditAvatar}
                           onClick={() => editFileInputRef.current?.click()}
-                          className="w-full py-2 px-3 bg-slateDark-surface hover:bg-slateDark-surfaceSubtle border border-slateDark-border rounded-lg text-xs font-medium text-slateDark-text transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                          className="flex-1 py-2 px-3 bg-slateDark-surface hover:bg-slateDark-surfaceSubtle border border-slateDark-border rounded-lg text-xs font-medium text-slateDark-text transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
                         >
                           <Upload className="w-3.5 h-3.5 text-slateDark-primaryLight" />
                           {isUploadingEditAvatar ? 'Subiendo...' : 'Elegir imagen'}
                         </button>
+                        {editAvatarUrl && (
+                          <button
+                            type="button"
+                            onClick={() => setEditAvatarUrl('')}
+                            title="Quitar foto de perfil"
+                            className="py-2 px-2.5 bg-slateDark-surface hover:bg-rose-500/10 border border-slateDark-border hover:border-rose-500/30 rounded-lg text-xs font-medium text-slateDark-textMuted hover:text-rose-400 transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Quitar</span>
+                          </button>
+                        )}
                       </div>
                     </div>
 
                     <div>
                       <input
-                        type="url"
+                        type="text"
                         value={editAvatarUrl}
                         onChange={(e) => setEditAvatarUrl(e.target.value)}
-                        placeholder="O pega el enlace de una imagen"
+                        placeholder="O pega el enlace de una imagen (opcional)"
                         className="w-full px-3 py-1.5 text-xs bg-slateDark-surface border border-slateDark-border rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slateDark-text placeholder:text-slateDark-textMuted/50 font-mono"
                       />
                     </div>
