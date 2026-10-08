@@ -6,9 +6,10 @@ import { MessageSquareOff } from 'lucide-react';
 interface FeedListProps {
   posts: Post[];
   currentUserId: string;
+  onComentar?: (post: Post) => void;
 }
 
-export const FeedList: React.FC<FeedListProps> = ({ posts, currentUserId }) => {
+export const FeedList: React.FC<FeedListProps> = ({ posts, currentUserId, onComentar }) => {
   return (
     <div className="w-full space-y-4">
       {posts.length === 0 ? (
@@ -24,7 +25,14 @@ export const FeedList: React.FC<FeedListProps> = ({ posts, currentUserId }) => {
           </p>
         </div>
       ) : (
-        posts.map((post) => <PostCard key={post.id} post={post} currentUserId={currentUserId} />)
+        posts.map((post) => (
+          <PostCard
+            key={post.id}
+            post={post}
+            currentUserId={currentUserId}
+            onComentar={onComentar}
+          />
+        ))
       )}
     </div>
   );

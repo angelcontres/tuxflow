@@ -47,3 +47,36 @@ export interface Tendencia {
   totalReacciones: number;
   puntuacionNeta: number;
 }
+
+/**
+ * Comentario de una publicación (US (por definir)). `parentId` nulo lo identifica como comentario de primer
+ * nivel y no nulo como respuesta. El cliente agrupa con ese campo: la lista llega plana y ordenada
+ * del servidor.
+ */
+export interface Comentario {
+  id: string;
+  texto: string;
+  fechaCreacion: number;
+  parentId: string | null;
+  autorId: string;
+  autorUsername: string;
+  autorAvatar?: string;
+  totalLikes: number;
+  likedByMe: boolean;
+}
+
+/**
+ * Respuesta de registrar o retirar el like de un comentario. Los comentarios no tienen dislike, así
+ * que a diferencia de `ReactionResponse` sólo hay un total.
+ */
+export interface ComentarioLikeResponse {
+  comentarioId: string;
+  likedByMe: boolean;
+  totalLikes: number;
+}
+
+export interface CrearComentarioPayload {
+  userId: string;
+  texto: string;
+  parentId?: string;
+}

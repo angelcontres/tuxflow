@@ -5,6 +5,7 @@ import { FeedList } from './features/feed/components/FeedList';
 import { UserSuggestionsCard } from './features/network/components/UserSuggestionsCard';
 import { TrendingSidebar } from './features/feed/components/TrendingSidebar';
 import { GraphExplorerModal } from './features/network/components/GraphExplorerModal';
+import { ComentariosModal } from './features/feed/components/ComentariosModal';
 import { ConexionesComunesPanel } from './features/network/components/ConexionesComunesPanel';
 import { ChatWidget } from './features/chat/components/ChatWidget';
 import { PerfilAjeno } from './features/user/components/PerfilAjeno';
@@ -65,6 +66,8 @@ const AppContent: React.FC = () => {
   const [perfilAjenoId, setPerfilAjenoId] = useState<string | null>(null);
   const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
   const [isGraphModalOpen, setIsGraphModalOpen] = useState<boolean>(false);
+  // Publicación cuyo hilo de comentarios está abierto (US (por definir)), o null si no hay ninguno.
+  const [postComentado, setPostComentado] = useState<Post | null>(null);
 
   // Restaura la sesión con el token guardado. Sin esto, un refresh del
   // navegador (F5 o Ctrl+Shift+R) devolvía al usuario al login.
@@ -198,6 +201,7 @@ const AppContent: React.FC = () => {
                 onCerrar={handleCerrarPerfil}
                 onNetworkUpdated={loadAllData}
                 onOpenPerfil={handleOpenPerfil}
+                onComentar={setPostComentado}
               />
             ) : (
               <>
@@ -215,7 +219,11 @@ const AppContent: React.FC = () => {
                     </p>
                   </div>
                 ) : (
-                  <FeedList posts={posts} currentUserId={currentUserId} />
+                  <FeedList
+                    posts={posts}
+                    currentUserId={currentUserId}
+                    onComentar={setPostComentado}
+                  />
                 )}
               </>
             )}
@@ -266,6 +274,15 @@ const AppContent: React.FC = () => {
         onToggleExternal={() => setIsChatOpen((prev) => !prev)}
         onCloseExternal={() => setIsChatOpen(false)}
       />
+
+      {/* Hilo de comentarios de una publicación (US (por definir)) */}
+      {postComentado && (
+        <ComentariosModal
+          post={postComentado}
+          currentUserId={currentUserId}
+          onClose={() => setPostComentado(null)}
+        />
+      )}
 
       {/* Explorador Interactivo del Grafo Social TuxFlow */}
       {isGraphModalOpen && (

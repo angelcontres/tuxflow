@@ -8,11 +8,13 @@ import { isThemePost, extractThemeKey, getPostCardTheme } from '../utils/postThe
 interface PostCardProps {
   post: Post;
   currentUserId: string;
+  /** Abre el hilo de comentarios (US (por definir)). Sin este callback la tarjeta no muestra la acción. */
+  onComentar?: (post: Post) => void;
 }
 
 type TipoReaccion = 'like' | 'dislike';
 
-export const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
+export const PostCard: React.FC<PostCardProps> = ({ post, currentUserId, onComentar }) => {
   const [isLiked, setIsLiked] = useState<boolean>(post.likedByMe);
   const [likesCount, setLikesCount] = useState<number>(post.totalLikes);
   const [isDisliked, setIsDisliked] = useState<boolean>(post.dislikedByMe ?? false);
@@ -272,10 +274,17 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         </button>
 
         {/* Comentarios */}
-        <button className="flex items-center gap-1.5 hover:text-slateDark-primaryLight transition-colors cursor-pointer">
-          <MessageCircle className="w-4 h-4" />
-          <span>Comentar</span>
-        </button>
+        {onComentar && (
+          <button
+            type="button"
+            onClick={() => onComentar(post)}
+            aria-label="Comentar"
+            className="flex items-center gap-1.5 hover:text-slateDark-primaryLight transition-colors cursor-pointer"
+          >
+            <MessageCircle className="w-4 h-4" />
+            <span>Comentar</span>
+          </button>
+        )}
 
         {/* Compartir / Copiar Enlace */}
         <button
