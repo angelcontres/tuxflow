@@ -3,7 +3,7 @@
 > **Ticket Linear**: pendiente de verificar en Linear antes de crear la tarjeta. No se deduce de acá
 > (misma regla que US-13 y US-14). Última referencia conocida: `TUX-71` (US-14).
 > **Card backlog**: sin card en `docs/backlog-programadores.md`; nace como las tres anteriores.
-> **Rama**: `feature/US-por-definir-comentarios`
+> **Rama**: `feature/comentarios-en-publicaciones`
 > **Épica**: Contenido / Interacciones · **Dominio canónico**: `comments` · **Depende de**: US-04 (post
 > existe) y US-06 (patrón de reacciones idempotentes).
 
