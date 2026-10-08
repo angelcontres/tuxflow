@@ -1,9 +1,12 @@
 package ec.edu.upse.redsocial.infrastructure.adapter.out.neo4j;
 
 import ec.edu.upse.redsocial.domain.exception.AutorNoEncontradoException;
+import ec.edu.upse.redsocial.domain.exception.ComentarioNoEncontradoException;
 import ec.edu.upse.redsocial.domain.exception.ParticipanteNoEncontradoException;
 import ec.edu.upse.redsocial.domain.exception.PostNoEncontradoException;
+import ec.edu.upse.redsocial.domain.model.Comentario;
 import ec.edu.upse.redsocial.domain.model.ConversacionChat;
+import ec.edu.upse.redsocial.domain.model.EstadoComentario;
 import ec.edu.upse.redsocial.domain.model.EstadoReaccion;
 import ec.edu.upse.redsocial.domain.model.MensajeChat;
 import ec.edu.upse.redsocial.domain.model.NormalizadorTexto;
@@ -1496,6 +1499,238 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                             return res.next().get("id").asString();
                         }
                         return null;
+                    });
+        }
+    }
+
+    // --- Comentarios (US (por definir)) ---
+
+    /**
+     * Tope de seguridad de los comentarios que devuelve un hilo. No es una política de producto:
+     * igual que {@link #LIMITE_PUBLICACIONES_POR_PERFIL}, está por encima de lo que reúne cualquier
+     * publicación real de la comunidad. Cuando se supere, la respuesta correcta es paginar.
+     */
+    static final long LIMITE_COMENTARIOS_POR_POST = 500;
+
+    /**
+     * Comprueba en una sola lectura que las tres entidades de la creación existen y que el padre
+     * —si lo hay— es de primer nivel y de la misma publicación.
+     *
+     * <p>Sin esta comprobación previa, un {@code MATCH} que no encuentra el post o el padre no crea
+     * nada y la operación responde igual que si hubiera creado el comentario: un comentario
+     * fantasma que el usuario cree publicado. Y un padre de otra publicación crearía una respuesta
+     * que nunca aparecería en ningún hilo.
+     */
+    private static final String CYPHER_VALIDAR_COMENTARIO =
+            """
+            RETURN EXISTS { MATCH (:Usuario {id: $autorId}) } AS autorExiste,
+                   EXISTS { MATCH (:Post {id: $postId}) } AS postExiste,
+                   ($parentId IS NULL OR EXISTS {
+                       MATCH (padre:Comentario)-[:COMENTA_EN]->(:Post {id: $postId})
+                       WHERE padre.id = $parentId AND padre.parentId IS NULL
+                   }) AS padreValido
+            """;
+
+    /**
+     * Crea el nodo y sus dos relaciones. El {@code RETURN} trae los datos del autor, que ya están
+     * en la mano, para no tener que releer el comentario recién creado sólo para pintarlo.
+     */
+    private static final String CYPHER_CREAR_COMENTARIO =
+            """
+            MATCH (u:Usuario {id: $autorId}), (p:Post {id: $postId})
+            CREATE (c:Comentario {
+                id: $comentarioId,
+                texto: $texto,
+                fechaCreacion: datetime().epochMillis,
+                parentId: $parentId
+            })
+            CREATE (u)-[:COMENTA]->(c)
+            CREATE (c)-[:COMENTA_EN]->(p)
+            RETURN c.id AS id, c.texto AS texto, c.fechaCreacion AS fecha, c.parentId AS parentId,
+                   u.id AS autorId, u.username AS autorUsername, u.avatarUrl AS autorAvatar
+            """;
+
+    @Override
+    public Comentario crearComentario(
+            String autorId, String comentarioId, String postId, String texto, String parentId) {
+        try (var session = driver.session()) {
+            return session.executeWrite(
+                    tx -> {
+                        var parametros =
+                                Values.parameters(
+                                        "autorId", autorId,
+                                        "comentarioId", comentarioId,
+                                        "postId", postId,
+                                        "texto", texto,
+                                        "parentId", parentId);
+                        Record validacion = tx.run(CYPHER_VALIDAR_COMENTARIO, parametros).next();
+                        // El orden importa: si el autor no existe, el 404 honesto es "el autor no
+                        // existe" y no "el recurso no existe" a secas.
+                        if (!validacion.get("autorExiste").asBoolean()) {
+                            throw new AutorNoEncontradoException(autorId);
+                        }
+                        if (!validacion.get("postExiste").asBoolean()) {
+                            throw new PostNoEncontradoException(postId);
+                        }
+                        if (!validacion.get("padreValido").asBoolean()) {
+                            throw new ComentarioNoEncontradoException(parentId);
+                        }
+                        var resultado = tx.run(CYPHER_CREAR_COMENTARIO, parametros);
+                        // La validación acaba de confirmar que ambos existen; si aun así no hay
+                        // fila, el grafo cambió entre las dos consultas y no se puede responder 201
+                        // con un comentario que no se creó.
+                        if (!resultado.hasNext()) {
+                            throw new PostNoEncontradoException(postId);
+                        }
+                        Comentario creado = new Comentario();
+                        poblarComentario(creado, resultado.next());
+                        // Un comentario recién creado no tiene likes, ni del visor ni de nadie.
+                        creado.setTotalLikes(0);
+                        creado.setLikedByMe(false);
+                        return creado;
+                    });
+        }
+    }
+
+    @Override
+    public List<Comentario> obtenerComentariosDePost(String postId, String viewerId) {
+        // ORDER BY ASC: el hilo se lee de arriba hacia abajo, del comentario más antiguo al más
+        // reciente, que es como Instagram web presenta el hilo. Un DESC obligaría al cliente a
+        // invertir la lista para agrupar respuestas bajo su padre.
+        //
+        // Igual que en obtenerPostsDeUsuario, el visor va en OPTIONAL MATCH y no en WHERE: sin
+        // visor
+        // la consulta tiene que devolver el hilo completo con likedByMe en false, no vacío.
+        String cypher =
+                """
+            MATCH (c:Comentario)-[:COMENTA_EN]->(p:Post {id: $postId})
+            MATCH (autor:Usuario)-[:COMENTA]->(c)
+            OPTIONAL MATCH (reactor:Usuario)-[:REACCIONA {tipo: 'LIKE'}]->(c)
+            OPTIONAL MATCH (visor:Usuario {id: $viewerId})
+            RETURN c.id AS id,
+                   c.texto AS texto,
+                   c.fechaCreacion AS fecha,
+                   c.parentId AS parentId,
+                   autor.id AS autorId,
+                   autor.username AS autorUsername,
+                   autor.avatarUrl AS autorAvatar,
+                   count(DISTINCT reactor) AS totalLikes,
+                   EXISTS((visor)-[:REACCIONA {tipo: 'LIKE'}]->(c)) AS likedByMe
+            ORDER BY c.fechaCreacion ASC
+            LIMIT $limite
+            """;
+        try (var session = driver.session()) {
+            return session.executeRead(
+                    tx -> {
+                        var resultado =
+                                tx.run(
+                                        cypher,
+                                        Values.parameters(
+                                                "postId",
+                                                postId,
+                                                "viewerId",
+                                                viewerId == null || viewerId.isBlank()
+                                                        ? null
+                                                        : viewerId,
+                                                "limite",
+                                                LIMITE_COMENTARIOS_POR_POST));
+                        List<Comentario> comentarios = new ArrayList<>();
+                        while (resultado.hasNext()) {
+                            comentarios.add(mapearComentario(resultado.next()));
+                        }
+                        return comentarios;
+                    });
+        }
+    }
+
+    private static Comentario mapearComentario(Record record) {
+        Comentario c = new Comentario();
+        poblarComentario(c, record);
+        c.setTotalLikes(record.get("totalLikes").asLong());
+        c.setLikedByMe(record.get("likedByMe").asBoolean());
+        return c;
+    }
+
+    /** Campos comunes a la creación y a la lectura: id, texto, fecha, padre y autor. */
+    private static void poblarComentario(Comentario c, Record record) {
+        c.setId(record.get("id").asString());
+        c.setTexto(record.get("texto").asString());
+        c.setFechaCreacion(record.get("fecha").asLong());
+        // parentId es null en un comentario de primer nivel: hay que comprobarlo o asString() sobre
+        // un NullValue devuelve la cadena "null" y el cliente anidaría la respuesta bajo un padre
+        // inexistente.
+        Value parent = record.get("parentId");
+        c.setParentId(parent == null || parent.isNull() ? null : parent.asString());
+        c.setAutorId(record.get("autorId").asString());
+        c.setAutorUsername(record.get("autorUsername").asString());
+        Value avatar = record.get("autorAvatar");
+        c.setAutorAvatar(avatar == null || avatar.isNull() ? null : avatar.asString());
+    }
+
+    /**
+     * Like de comentario con {@code MERGE}: repetirlo no duplica la relación y {@code ON CREATE
+     * SET} conserva la fecha del primer like. El centinela {@code count(c)} distingue el comentario
+     * ausente del comentario sin likes, porque una agregación sin agrupamiento siempre devuelve una
+     * fila.
+     */
+    private static final String CYPHER_LIKE_COMENTARIO =
+            """
+            MATCH (u:Usuario {id: $userId}), (c:Comentario {id: $comentarioId})
+            MERGE (u)-[r:REACCIONA {tipo: 'LIKE'}]->(c)
+            ON CREATE SET r.fecha = timestamp()
+            WITH c
+            OPTIONAL MATCH (c)<-[rl:REACCIONA {tipo: 'LIKE'}]-(:Usuario)
+            RETURN count(DISTINCT rl) AS totalLikes, count(c) AS encontrados
+            """;
+
+    @Override
+    public EstadoComentario registrarLikeComentario(String userId, String comentarioId) {
+        try (var session = driver.session()) {
+            return session.executeWrite(
+                    tx -> {
+                        Record fila =
+                                tx.run(
+                                                CYPHER_LIKE_COMENTARIO,
+                                                Values.parameters(
+                                                        "userId", userId,
+                                                        "comentarioId", comentarioId))
+                                        .next();
+                        if (fila.get("encontrados").asLong() == 0) {
+                            throw new ComentarioNoEncontradoException(comentarioId);
+                        }
+                        return new EstadoComentario((int) fila.get("totalLikes").asLong(), true);
+                    });
+        }
+    }
+
+    @Override
+    public EstadoComentario retirarLikeComentario(String userId, String comentarioId) {
+        String borrado =
+                """
+            MATCH (u:Usuario {id: $userId})-[r:REACCIONA {tipo: 'LIKE'}]->(c:Comentario {id: $comentarioId})
+            DELETE r
+            """;
+        String conteo =
+                """
+            MATCH (c:Comentario {id: $comentarioId})
+            OPTIONAL MATCH (c)<-[rl:REACCIONA {tipo: 'LIKE'}]-(:Usuario)
+            RETURN count(DISTINCT rl) AS totalLikes, count(c) AS encontrados
+            """;
+        try (var session = driver.session()) {
+            return session.executeWrite(
+                    tx -> {
+                        tx.run(
+                                        borrado,
+                                        Values.parameters(
+                                                "userId", userId, "comentarioId", comentarioId))
+                                .consume();
+                        Record fila =
+                                tx.run(conteo, Values.parameters("comentarioId", comentarioId))
+                                        .next();
+                        // Idempotente, igual que la retirada de like de un post: borrar lo que no
+                        // existe (o sobre un comentario inexistente) responde con el estado en cero
+                        // en vez de fallar.
+                        return new EstadoComentario((int) fila.get("totalLikes").asLong(), false);
                     });
         }
     }

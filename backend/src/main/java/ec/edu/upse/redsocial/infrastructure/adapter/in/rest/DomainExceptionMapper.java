@@ -1,6 +1,7 @@
 package ec.edu.upse.redsocial.infrastructure.adapter.in.rest;
 
 import ec.edu.upse.redsocial.domain.exception.AutorNoEncontradoException;
+import ec.edu.upse.redsocial.domain.exception.ComentarioNoEncontradoException;
 import ec.edu.upse.redsocial.domain.exception.PostNoEncontradoException;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -30,6 +31,21 @@ public class DomainExceptionMapper implements ExceptionMapper<AutorNoEncontradoE
 
         @Override
         public Response toResponse(PostNoEncontradoException exception) {
+            return notFound();
+        }
+    }
+
+    /**
+     * El comentario ausente comparte el 404 genérico, incluido el caso de un padre de respuesta que
+     * no existe o que cuelga de otra publicación: desde fuera el recurso pedido no está donde se
+     * dijo, y el identificador interno no se repite.
+     */
+    @Provider
+    public static class ComentarioNoEncontradoMapper
+            implements ExceptionMapper<ComentarioNoEncontradoException> {
+
+        @Override
+        public Response toResponse(ComentarioNoEncontradoException exception) {
             return notFound();
         }
     }

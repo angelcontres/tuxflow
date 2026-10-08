@@ -29,6 +29,8 @@ interface PerfilAjenoProps {
   onNetworkUpdated: () => void;
   /** Abre el perfil de otra persona desde una lista de este perfil. */
   onOpenPerfil: (usuarioId: string) => void;
+  /** Abre el hilo de comentarios de una publicación (US (por definir)). */
+  onComentar?: (post: Post) => void;
 }
 
 /**
@@ -63,6 +65,7 @@ export const PerfilAjeno: React.FC<PerfilAjenoProps> = ({
   onCerrar,
   onNetworkUpdated,
   onOpenPerfil,
+  onComentar,
 }) => {
   const [perfil, setPerfil] = useState<Estado<Usuario>>({ tipo: 'inicial' });
   const [publicaciones, setPublicaciones] = useState<Estado<Post[]>>({ tipo: 'inicial' });
@@ -422,7 +425,12 @@ export const PerfilAjeno: React.FC<PerfilAjenoProps> = ({
                 perfil de alguien. En cualquier red social se reacciona desde el perfil, y reutilizar
                 el componente evita que las dos vistas vuelvan a divergir. */}
             {publicaciones.datos.map((post) => (
-              <PostCard key={post.id} post={post} currentUserId={viewerId} />
+              <PostCard
+                key={post.id}
+                post={post}
+                currentUserId={viewerId}
+                onComentar={onComentar}
+              />
             ))}
           </div>
         )}

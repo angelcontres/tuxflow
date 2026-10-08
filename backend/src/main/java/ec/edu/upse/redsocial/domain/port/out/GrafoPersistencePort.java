@@ -1,7 +1,9 @@
 package ec.edu.upse.redsocial.domain.port.out;
 
 import ec.edu.upse.redsocial.domain.exception.PostNoEncontradoException;
+import ec.edu.upse.redsocial.domain.model.Comentario;
 import ec.edu.upse.redsocial.domain.model.ConversacionChat;
+import ec.edu.upse.redsocial.domain.model.EstadoComentario;
 import ec.edu.upse.redsocial.domain.model.EstadoReaccion;
 import ec.edu.upse.redsocial.domain.model.MensajeChat;
 import ec.edu.upse.redsocial.domain.model.Post;
@@ -183,4 +185,50 @@ public interface GrafoPersistencePort {
     List<String> obtenerSeguidoresId(String autorId);
 
     String obtenerAutorDePost(String postId);
+
+    /**
+     * Crea un comentario y lo devuelve completo, con autor y fecha.
+     *
+     * <p>El autor y la publicación se localizan con {@code MATCH}, nunca con {@code CREATE}: un
+     * comentario no inventa ni a quien lo escribe ni la publicación que comenta. Si el autor o el
+     * post no existen la operación falla en vez de crear contenido huérfano.
+     *
+     * <p>{@code parentId} es opcional. Cuando llega, tiene que apuntar a un comentario de primer
+     * nivel colgado de la misma publicación; si no, se rechaza como {@link
+     * ec.edu.upse.redsocial.domain.exception.ComentarioNoEncontradoException}.
+     *
+     * @throws ec.edu.upse.redsocial.domain.exception.AutorNoEncontradoException si el autor no
+     *     existe
+     * @throws PostNoEncontradoException si la publicación no existe
+     * @throws ec.edu.upse.redsocial.domain.exception.ComentarioNoEncontradoException si el padre no
+     *     es válido
+     */
+    Comentario crearComentario(
+            String autorId, String comentarioId, String postId, String texto, String parentId);
+
+    /**
+     * Comentarios de una publicación, del más antiguo al más reciente.
+     *
+     * <p>{@code viewerId} es opcional y sólo cambia {@code likedByMe}; los totales no dependen de
+     * quién mira.
+     */
+    List<Comentario> obtenerComentariosDePost(String postId, String viewerId);
+
+    /**
+     * Registra {@code [:REACCIONA {tipo:'LIKE'}]} de un usuario hacia un comentario, idempotente.
+     *
+     * <p>Reutiliza el mismo tipo de relación que los posts: el label del nodo destino distingue el
+     * objetivo y todas las consultas de posts ya están tipadas a {@code :Post}. No hay dislike de
+     * comentarios, así que no hay reacción contraria que limpiar.
+     *
+     * @return el total de likes tras registrar
+     * @throws ec.edu.upse.redsocial.domain.exception.ComentarioNoEncontradoException si no existe
+     */
+    EstadoComentario registrarLikeComentario(String userId, String comentarioId);
+
+    /**
+     * Retira el like de un comentario. Idempotente: retirar lo que no existe (o sobre un comentario
+     * inexistente) devuelve el estado en ceros sin lanzar excepción.
+     */
+    EstadoComentario retirarLikeComentario(String userId, String comentarioId);
 }

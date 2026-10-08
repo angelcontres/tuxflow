@@ -9,6 +9,7 @@ MATCH (n) DETACH DELETE n;
 // 2. Constraints de Unicidad
 CREATE CONSTRAINT unique_user_id IF NOT EXISTS FOR (u:Usuario) REQUIRE u.id IS UNIQUE;
 CREATE CONSTRAINT unique_post_id IF NOT EXISTS FOR (p:Post) REQUIRE p.id IS UNIQUE;
+CREATE CONSTRAINT unique_comentario_id IF NOT EXISTS FOR (c:Comentario) REQUIRE c.id IS UNIQUE;
 
 // 3. Nodos de Usuarios
 CREATE (carlos:Usuario {
@@ -152,6 +153,45 @@ CREATE (david)-[:PUBLICA]->(pd1);
 MATCH (carlos:Usuario {id: 'carlos-patino'}), (angel:Usuario {id: 'angel-villon'}), (pb1:Post {id: 'post-b1'})
 CREATE (carlos)-[:REACCIONA {tipo: 'LIKE', fecha: datetime().epochMillis - 7000000}]->(pb1)
 CREATE (angel)-[:REACCIONA {tipo: 'LIKE', fecha: datetime().epochMillis - 7100000}]->(pb1);
+
+// 6.5 Comentarios [:COMENTA] + [:COMENTA_EN] + likes de comentario [:REACCIONA] (US-15)
+//
+// Un hilo de ejemplo en post-b1: dos comentarios de primer nivel y una respuesta colgando del
+// primero, con parentId. Sirve para comprobar tres cosas de golpe:
+//   * el orden ASC del hilo,
+//   * que una respuesta se anida bajo su padre por `parentId`,
+//   * que el like de un comentario es el mismo [:REACCIONA] que el de un post pero apuntando a
+//     un nodo :Comentario.
+MATCH (beatriz:Usuario {id: 'beatriz-silva'}), (paulo:Usuario {id: 'paulo-orrala'}), (carlos:Usuario {id: 'carlos-patino'}), (pb1:Post {id: 'post-b1'})
+CREATE (com1:Comentario {
+    id: 'com-b1-1',
+    texto: 'Excelente iniciativa, felicitaciones al equipo 👏',
+    fechaCreacion: datetime().epochMillis - 6800000,
+    parentId: null
+})
+CREATE (com2:Comentario {
+    id: 'com-b1-2',
+    texto: '¿Ya está disponible la parte de grafos?',
+    fechaCreacion: datetime().epochMillis - 6600000,
+    parentId: null
+})
+CREATE (com3:Comentario {
+    id: 'com-b1-3',
+    texto: 'Sí, mírala en el explorador de red 🙌',
+    fechaCreacion: datetime().epochMillis - 6400000,
+    parentId: 'com-b1-1'
+})
+CREATE (paulo)-[:COMENTA]->(com1)
+CREATE (carlos)-[:COMENTA]->(com2)
+CREATE (beatriz)-[:COMENTA]->(com3)
+CREATE (com1)-[:COMENTA_EN]->(pb1)
+CREATE (com2)-[:COMENTA_EN]->(pb1)
+CREATE (com3)-[:COMENTA_EN]->(pb1);
+
+MATCH (paulo:Usuario {id: 'paulo-orrala'}), (carlos:Usuario {id: 'carlos-patino'}), (com1:Comentario {id: 'com-b1-1'})
+CREATE (carlos)-[:REACCIONA {tipo: 'LIKE', fecha: datetime().epochMillis - 6300000}]->(com1)
+CREATE (paulo)-[:REACCIONA {tipo: 'LIKE', fecha: datetime().epochMillis - 6200000}]->(com1);
+
 
 // 7. Publicaciones de tendencias (US-11 / TUX-62): 47 posts más, para un total de 50.
 //

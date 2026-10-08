@@ -437,4 +437,24 @@ describe('PostCard', () => {
       expect(screen.getByText('B')).toBeInTheDocument();
     });
   });
+
+  describe('acción de comentar', () => {
+    it('llama al callback con la publicación al pulsar Comentar', async () => {
+      const usuario = userEvent.setup();
+      const onComentar = vi.fn();
+      const publicacion = post({ id: 'p-comentar' });
+
+      render(<PostCard post={publicacion} currentUserId="carlos-patino" onComentar={onComentar} />);
+
+      await usuario.click(screen.getByRole('button', { name: 'Comentar' }));
+
+      expect(onComentar).toHaveBeenCalledWith(publicacion);
+    });
+
+    it('no muestra la acción si no se entrega el callback', () => {
+      render(<PostCard post={post()} currentUserId="carlos-patino" />);
+
+      expect(screen.queryByRole('button', { name: 'Comentar' })).not.toBeInTheDocument();
+    });
+  });
 });
