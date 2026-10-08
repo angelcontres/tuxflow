@@ -1,0 +1,128 @@
+# ==============================================================================
+# Red Social Distribuida - Entorno de Producción (AWS EC2 + Cloudflare Tunnel)
+# ==============================================================================
+
+version: '3.8'
+
+services:
+  # Base de Datos de Grafos (Neo4j)
+  neo4j:
+    image: neo4j:5.20-community
+    container_name: redsocial-neo4j
+    ports:
+      - "7474:7474" # Web Browser UI
+      - "7687:7687" # Protocolo Bolt
+    environment:
+      - NEO4J_AUTH=neo4j/password123
+      - NEO4J_PLUGINS=["apoc"]
+    volumes:
+      - neo4j_data:/data
+    networks:
+      - red-distribuida
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "password123", "RETURN 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Object Storage compatible con S3 (MinIO)
+  minio:
+    image: docker.io/elestio/minio:latest
+    container_name: redsocial-minio
+    ports:
+      - "9000:9000" # API S3
+      - "9001:9001" # Consola Web
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+      - MINIO_BROWSER=off
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - red-distribuida
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Inicializador automático del Bucket en MinIO
+  minio-init:
+    image: docker.io/elestio/minio:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - red-distribuida
+    entrypoint: >
+      /bin/sh -c "
+      set -eu &&
+      mc --version &&
+      mc alias set local http://minio:9000 minioadmin minioadmin &&
+      mc mb local/redsocial-media --ignore-existing &&
+      mc anonymous set download local/redsocial-media
+      "
+
+  # Backend Quarkus (Java 21)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.jvm
+    container_name: redsocial-backend
+    ports:
+      - "8080:8080"
+    environment:
+      - QUARKUS_NEO4J_URI=bolt://neo4j:7687
+      - QUARKUS_NEO4J_AUTHENTICATION_USERNAME=neo4j
+      - QUARKUS_NEO4J_AUTHENTICATION_PASSWORD=password123
+      - S3_ENDPOINT=http://minio:9000
+      - S3_PUBLIC_ENDPOINT=${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
+      - S3_BUCKET=redsocial-media
+      - S3_ACCESS_KEY=minioadmin
+      - S3_SECRET_KEY=minioadmin
+      - VAPID_PUBLIC_KEY=BGw-ejemploClavePublicaVAPID...
+      - VAPID_PRIVATE_KEY=ejemploClavePrivadaVAPID...
+      - VAPID_SUBJECT=mailto:admin@redsocial.edu.ec
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    networks:
+      - red-distribuida
+
+  # Frontend React (Vite + Nginx)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: redsocial-frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      - backend
+    networks:
+      - red-distribuida
+
+  # Cloudflare Tunnel (Opcional - se activa con --profile tunnel si se define CLOUDFLARE_TUNNEL_TOKEN)
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: redsocial-tunnel
+    restart: unless-stopped
+    profiles:
+      - tunnel
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:-}
+    networks:
+      - red-distribuida
+
+networks:
+  red-distribuida:
+    driver: bridge
+
+volumes:
+  neo4j_data:
+  minio_data:
