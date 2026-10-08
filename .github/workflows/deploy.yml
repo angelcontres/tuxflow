@@ -32,14 +32,16 @@ jobs:
       - name: Configurar variables de entorno (.env)
         run: |
           if [ ! -f .env ]; then
-            echo "Generando archivo .env inicial para AWS..."
-            # Obtener IP pública de la instancia AWS
-            PUBLIC_IP=$(curl -s https://checkip.amazonaws.com || curl -s ifconfig.me || echo "localhost")
-            echo "IP pública detectada: $PUBLIC_IP"
-            echo "FRONTEND_PORT=3000" > .env
-            echo "S3_PUBLIC_ENDPOINT=http://${PUBLIC_IP}:9000" >> .env
-          else
-            echo "Archivo .env detectado, conservando configuración existente."
+            touch .env
+          fi
+          # Aseguramos que FRONTEND_PORT esté definido
+          if ! grep -q "FRONTEND_PORT=" .env; then
+            echo "FRONTEND_PORT=3000" >> .env
+          fi
+          # Limpiamos cualquier endpoint con puerto :9000 para forzar ruta relativa limpia de Nginx
+          sed -i 's|S3_PUBLIC_ENDPOINT=.*|S3_PUBLIC_ENDPOINT=|g' .env 2>/dev/null || true
+          if ! grep -q "S3_PUBLIC_ENDPOINT=" .env; then
+            echo "S3_PUBLIC_ENDPOINT=" >> .env
           fi
           cat .env
 

@@ -1,15 +1,26 @@
 import { ResultadoBusquedaUsuario, Usuario } from '../types/user.types';
 import { Post } from '../../feed/types/post.types';
 import { api } from '../../../shared/api/client';
+import { resolveMediaUrl } from '../../../shared/utils/mediaUrl';
 
 export const fetchUsuario = async (userId: string): Promise<Usuario> => {
   const response = await api.get<Usuario>(`/users/${userId}`);
-  return response.data;
+  return {
+    ...response.data,
+    avatarUrl: resolveMediaUrl(response.data.avatarUrl),
+  };
 };
 
 export const registerOrUpdateUsuario = async (usuario: Usuario): Promise<Usuario> => {
-  const response = await api.post<Usuario>('/users', usuario);
-  return response.data;
+  const payload = {
+    ...usuario,
+    avatarUrl: resolveMediaUrl(usuario.avatarUrl),
+  };
+  const response = await api.post<Usuario>('/users', payload);
+  return {
+    ...response.data,
+    avatarUrl: resolveMediaUrl(response.data.avatarUrl),
+  };
 };
 
 export const uploadAvatar = async (file: File, userId?: string): Promise<{ avatarUrl: string }> => {
@@ -21,7 +32,7 @@ export const uploadAvatar = async (file: File, userId?: string): Promise<{ avata
       'Content-Type': 'multipart/form-data',
     },
   });
-  return response.data;
+  return { avatarUrl: resolveMediaUrl(response.data.avatarUrl) || response.data.avatarUrl };
 };
 
 /**
@@ -59,7 +70,10 @@ export const fetchPostsDeUsuario = async (userId: string, viewerId?: string): Pr
  */
 export const fetchMiPerfil = async (): Promise<Usuario> => {
   const response = await api.get<Usuario>('/auth/me');
-  return response.data;
+  return {
+    ...response.data,
+    avatarUrl: resolveMediaUrl(response.data.avatarUrl),
+  };
 };
 
 /**
@@ -71,7 +85,10 @@ export const fetchMiPerfil = async (): Promise<Usuario> => {
  */
 export const fetchSeguidores = async (userId: string): Promise<Usuario[]> => {
   const response = await api.get<Usuario[]>(`/users/${userId}/followers`);
-  return response.data;
+  return response.data.map((u) => ({
+    ...u,
+    avatarUrl: resolveMediaUrl(u.avatarUrl),
+  }));
 };
 
 /**
@@ -97,5 +114,8 @@ export const buscarUsuarios = async (
     params: { q: texto },
     signal,
   });
-  return response.data;
+  return response.data.map((u) => ({
+    ...u,
+    avatarUrl: resolveMediaUrl(u.avatarUrl),
+  }));
 };

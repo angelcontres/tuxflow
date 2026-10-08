@@ -62,6 +62,14 @@ public class MinioS3StorageAdapter implements StorageMultimediaPort {
                     e);
         }
 
-        return publicEndpoint + "/" + bucketName + "/" + key;
+        String base =
+                (publicEndpoint != null
+                                && !publicEndpoint.isBlank()
+                                && !publicEndpoint.contains(":9000"))
+                        ? (publicEndpoint.endsWith("/")
+                                ? publicEndpoint.substring(0, publicEndpoint.length() - 1)
+                                : publicEndpoint)
+                        : "";
+        return base + "/" + bucketName + "/" + key;
     }
 }
