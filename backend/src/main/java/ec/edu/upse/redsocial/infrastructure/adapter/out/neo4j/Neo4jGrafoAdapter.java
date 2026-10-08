@@ -1523,8 +1523,8 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
      */
     private static final String CYPHER_VALIDAR_COMENTARIO =
             """
-            RETURN EXISTS((:Usuario {id: $autorId})) AS autorExiste,
-                   EXISTS((:Post {id: $postId})) AS postExiste,
+            RETURN EXISTS { MATCH (:Usuario {id: $autorId}) } AS autorExiste,
+                   EXISTS { MATCH (:Post {id: $postId}) } AS postExiste,
                    ($parentId IS NULL OR EXISTS {
                        MATCH (padre:Comentario)-[:COMENTA_EN]->(:Post {id: $postId})
                        WHERE padre.id = $parentId AND padre.parentId IS NULL
