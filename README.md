@@ -10,10 +10,10 @@
 > 👉 **[https://app.tuxeros.website/](https://app.tuxeros.website/)**
 >
 > *Cuentas de prueba preconfiguradas:*
-> - Usuario: `carlos` | Contraseña: `password123`
-> - Usuario: `paulo` | Contraseña: `password123`
-> - Usuario: `elena` | Contraseña: `password123`
-> - Usuario: `angel` | Contraseña: `password123`
+> - Usuario: `carlos` | Contraseña: `carlos123`
+> - Usuario: `paulo` | Contraseña: `paulo123`
+> - Usuario: `elena` | Contraseña: `elena123`
+> - Usuario: `angel` | Contraseña: `angel123`
 
 ---
 
