@@ -498,11 +498,7 @@ describe('PostCard', () => {
       const publicacion = post({ autorId: 'u-99', autorUsername: 'elena' });
 
       render(
-        <PostCard
-          post={publicacion}
-          currentUserId="carlos-patino"
-          onOpenPerfil={onOpenPerfil}
-        />,
+        <PostCard post={publicacion} currentUserId="carlos-patino" onOpenPerfil={onOpenPerfil} />,
       );
 
       await usuario.click(screen.getByRole('button', { name: '@elena' }));

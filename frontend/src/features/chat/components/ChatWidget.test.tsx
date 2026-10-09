@@ -344,7 +344,9 @@ describe('ChatWidget', () => {
       await userEvent.type(campoBusqueda(), 'fantasma');
       await userEvent.click(screen.getByRole('button', { name: /iniciar chat con @fantasma/i }));
 
-      expect(await screen.findByText(/el usuario "@fantasma" no existe en tuxflow/i)).toBeInTheDocument();
+      expect(
+        await screen.findByText(/el usuario "@fantasma" no existe en tuxflow/i),
+      ).toBeInTheDocument();
       expect(screen.queryByPlaceholderText(/escribe un mensaje/i)).not.toBeInTheDocument();
     });
 

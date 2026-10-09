@@ -598,7 +598,6 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
   const tiempoFila = (fila: FilaChat): string =>
     fila.conMensajes ? formatearHora(fila.fechaUltimoMensaje) : '';
 
-
   const filasVisibles = useMemo(() => {
     const texto = normalizar(busqueda);
     return filas.filter((fila) => {
@@ -844,8 +843,6 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
               </button>
             </div>
           )}
-
-
 
           {/* === VISTA A: BANDEJA DE ENTRADA (LISTA DE CONVERSACIONES) === */}
           {activeView === 'inbox' && (
@@ -1288,11 +1285,14 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
                                 {noEntregado && (
                                   <span
                                     className="inline-flex items-center gap-0.5"
-                                    title={m.motivo || 'Enviado al servidor (destinatario no conectado)'}
+                                    title={
+                                      m.motivo || 'Enviado al servidor (destinatario no conectado)'
+                                    }
                                   >
                                     <Check className="w-3 h-3 text-slate-400 dark:text-zinc-400" />
                                     <span className="sr-only">
-                                      {m.motivo || 'El destinatario no está conectado. El mensaje quedó guardado.'}
+                                      {m.motivo ||
+                                        'El destinatario no está conectado. El mensaje quedó guardado.'}
                                     </span>
                                   </span>
                                 )}
