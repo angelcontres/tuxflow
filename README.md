@@ -70,7 +70,7 @@ Puedes probar y ejecutar la red social de tres formas según tu necesidad:
 ### **Opción 0: En la Nube (Sin instalar nada) 🌐**
 Si deseas probar la aplicación de inmediato sin configurar nada en tu máquina:
 👉 **[https://app.tuxeros.website/](https://app.tuxeros.website/)**  
-*(Cuentas: `carlos` / `paulo` / `elena` / `angel`, contraseña: `password123`)*
+*(Cuentas: `carlos` / `paulo` / `elena` / `angel`, contraseña: `<nombre>123`)*
 
 ---
 
