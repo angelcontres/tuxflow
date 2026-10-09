@@ -65,7 +65,7 @@ jobs:
           RETRIES=35
           NEO4J_READY=false
           while [ $RETRIES -gt 0 ]; do
-            if docker exec redsocial-neo4j cypher-shell -u neo4j -p password123 "RETURN 1;" >/dev/null 2>&1; then
+            if docker exec redsocial-neo4j cypher-shell -a bolt://localhost:7687 -u neo4j -p password123 "RETURN 1;" >/dev/null 2>&1; then
               NEO4J_READY=true
               break
             fi
@@ -84,7 +84,7 @@ jobs:
         run: |
           chmod +x docker/seed.sh
           # Consultamos la cantidad de nodos de usuario existentes en Neo4j
-          USER_COUNT=$(docker exec redsocial-neo4j cypher-shell -u neo4j -p password123 --format plain "MATCH (u:Usuario) RETURN count(u);" 2>/dev/null | tail -n 1 | tr -d '[:space:]' || echo "0")
+          USER_COUNT=$(docker exec redsocial-neo4j cypher-shell -a bolt://localhost:7687 -u neo4j -p password123 --format plain "MATCH (u:Usuario) RETURN count(u);" 2>/dev/null | tail -n 1 | tr -d '[:space:]' || echo "0")
           echo "Usuarios encontrados en la base de datos: ${USER_COUNT:-0}"
           if [ "$USER_COUNT" = "0" ] || [ -z "$USER_COUNT" ]; then
             if [ -f "docker/neo4j-seed.cql" ]; then
@@ -101,3 +101,13 @@ jobs:
           docker compose ps
           echo "================================="
           echo "Despliegue finalizado con éxito en AWS."
+
+      - name: Diagnóstico en caso de error
+        if: failure()
+        run: |
+          echo "=== Estado detallado de contenedores ==="
+          docker compose ps -a || true
+          echo "=== Logs de Neo4j ==="
+          docker logs redsocial-neo4j --tail 50 || true
+          echo "=== Logs del Backend ==="
+          docker logs redsocial-backend --tail 50 || true
