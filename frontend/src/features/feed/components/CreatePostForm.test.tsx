@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CreatePostForm } from './CreatePostForm';
 import { submitPost } from '../services/feedApi';
@@ -153,5 +153,68 @@ describe('CreatePostForm', () => {
       ).toBeInTheDocument();
     });
     expect(screen.queryByText(/status code/i)).not.toBeInTheDocument();
+  });
+
+  it('permite arrastrar y soltar (drag and drop) una imagen para adjuntarla', async () => {
+    const { container } = render(
+      <CreatePostForm
+        currentUserId="angelprueba-1"
+        currentUsername="angelprueba"
+        onPostCreated={vi.fn()}
+      />,
+    );
+    const dropzone = container.firstChild as HTMLElement;
+    const file = new File(['drag-content'], 'arrastrada.png', { type: 'image/png' });
+
+    // Drag enter activa el overlay
+    fireEvent.dragEnter(dropzone, {
+      dataTransfer: {
+        items: [{ kind: 'file', type: 'image/png' }],
+        types: ['Files'],
+      },
+    });
+
+    expect(screen.getByTestId('drag-overlay')).toBeInTheDocument();
+    expect(screen.getByText('Suelta tu imagen aquí para adjuntarla')).toBeInTheDocument();
+
+    // Drop adjunta el archivo
+    fireEvent.drop(dropzone, {
+      dataTransfer: {
+        files: [file],
+      },
+    });
+
+    await waitFor(() => {
+      expect(uploadAvatarMock).toHaveBeenCalledWith(file);
+      expect(screen.getByAltText('Vista previa de la imagen adjunta')).toBeInTheDocument();
+    });
+  });
+
+  it('permite pegar una imagen con Ctrl+V para adjuntarla', async () => {
+    const { container } = render(
+      <CreatePostForm
+        currentUserId="angelprueba-1"
+        currentUsername="angelprueba"
+        onPostCreated={vi.fn()}
+      />,
+    );
+    const dropzone = container.firstChild as HTMLElement;
+    const file = new File(['paste-content'], 'pegada.png', { type: 'image/png' });
+
+    fireEvent.paste(dropzone, {
+      clipboardData: {
+        items: [
+          {
+            type: 'image/png',
+            getAsFile: () => file,
+          },
+        ],
+      },
+    });
+
+    await waitFor(() => {
+      expect(uploadAvatarMock).toHaveBeenCalledWith(file);
+      expect(screen.getByAltText('Vista previa de la imagen adjunta')).toBeInTheDocument();
+    });
   });
 });

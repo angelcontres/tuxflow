@@ -135,8 +135,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                 {/* LOGIN */}
                 <div className="p-6 space-y-4">
                   {error && (
-                    <div className="p-3 rounded-lg bg-rose-950/40 border border-rose-800/60 flex items-center gap-2.5 text-xs font-medium text-rose-300">
-                      <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                    <div
+                      role="alert"
+                      className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800/60 flex items-center gap-2.5 text-xs font-medium text-rose-700 dark:text-rose-300"
+                    >
+                      <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
                       <span>{error}</span>
                     </div>
                   )}
@@ -224,8 +227,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                   </div>
 
                   {error && (
-                    <div className="p-3 rounded-lg bg-rose-950/40 border border-rose-800/60 flex items-center gap-2.5 text-xs font-medium text-rose-300">
-                      <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                    <div
+                      role="alert"
+                      className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800/60 flex items-center gap-2.5 text-xs font-medium text-rose-700 dark:text-rose-300"
+                    >
+                      <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
                       <span>{error}</span>
                     </div>
                   )}

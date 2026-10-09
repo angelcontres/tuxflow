@@ -60,12 +60,25 @@ export const UserSearchBox: React.FC<UserSearchBoxProps> = ({ onOpenPerfil }) =>
   const [estado, setEstado] = useState<Estado>({ tipo: 'inactivo' });
   const [avatarsCaidos, setAvatarsCaidos] = useState<Record<string, boolean>>({});
 
+  const inputRef = useRef<HTMLInputElement>(null);
   // El controlador de la petición en vuelo. Vive en un ref y no en estado porque cambiar el
   // AbortController no debe provocar un render: sólo se usa para abortar.
   const peticionRef = useRef<AbortController | null>(null);
   // Sólo se pinta la respuesta de la última petición. Sin esto, la respuesta de "beat" puede llegar
   // después de la de "beatriz" y ganar, y se ve el resultado de un texto que ya no está en el campo.
   const secuenciaRef = useRef<number>(0);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   useEffect(() => {
     const limpio = texto.trim();
@@ -144,6 +157,7 @@ export const UserSearchBox: React.FC<UserSearchBoxProps> = ({ onOpenPerfil }) =>
       <div className="relative">
         <Search className="w-4 h-4 text-slateDark-textMuted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
         <input
+          ref={inputRef}
           id="buscar-usuarios"
           type="text"
           value={texto}
@@ -153,8 +167,13 @@ export const UserSearchBox: React.FC<UserSearchBoxProps> = ({ onOpenPerfil }) =>
           role="combobox"
           aria-expanded={abierto}
           aria-controls="buscar-usuarios-resultados"
-          className="w-full pl-9 pr-8 py-2 text-xs rounded-lg border border-slateDark-border bg-slateDark-surfaceSubtle text-slateDark-text placeholder:text-slateDark-textMuted/60 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          className="w-full pl-9 pr-14 py-2 text-xs rounded-lg border border-slateDark-border bg-slateDark-surfaceSubtle text-slateDark-text placeholder:text-slateDark-textMuted/60 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
         />
+        {texto.length === 0 && (
+          <kbd className="hidden sm:inline-flex items-center gap-0.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono text-slateDark-textMuted/60 bg-slateDark-surface border border-slateDark-borderSubtle px-1.5 py-0.5 rounded pointer-events-none select-none">
+            Ctrl K
+          </kbd>
+        )}
         {texto.length > 0 && (
           <button
             type="button"
@@ -192,7 +211,7 @@ export const UserSearchBox: React.FC<UserSearchBoxProps> = ({ onOpenPerfil }) =>
           {estado.tipo === 'error' && (
             <p
               role="alert"
-              className="px-3 py-3 text-xs text-rose-400 flex items-start gap-2 bg-rose-950/20"
+              className="px-3 py-3 text-xs text-rose-700 dark:text-rose-400 flex items-start gap-2 bg-rose-50 dark:bg-rose-950/20"
             >
               <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" />
               <span>{estado.mensaje}</span>

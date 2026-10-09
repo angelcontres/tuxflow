@@ -457,4 +457,59 @@ describe('PostCard', () => {
       expect(screen.queryByRole('button', { name: 'Comentar' })).not.toBeInTheDocument();
     });
   });
+
+  describe('visor de imágenes (lightbox)', () => {
+    it('abre el visor a pantalla completa al pulsar la imagen y lo cierra con el botón', async () => {
+      const usuario = userEvent.setup();
+      const publicacion = post({ mediaUrl: 'https://ejemplo.com/foto-alta.jpg' });
+
+      render(<PostCard post={publicacion} currentUserId="carlos-patino" />);
+
+      // La imagen inicial está presente
+      const imagen = screen.getByAltText('Contenido multimedia');
+      expect(imagen).toBeInTheDocument();
+
+      // Al pulsar, se abre el diálogo de pantalla completa
+      await usuario.click(imagen);
+      expect(screen.getByRole('dialog', { name: 'Visor de imagen' })).toBeInTheDocument();
+      expect(screen.getByAltText('Imagen ampliada a pantalla completa')).toBeInTheDocument();
+
+      // Al pulsar el botón de cerrar, el diálogo desaparece
+      await usuario.click(screen.getByRole('button', { name: 'Cerrar visor' }));
+      expect(screen.queryByRole('dialog', { name: 'Visor de imagen' })).not.toBeInTheDocument();
+    });
+
+    it('cierra el visor de pantalla completa al presionar Escape', async () => {
+      const usuario = userEvent.setup();
+      const publicacion = post({ mediaUrl: 'https://ejemplo.com/foto-alta.jpg' });
+
+      render(<PostCard post={publicacion} currentUserId="carlos-patino" />);
+
+      await usuario.click(screen.getByAltText('Contenido multimedia'));
+      expect(screen.getByRole('dialog', { name: 'Visor de imagen' })).toBeInTheDocument();
+
+      fireEvent.keyDown(window, { key: 'Escape' });
+      expect(screen.queryByRole('dialog', { name: 'Visor de imagen' })).not.toBeInTheDocument();
+    });
+
+    it('invoca onOpenPerfil con el id del autor al hacer clic en el nombre o avatar', async () => {
+      const usuario = userEvent.setup();
+      const onOpenPerfil = vi.fn();
+      const publicacion = post({ autorId: 'u-99', autorUsername: 'elena' });
+
+      render(
+        <PostCard
+          post={publicacion}
+          currentUserId="carlos-patino"
+          onOpenPerfil={onOpenPerfil}
+        />,
+      );
+
+      await usuario.click(screen.getByRole('button', { name: '@elena' }));
+      expect(onOpenPerfil).toHaveBeenCalledWith('u-99');
+
+      await usuario.click(screen.getByRole('button', { name: 'Ver perfil de @elena' }));
+      expect(onOpenPerfil).toHaveBeenCalledTimes(2);
+    });
+  });
 });

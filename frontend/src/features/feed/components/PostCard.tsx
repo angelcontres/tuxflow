@@ -1,5 +1,15 @@
-import React, { useState } from 'react';
-import { Heart, MessageCircle, Share2, ThumbsDown, Check, Quote, Sparkles } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import {
+  Heart,
+  MessageCircle,
+  Share2,
+  ThumbsDown,
+  Check,
+  Quote,
+  Sparkles,
+  Maximize2,
+  X,
+} from 'lucide-react';
 import { Post, ReactionResponse } from '../types/post.types';
 import { dislikePost, likePost, undislikePost, unlikePost } from '../services/feedApi';
 import { formatFecha } from '../utils/formatFecha';
@@ -11,11 +21,18 @@ interface PostCardProps {
   currentUserId: string;
   /** Abre el hilo de comentarios (US (por definir)). Sin este callback la tarjeta no muestra la acción. */
   onComentar?: (post: Post) => void;
+  /** Abre el perfil del usuario (US-06). */
+  onOpenPerfil?: (usuarioId: string) => void;
 }
 
 type TipoReaccion = 'like' | 'dislike';
 
-export const PostCard: React.FC<PostCardProps> = ({ post, currentUserId, onComentar }) => {
+export const PostCard: React.FC<PostCardProps> = ({
+  post,
+  currentUserId,
+  onComentar,
+  onOpenPerfil,
+}) => {
   const [isLiked, setIsLiked] = useState<boolean>(post.likedByMe);
   const [likesCount, setLikesCount] = useState<number>(post.totalLikes);
   const [isDisliked, setIsDisliked] = useState<boolean>(post.dislikedByMe ?? false);
@@ -25,6 +42,16 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUserId, onComen
   const [errorReaccion, setErrorReaccion] = useState<string | null>(null);
   const [copiado, setCopiado] = useState<boolean>(false);
   const [showSparkles, setShowSparkles] = useState<boolean>(false);
+  const [isLightboxOpen, setIsLightboxOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!isLightboxOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsLightboxOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isLightboxOpen]);
 
   const handleCompartir = async () => {
     try {
@@ -162,23 +189,53 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUserId, onComen
     <article className="bg-slateDark-surface rounded-xl border border-slateDark-borderSubtle shadow-xs p-5 mb-4 hover:border-slateDark-border hover:shadow-md transition-all duration-200">
       {/* Header del Post */}
       <div className="flex items-center gap-3 mb-3">
-        <div className="w-10 h-10 rounded-full bg-slateDark-primary text-white flex items-center justify-center font-bold text-sm overflow-hidden shrink-0 shadow-xs ring-1 ring-slateDark-border">
-          {mostrarAvatar && avatarUrl ? (
-            <img
-              src={avatarUrl}
-              alt={post.autorUsername}
-              className="w-full h-full object-cover"
-              onError={() => setAvatarCaido(true)}
-            />
-          ) : (
-            initial
-          )}
-        </div>
+        {onOpenPerfil ? (
+          <button
+            type="button"
+            onClick={() => onOpenPerfil(post.autorId)}
+            aria-label={`Ver perfil de @${post.autorUsername}`}
+            className="w-10 h-10 rounded-full bg-slateDark-primary text-white flex items-center justify-center font-bold text-sm overflow-hidden shrink-0 shadow-xs ring-1 ring-slateDark-border cursor-pointer hover:ring-2 hover:ring-indigo-500 hover:opacity-95 transition-all"
+          >
+            {mostrarAvatar && avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={post.autorUsername}
+                className="w-full h-full object-cover"
+                onError={() => setAvatarCaido(true)}
+              />
+            ) : (
+              initial
+            )}
+          </button>
+        ) : (
+          <div className="w-10 h-10 rounded-full bg-slateDark-primary text-white flex items-center justify-center font-bold text-sm overflow-hidden shrink-0 shadow-xs ring-1 ring-slateDark-border">
+            {mostrarAvatar && avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={post.autorUsername}
+                className="w-full h-full object-cover"
+                onError={() => setAvatarCaido(true)}
+              />
+            ) : (
+              initial
+            )}
+          </div>
+        )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-slateDark-text text-sm hover:underline cursor-pointer truncate">
-              @{post.autorUsername}
-            </span>
+            {onOpenPerfil ? (
+              <button
+                type="button"
+                onClick={() => onOpenPerfil(post.autorId)}
+                className="font-semibold text-slateDark-text text-sm truncate text-left hover:underline cursor-pointer hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors"
+              >
+                @{post.autorUsername}
+              </button>
+            ) : (
+              <span className="font-semibold text-slateDark-text text-sm truncate">
+                @{post.autorUsername}
+              </span>
+            )}
           </div>
           <p className="text-[11px] text-slateDark-textMuted">{formatFecha(post.fechaCreacion)}</p>
         </div>
@@ -208,19 +265,56 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUserId, onComen
             {renderFormattedText(post.texto)}
           </div>
 
-          {/* Imagen adjunta */}
+          {/* Imagen adjunta con visor de pantalla completa (Lightbox) */}
           {post.mediaUrl && !hasTheme && (
-            <div className="rounded-xl overflow-hidden border border-slateDark-borderSubtle bg-slateDark-surfaceSubtle mb-3 max-h-[450px] flex items-center justify-center">
-              <img
-                src={resolveMediaUrl(post.mediaUrl)}
-                alt="Contenido multimedia"
-                className="w-full max-h-[450px] object-cover"
-                loading="lazy"
-                onError={(e) => {
-                  (e.target as HTMLElement).style.display = 'none';
-                }}
-              />
-            </div>
+            <>
+              <div
+                onClick={() => setIsLightboxOpen(true)}
+                title="Clic para ampliar imagen"
+                className="rounded-xl overflow-hidden border border-slateDark-borderSubtle bg-slateDark-surfaceSubtle mb-3 max-h-[450px] flex items-center justify-center cursor-pointer group relative"
+              >
+                <img
+                  src={resolveMediaUrl(post.mediaUrl)}
+                  alt="Contenido multimedia"
+                  className="w-full max-h-[450px] object-cover transition-transform duration-300 group-hover:scale-[1.01]"
+                  loading="lazy"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                  }}
+                />
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none">
+                  <span className="py-1.5 px-3 rounded-full bg-black/70 text-white backdrop-blur-xs flex items-center gap-1.5 text-xs font-medium shadow-lg">
+                    <Maximize2 className="w-3.5 h-3.5" />
+                    <span>Ampliar</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Modal Lightbox */}
+              {isLightboxOpen && (
+                <div
+                  role="dialog"
+                  aria-label="Visor de imagen"
+                  onClick={() => setIsLightboxOpen(false)}
+                  className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200 cursor-zoom-out"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setIsLightboxOpen(false)}
+                    aria-label="Cerrar visor"
+                    className="absolute top-4 right-4 p-2.5 rounded-full bg-white/10 hover:bg-white/25 text-white transition-colors cursor-pointer z-10"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                  <img
+                    src={resolveMediaUrl(post.mediaUrl)}
+                    alt="Imagen ampliada a pantalla completa"
+                    onClick={(e) => e.stopPropagation()}
+                    className="max-w-[95vw] max-h-[90vh] object-contain rounded-xl shadow-2xl cursor-default"
+                  />
+                </div>
+              )}
+            </>
           )}
         </>
       )}

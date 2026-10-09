@@ -14,6 +14,7 @@ interface ComentariosModalProps {
   post: Post;
   currentUserId: string;
   onClose: () => void;
+  onOpenPerfil?: (usuarioId: string) => void;
 }
 
 /**
@@ -107,6 +108,7 @@ export const ComentariosModal: React.FC<ComentariosModalProps> = ({
   post,
   currentUserId,
   onClose,
+  onOpenPerfil,
 }) => {
   const [comentarios, setComentarios] = useState<Comentario[]>([]);
   const [cargando, setCargando] = useState<boolean>(true);
@@ -259,15 +261,36 @@ export const ComentariosModal: React.FC<ComentariosModalProps> = ({
 
   const cabeceraPost = (compacta: boolean) => (
     <div className="flex items-center gap-3">
-      <AvatarComentario
-        username={post.autorUsername}
-        avatarUrl={post.autorAvatar}
-        grande={!compacta}
-      />
+      <button
+        type="button"
+        disabled={!onOpenPerfil}
+        onClick={() => {
+          onClose();
+          onOpenPerfil?.(post.autorId);
+        }}
+        aria-label={`Ver perfil de @${post.autorUsername}`}
+        className={`rounded-full shrink-0 ${onOpenPerfil ? 'cursor-pointer hover:opacity-90 hover:ring-2 hover:ring-indigo-500' : ''}`}
+      >
+        <AvatarComentario
+          username={post.autorUsername}
+          avatarUrl={post.autorAvatar}
+          grande={!compacta}
+        />
+      </button>
       <div className="flex-1 min-w-0">
-        <span className="font-semibold text-slateDark-text text-sm truncate">
+        <button
+          type="button"
+          disabled={!onOpenPerfil}
+          onClick={() => {
+            onClose();
+            onOpenPerfil?.(post.autorId);
+          }}
+          className={`font-semibold text-slateDark-text text-sm truncate text-left ${
+            onOpenPerfil ? 'hover:underline cursor-pointer hover:text-indigo-400' : ''
+          }`}
+        >
           @{post.autorUsername}
-        </span>
+        </button>
         <p className="text-[11px] text-slateDark-textMuted">{formatFecha(post.fechaCreacion)}</p>
       </div>
     </div>

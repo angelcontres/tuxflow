@@ -85,7 +85,7 @@ export const TrendingSidebar: React.FC<TrendingSidebarProps> = ({ currentUserId 
       {estado.tipo === 'error' ? (
         <div
           role="alert"
-          className="text-xs text-rose-400 bg-rose-950/30 border border-rose-800/50 rounded-lg p-3 leading-relaxed"
+          className="text-xs text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/50 rounded-lg p-3 leading-relaxed"
         >
           {estado.mensaje}
         </div>

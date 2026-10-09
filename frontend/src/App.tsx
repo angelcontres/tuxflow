@@ -156,6 +156,7 @@ const AppContent: React.FC = () => {
 
   const handleOpenPerfil = useCallback((usuarioId: string) => {
     setPerfilAjenoId(usuarioId);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
   const handleCerrarPerfil = useCallback(() => {
@@ -223,6 +224,7 @@ const AppContent: React.FC = () => {
                     posts={posts}
                     currentUserId={currentUserId}
                     onComentar={setPostComentado}
+                    onOpenPerfil={handleOpenPerfil}
                   />
                 )}
               </>
@@ -281,6 +283,7 @@ const AppContent: React.FC = () => {
           post={postComentado}
           currentUserId={currentUserId}
           onClose={() => setPostComentado(null)}
+          onOpenPerfil={handleOpenPerfil}
         />
       )}
 

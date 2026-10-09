@@ -430,5 +430,14 @@ describe('UserSearchBox', () => {
       expect(screen.queryByAltText('Avatar de @beatriz')).not.toBeInTheDocument();
       expect(screen.getByText('B')).toBeInTheDocument();
     });
+
+    it('enfoca el campo de búsqueda al presionar Ctrl + K', () => {
+      montar();
+      const input = screen.getByRole('combobox');
+      expect(document.activeElement).not.toBe(input);
+
+      fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
+      expect(document.activeElement).toBe(input);
+    });
   });
 });

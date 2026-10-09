@@ -25,6 +25,8 @@ export const CreatePostForm: React.FC<CreatePostFormProps> = ({
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounterRef = useRef(0);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(
     null,
   );
@@ -55,10 +57,11 @@ export const CreatePostForm: React.FC<CreatePostFormProps> = ({
     setShowUrlInput(false);
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const procesarArchivoImagen = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      showFeedback('error', 'Por favor selecciona un archivo de imagen válido.');
+      return;
+    }
     setUploadingMedia(true);
     try {
       const res = await uploadAvatar(file);
@@ -72,8 +75,69 @@ export const CreatePostForm: React.FC<CreatePostFormProps> = ({
       );
     } finally {
       setUploadingMedia(false);
-      // Permite volver a seleccionar el mismo archivo
-      e.target.value = '';
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await procesarArchivoImagen(file);
+    e.target.value = '';
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current += 1;
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current -= 1;
+    if (dragCounterRef.current <= 0) {
+      dragCounterRef.current = 0;
+      setIsDragging(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current = 0;
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      const imageFile = Array.from(files).find((f) => f.type.startsWith('image/'));
+      if (imageFile) {
+        await procesarArchivoImagen(imageFile);
+      } else {
+        showFeedback('error', 'Por favor suelta un archivo de imagen válido.');
+      }
+    }
+  };
+
+  const handlePaste = async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/')) {
+        const file = items[i].getAsFile();
+        if (file) {
+          await procesarArchivoImagen(file);
+          break;
+        }
+      }
     }
   };
 
@@ -117,20 +181,43 @@ export const CreatePostForm: React.FC<CreatePostFormProps> = ({
   };
 
   return (
-    <div className="bg-slateDark-surface rounded-xl p-4 sm:p-5 shadow-xs border border-slateDark-borderSubtle mb-6 relative">
+    <div
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      onPaste={handlePaste}
+      className={`bg-slateDark-surface rounded-xl p-4 sm:p-5 shadow-xs border transition-all mb-6 relative ${
+        isDragging ? 'border-indigo-500 ring-2 ring-indigo-500/30' : 'border-slateDark-borderSubtle'
+      }`}
+    >
+      {/* Overlay de Arrastrar y Soltar Imagen */}
+      {isDragging && (
+        <div
+          data-testid="drag-overlay"
+          className="absolute inset-0 z-20 rounded-xl bg-slate-900/95 backdrop-blur-xs border-2 border-dashed border-indigo-400 flex flex-col items-center justify-center gap-2 pointer-events-none animate-in fade-in duration-150"
+        >
+          <div className="w-12 h-12 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
+            <Upload className="w-6 h-6 animate-bounce" />
+          </div>
+          <p className="text-sm font-semibold text-white">Suelta tu imagen aquí para adjuntarla</p>
+          <p className="text-xs text-indigo-200">Compatible con PNG, JPG, GIF o WebP</p>
+        </div>
+      )}
       {/* Toast de Feedback */}
       {feedback && (
         <div
+          role="alert"
           className={`absolute top-2 right-2 left-2 z-10 p-3 rounded-lg flex items-center gap-2.5 text-xs font-medium shadow-lg animate-in fade-in slide-in-from-top-2 duration-300 ${
             feedback.type === 'success'
-              ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800'
-              : 'bg-rose-950/80 text-rose-300 border border-rose-800'
+              ? 'bg-emerald-50 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+              : 'bg-rose-50 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
           }`}
         >
           {feedback.type === 'success' ? (
-            <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+            <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
           ) : (
-            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
           )}
           <span>{feedback.message}</span>
         </div>
@@ -317,13 +404,55 @@ export const CreatePostForm: React.FC<CreatePostFormProps> = ({
           </div>
 
           <div className="flex items-center gap-3">
-            <span
-              className={`text-[11px] font-mono transition-colors ${
-                texto.length > 450 ? 'text-amber-400 font-bold' : 'text-slateDark-textMuted/60'
-              }`}
-            >
-              {texto.length}/500
-            </span>
+            {/* Anillo de progreso de caracteres estilo Twitter / X */}
+            <div className="flex items-center gap-2">
+              {texto.length > 0 && (
+                <div
+                  className="relative flex items-center justify-center"
+                  title={`${500 - texto.length} caracteres restantes`}
+                >
+                  <svg className="w-5 h-5 -rotate-90 transform" viewBox="0 0 24 24">
+                    <circle
+                      cx="12"
+                      cy="12"
+                      r="9"
+                      strokeWidth="2.5"
+                      className="stroke-slateDark-borderSubtle fill-none"
+                    />
+                    <circle
+                      cx="12"
+                      cy="12"
+                      r="9"
+                      strokeWidth="2.5"
+                      strokeDasharray={56.54}
+                      strokeDashoffset={Math.max(
+                        0,
+                        56.54 - (Math.min(500, texto.length) / 500) * 56.54,
+                      )}
+                      strokeLinecap="round"
+                      className={`fill-none transition-all duration-150 ${
+                        texto.length > 480
+                          ? 'stroke-rose-500'
+                          : texto.length > 400
+                            ? 'stroke-amber-400'
+                            : 'stroke-indigo-500'
+                      }`}
+                    />
+                  </svg>
+                </div>
+              )}
+              <span
+                className={`text-[11px] font-mono transition-colors ${
+                  texto.length > 480
+                    ? 'text-rose-400 font-bold'
+                    : texto.length > 400
+                      ? 'text-amber-400 font-semibold'
+                      : 'text-slateDark-textMuted/60'
+                }`}
+              >
+                {texto.length}/500
+              </span>
+            </div>
 
             <button
               type="submit"

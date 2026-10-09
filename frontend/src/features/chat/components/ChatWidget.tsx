@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   ArrowUp,
+  Check,
   CheckCheck,
   CheckCircle2,
   ChevronUp,
@@ -23,6 +24,7 @@ import { ChatMessage, ConversacionChat, EstadoChat, FilaChat } from '../types/ch
 import { chatSocketManager } from '../services/chatSocket';
 import { obtenerConversaciones, obtenerHistorial } from '../services/chatApi';
 import { fetchSeguidos } from '../../network/services/networkApi';
+import { fetchUsuario } from '../../user/services/userApi';
 import { resolveMediaUrl } from '../../../shared/utils/mediaUrl';
 
 const EMOJIS_RAPIDOS = ['❤️', '🔥', '👍', '😂', '🎉', '🚀', '👋', '✨'];
@@ -215,7 +217,8 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   // Feedback visual de envío y estado
   const [sendFeedback, setSendFeedback] = useState<string | null>(null);
-  const [lastSentSuccess, setLastSentSuccess] = useState<boolean>(false);
+  const [buscandoCustom, setBuscandoCustom] = useState<boolean>(false);
+  const [errorCustom, setErrorCustom] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const isOpenRef = useRef(isOpen);
@@ -476,27 +479,49 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
     setActiveView('inbox');
   };
 
-  const handleCrearChatCustom = (username: string): void => {
+  const handleCrearChatCustom = async (username: string): Promise<void> => {
     const limpio = username.trim().replace(/^@/, '');
     if (!limpio) return;
 
-    const existente = filas.find((fila) => fila.id.toLowerCase() === limpio.toLowerCase());
-    if (existente) {
-      handleSeleccionarConversacion(existente);
-      setBusqueda('');
+    if (limpio.toLowerCase() === currentUserId.toLowerCase()) {
+      setErrorCustom('No puedes iniciar una conversación contigo mismo.');
+      setTimeout(() => setErrorCustom(null), 3500);
       return;
     }
 
-    const nueva: FilaChat = {
-      id: limpio,
-      username: limpio,
-      nombre: limpio.charAt(0).toUpperCase() + limpio.slice(1),
-      conMensajes: false,
-    };
+    const existente = filas.find(
+      (fila) =>
+        fila.id.toLowerCase() === limpio.toLowerCase() ||
+        fila.username.toLowerCase() === limpio.toLowerCase(),
+    );
+    if (existente) {
+      handleSeleccionarConversacion(existente);
+      setBusqueda('');
+      setErrorCustom(null);
+      return;
+    }
 
-    setFilas((previas) => [nueva, ...previas]);
-    handleSeleccionarConversacion(nueva);
-    setBusqueda('');
+    setBuscandoCustom(true);
+    setErrorCustom(null);
+    try {
+      const usuarioEncontrado = await fetchUsuario(limpio);
+      const nueva: FilaChat = {
+        id: usuarioEncontrado.id,
+        username: usuarioEncontrado.username,
+        nombre: usuarioEncontrado.nombre,
+        avatarUrl: usuarioEncontrado.avatarUrl,
+        conMensajes: false,
+      };
+
+      setFilas((previas) => [nueva, ...previas]);
+      handleSeleccionarConversacion(nueva);
+      setBusqueda('');
+    } catch {
+      setErrorCustom(`El usuario "@${limpio}" no existe en TuxFlow.`);
+      setTimeout(() => setErrorCustom(null), 4000);
+    } finally {
+      setBuscandoCustom(false);
+    }
   };
 
   const enviarMensajeTexto = (texto: string): void => {
@@ -514,8 +539,6 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
     }
 
     reproducirSonidoFeedback('send');
-    setLastSentSuccess(true);
-    setTimeout(() => setLastSentSuccess(false), 2000);
 
     // La burbuja aparece antes de que el servidor confirme, y con estado provisional. Sin esto, un
     // envío se vería como si no hubiera pasado hasta que llegue la respuesta.
@@ -575,8 +598,6 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
   const tiempoFila = (fila: FilaChat): string =>
     fila.conMensajes ? formatearHora(fila.fechaUltimoMensaje) : '';
 
-  const estadoFila = (fila: FilaChat): string =>
-    fila.conMensajes ? 'Conversación activa' : 'Nuevo contacto';
 
   const filasVisibles = useMemo(() => {
     const texto = normalizar(busqueda);
@@ -824,13 +845,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
             </div>
           )}
 
-          {/* Toast sutil de confirmación de envío exitoso */}
-          {lastSentSuccess && (
-            <div className="bg-emerald-50 dark:bg-emerald-950/80 border-b border-emerald-200 dark:border-emerald-800/80 px-3 py-1 text-[11px] text-emerald-700 dark:text-emerald-300 shrink-0 animate-in fade-in flex items-center gap-1.5 font-medium">
-              <CheckCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span>Mensaje enviado correctamente</span>
-            </div>
-          )}
+
 
           {/* === VISTA A: BANDEJA DE ENTRADA (LISTA DE CONVERSACIONES) === */}
           {activeView === 'inbox' && (
@@ -845,20 +860,12 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
               >
                 <div className="flex items-center gap-2">
                   <h3 className="font-bold text-sm text-slate-900 dark:text-zinc-100">Mensajes</h3>
-                  <span
-                    className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border font-medium ${
-                      conectado
-                        ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800/60'
-                        : 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 border-amber-200 dark:border-amber-800/60'
-                    }`}
-                  >
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full ${
-                        conectado ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
-                      }`}
-                    />
-                    {conectado ? 'En vivo' : 'Offline'}
-                  </span>
+                  {!conectado && (
+                    <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 border-amber-200 dark:border-amber-800/60">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                      Offline
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-1">
@@ -994,7 +1001,6 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
                                 {avatarLetra(nombre)}
                               </div>
                             )}
-                            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-zinc-800" />
                           </div>
 
                           <div className="flex-1 min-w-0">
@@ -1029,12 +1035,28 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
                         <p className="text-xs text-slate-500 dark:text-zinc-400 mb-2">
                           No hay conversaciones con &quot;{busqueda}&quot;
                         </p>
+                        {errorCustom && (
+                          <p
+                            role="alert"
+                            className="text-xs text-rose-600 dark:text-rose-400 mb-3 font-medium bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 rounded-lg p-2"
+                          >
+                            {errorCustom}
+                          </p>
+                        )}
                         <button
                           type="button"
+                          disabled={buscandoCustom}
                           onClick={() => handleCrearChatCustom(busqueda)}
-                          className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full text-xs font-semibold cursor-pointer transition-colors shadow-xs"
+                          className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-full text-xs font-semibold cursor-pointer transition-colors shadow-xs inline-flex items-center gap-1.5 mx-auto"
                         >
-                          Iniciar chat con @{busqueda.trim().replace(/^@/, '')}
+                          {buscandoCustom ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              Verificando usuario...
+                            </>
+                          ) : (
+                            `Iniciar chat con @${busqueda.trim().replace(/^@/, '')}`
+                          )}
                         </button>
                       </div>
                     )}
@@ -1078,7 +1100,6 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
                         {avatarLetra(contactoActivo.nombre || contactoActivo.username)}
                       </div>
                     )}
-                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-zinc-800" />
                   </div>
 
                   <div className="min-w-0">
@@ -1089,10 +1110,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
                       <CheckCircle2 className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
                     </div>
                     <p className="text-[10px] text-slate-500 dark:text-zinc-400 truncate">
-                      @{contactoActivo.username} ·{' '}
-                      <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                        {estadoFila(contactoActivo)}
-                      </span>
+                      @{contactoActivo.username}
                     </p>
                   </div>
                 </div>
@@ -1195,7 +1213,8 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
                 ) : (
                   mensajesDelContacto.map((m) => {
                     const isMe = m.emisorId === currentUserId;
-                    const fallido = m.estado === 'NO_ENTREGADO' || m.estado === 'RECHAZADO';
+                    const fallido = m.estado === 'RECHAZADO';
+                    const noEntregado = m.estado === 'NO_ENTREGADO';
                     return (
                       <div
                         key={claveDe(m)}
@@ -1244,11 +1263,11 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
                               <>
                                 {m.estado === 'PENDIENTE' && (
                                   <span
-                                    className="inline-flex items-center gap-0.5"
+                                    className="inline-flex items-center gap-0.5 text-slate-400 dark:text-zinc-400"
                                     title="Enviando..."
                                   >
-                                    <Clock className="w-3 h-3 text-indigo-300 animate-pulse" />
-                                    Enviando...
+                                    <Clock className="w-3 h-3 text-indigo-400 animate-pulse" />
+                                    <span className="sr-only">Enviando...</span>
                                   </span>
                                 )}
                                 {fallido && (
@@ -1266,9 +1285,23 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
                                     {m.motivo && <span className="text-rose-500">{m.motivo}</span>}
                                   </>
                                 )}
-                                {m.estado !== 'PENDIENTE' && !fallido && (
-                                  <span title="Mensaje entregado por WebSocket">
-                                    <CheckCheck className="w-3 h-3 text-indigo-400" />
+                                {noEntregado && (
+                                  <span
+                                    className="inline-flex items-center gap-0.5"
+                                    title={m.motivo || 'Enviado al servidor (destinatario no conectado)'}
+                                  >
+                                    <Check className="w-3 h-3 text-slate-400 dark:text-zinc-400" />
+                                    <span className="sr-only">
+                                      {m.motivo || 'El destinatario no está conectado. El mensaje quedó guardado.'}
+                                    </span>
+                                  </span>
+                                )}
+                                {m.estado !== 'PENDIENTE' && !fallido && !noEntregado && (
+                                  <span
+                                    className="inline-flex items-center"
+                                    title="Mensaje entregado al destinatario"
+                                  >
+                                    <CheckCheck className="w-3 h-3 text-indigo-500 dark:text-indigo-400" />
                                   </span>
                                 )}
                               </>

@@ -183,7 +183,7 @@ export const ConexionesComunesPanel: React.FC<ConexionesComunesPanelProps> = ({
       {estado.tipo === 'error' && (
         <p
           role="alert"
-          className="mt-3 text-xs text-rose-400 font-medium flex items-center gap-1.5 bg-rose-950/20 border border-rose-800/40 p-2.5 rounded-lg"
+          className="mt-3 text-xs text-rose-700 dark:text-rose-400 font-medium flex items-center gap-1.5 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800/40 p-2.5 rounded-lg"
         >
           <AlertCircle className="w-3.5 h-3.5 shrink-0" />
           {estado.mensaje}

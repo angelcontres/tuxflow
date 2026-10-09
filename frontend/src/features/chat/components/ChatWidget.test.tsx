@@ -14,7 +14,7 @@ import { ChatMessage, ConversacionChat } from '../types/chat.types';
  * <p>Van dentro de `vi.hoisted` porque `vi.mock` se sube al principio del archivo: si el doble fuera
  * una constante normal, el sustituto se evaluaría antes de que exista.
  */
-const { canal, apiMock, redMock } = vi.hoisted(() => ({
+const { canal, apiMock, redMock, userMock } = vi.hoisted(() => ({
   canal: {
     connect: vi.fn(),
     disconnect: vi.fn(),
@@ -27,6 +27,9 @@ const { canal, apiMock, redMock } = vi.hoisted(() => ({
   redMock: {
     fetchSeguidos: vi.fn(),
   },
+  userMock: {
+    fetchUsuario: vi.fn(),
+  },
 }));
 
 vi.mock('../services/chatSocket', () => ({
@@ -36,6 +39,8 @@ vi.mock('../services/chatSocket', () => ({
 vi.mock('../services/chatApi', () => apiMock);
 
 vi.mock('../../network/services/networkApi', () => redMock);
+
+vi.mock('../../user/services/userApi', () => userMock);
 
 /** Bandeja del servidor: dos parejas, la más reciente primero. */
 const CONVERSACIONES: ConversacionChat[] = [
@@ -153,8 +158,8 @@ describe('ChatWidget', () => {
 
       await montarYAbrir();
 
-      // El chip de la bandeja pinta lo que dice el canal: "En vivo" solo sale si está abierto.
-      expect(await screen.findByText('En vivo')).toBeInTheDocument();
+      // Cuando está conectado la bandeja muestra el título limpio y no sale aviso de desconexión
+      expect(await screen.findByRole('heading', { name: /mensajes/i })).toBeInTheDocument();
       expect(screen.queryByText(/sin conexión|reconectando/i)).not.toBeInTheDocument();
     });
 
@@ -330,6 +335,32 @@ describe('ChatWidget', () => {
       await userEvent.type(campoBusqueda(), 'zzzz');
 
       expect(screen.getByText(/no hay conversaciones con/i)).toBeInTheDocument();
+    });
+
+    it('muestra error y no crea chat cuando el usuario no existe', async () => {
+      userMock.fetchUsuario.mockRejectedValueOnce(new Error('Usuario no encontrado'));
+      await montarYAbrir();
+
+      await userEvent.type(campoBusqueda(), 'fantasma');
+      await userEvent.click(screen.getByRole('button', { name: /iniciar chat con @fantasma/i }));
+
+      expect(await screen.findByText(/el usuario "@fantasma" no existe en tuxflow/i)).toBeInTheDocument();
+      expect(screen.queryByPlaceholderText(/escribe un mensaje/i)).not.toBeInTheDocument();
+    });
+
+    it('abre la conversación cuando el usuario sí existe en TuxFlow', async () => {
+      userMock.fetchUsuario.mockResolvedValueOnce({
+        id: 'lucia-torres',
+        username: 'lucia',
+        nombre: 'Lucía Torres',
+      });
+      await montarYAbrir();
+
+      await userEvent.type(campoBusqueda(), 'lucia');
+      await userEvent.click(screen.getByRole('button', { name: /iniciar chat con @lucia/i }));
+
+      expect(await screen.findByPlaceholderText(/mensaje a @/i)).toBeInTheDocument();
+      expect(screen.getAllByText('Lucía Torres').length).toBeGreaterThan(0);
     });
 
     it('normaliza igual en el texto que se busca y en el guardado', () => {

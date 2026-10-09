@@ -7,9 +7,15 @@ interface FeedListProps {
   posts: Post[];
   currentUserId: string;
   onComentar?: (post: Post) => void;
+  onOpenPerfil?: (usuarioId: string) => void;
 }
 
-export const FeedList: React.FC<FeedListProps> = ({ posts, currentUserId, onComentar }) => {
+export const FeedList: React.FC<FeedListProps> = ({
+  posts,
+  currentUserId,
+  onComentar,
+  onOpenPerfil,
+}) => {
   return (
     <div className="w-full space-y-4">
       {posts.length === 0 ? (
@@ -31,6 +37,7 @@ export const FeedList: React.FC<FeedListProps> = ({ posts, currentUserId, onCome
             post={post}
             currentUserId={currentUserId}
             onComentar={onComentar}
+            onOpenPerfil={onOpenPerfil}
           />
         ))
       )}

@@ -5,6 +5,16 @@
 - Carlos Patiño
 - Angel Villon
 
+> 🚀 **¿Deseas probar TuxFlow en vivo sin instalar nada?**
+> Accede directamente a la versión desplegada en producción en la nube:
+> 👉 **[https://app.tuxeros.website/](https://app.tuxeros.website/)**
+>
+> *Cuentas de prueba preconfiguradas:*
+> - Usuario: `carlos` | Contraseña: `password123`
+> - Usuario: `paulo` | Contraseña: `password123`
+> - Usuario: `elena` | Contraseña: `password123`
+> - Usuario: `angel` | Contraseña: `password123`
+
 ---
 
 ## **1. Descripción del proyecto**
@@ -55,38 +65,60 @@ Esta guía integral documenta el diseño, implementación, justificación técni
 
 ## **4. Instrucciones de ejecución**
 
-Para levantar la aplicación inmediatamente, asegúrate de tener Git, Docker, Java 21 y Node.js instalados. Tienes dos opciones:
+Puedes probar y ejecutar la red social de tres formas según tu necesidad:
 
-### **Opción A: Modo Desarrollo (Hot-Reload)**
-Ideal para probar o editar el código en tiempo real.
+### **Opción 0: En la Nube (Sin instalar nada) 🌐**
+Si deseas probar la aplicación de inmediato sin configurar nada en tu máquina:
+👉 **[https://app.tuxeros.website/](https://app.tuxeros.website/)**  
+*(Cuentas: `carlos` / `paulo` / `elena` / `angel`, contraseña: `password123`)*
+
+---
+
+### **Opción A: Despliegue Local Rápido (100% Docker con 1 solo comando) 🐳**
+Ideal para evaluar todo el proyecto en tu máquina sin instalar Java ni Node.js manualmente. Levanta la arquitectura completa (Frontend en Nginx, Backend en Quarkus, Neo4j con UTF-8 y MinIO con buckets autoconfigurados):
+
+**Método 1 — Con script automatizado todo-en-uno:**
+```bash
+# En Windows:
+desplegar.bat
+
+# En Linux o macOS:
+chmod +x desplegar.sh && ./desplegar.sh
+```
+*(El script comprueba requisitos, compila, levanta los contenedores, inyecta la semilla automáticamente y abre el navegador).*
+
+**Método 2 — Con Docker Compose directo:**
+```bash
+# 1. Levantar toda la topología local
+docker compose -f docker-compose.local.yml up --build -d
+
+# 2. Cargar datos semilla cuando Neo4j esté listo
+# En Linux/macOS:
+cat docker/neo4j-seed.cql | docker exec -i redsocial-neo4j cypher-shell -u neo4j -p password123
+
+# En Windows (PowerShell):
+Get-Content docker/neo4j-seed.cql | docker exec -i redsocial-neo4j cypher-shell -u neo4j -p password123
+```
+> **Acceso:** Aplicación Web en [http://localhost:3000](http://localhost:3000) | Backend y Swagger en [http://localhost:8080](http://localhost:8080) | Neo4j Browser en [http://localhost:7474](http://localhost:7474).
+
+---
+
+### **Opción B: Modo Desarrollo (Hot-Reload)**
+Ideal para programar y ver cambios en tiempo real:
 
 ```bash
-# 1. Levantar DBs y Storage
+# 1. Levantar bases de datos y almacenamiento
 docker compose up -d neo4j minio minio-init
 
-# 2. Cargar datos semilla (usuarios, relaciones y posts de prueba)
+# 2. Cargar datos semilla
 cat docker/neo4j-seed.cql | docker exec -i redsocial-neo4j cypher-shell -u neo4j -p password123
 
-# 3. Backend en modo Dev (en una terminal)
+# 3. Backend en modo Dev (Terminal 1)
 cd backend && mvn quarkus:dev
 
-# 4. Frontend SPA (en otra terminal)
+# 4. Frontend SPA (Terminal 2)
 cd frontend && npm install && npm run dev
 ```
-> **Acceso:** Aplicación Web en [http://localhost:3000](http://localhost:3000) | Backend y Swagger en [http://localhost:8080](http://localhost:8080).
-
-### **Opción B: Modo Producción (100% Docker) 🐳**
-Levanta toda la arquitectura en contenedores (Frontend, Backend, DBs).
-
-```bash
-# 1. Empaquetar y levantar la topología completa
-docker compose up --build -d
-
-# 2. Cargar datos semilla una vez que Neo4j esté "healthy"
-cat docker/neo4j-seed.cql | docker exec -i redsocial-neo4j cypher-shell -u neo4j -p password123
-```
-
-> **Importante para Windows (PowerShell):** Al cargar los datos semilla, reemplaza el comando `cat` por `Get-Content`.
 
 ## **5. Variables de entorno necesarias**
 Para la correcta ejecución del sistema, los siguientes servicios requieren configuración mediante variables de entorno (ya preconfiguradas en el `docker-compose.yml` para el entorno local):
