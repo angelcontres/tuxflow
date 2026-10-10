@@ -10,6 +10,7 @@ export interface Post {
   likedByMe: boolean;
   totalDislikes?: number;
   dislikedByMe?: boolean;
+  totalComentarios?: number;
 }
 
 /**

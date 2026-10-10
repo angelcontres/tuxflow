@@ -225,8 +225,11 @@ const AppContent: React.FC = () => {
                     currentUserId={currentUserId}
                     onComentar={setPostComentado}
                     onOpenPerfil={handleOpenPerfil}
+                    onComentarioCreado={loadFeed}
                   />
-                )}
+       )}
+
+
               </>
             )}
           </section>
@@ -284,6 +287,7 @@ const AppContent: React.FC = () => {
           currentUserId={currentUserId}
           onClose={() => setPostComentado(null)}
           onOpenPerfil={handleOpenPerfil}
+          onComentarioCreado={loadFeed}
         />
       )}
 
