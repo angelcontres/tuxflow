@@ -80,11 +80,12 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                                             : record.get("autorAvatar").asString());
                             p.setTotalLikes(record.get("totalLikes").asLong());
                             p.setLikedByMe(record.get("likedByMe").asBoolean());
-                             p.setTotalDislikes(record.get("totalDislikes").asLong());
-                             if (record.containsKey("totalComentarios") && !record.get("totalComentarios").isNull()) {
-                                 p.setTotalComentarios(record.get("totalComentarios").asLong());
-                             }
-                             p.setDislikedByMe(record.get("dislikedByMe").asBoolean());
+                            p.setTotalDislikes(record.get("totalDislikes").asLong());
+                            if (record.containsKey("totalComentarios")
+                                    && !record.get("totalComentarios").isNull()) {
+                                p.setTotalComentarios(record.get("totalComentarios").asLong());
+                            }
+                            p.setDislikedByMe(record.get("dislikedByMe").asBoolean());
                             posts.add(p);
                         }
                         return posts;

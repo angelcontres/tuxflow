@@ -227,9 +227,7 @@ const AppContent: React.FC = () => {
                     onOpenPerfil={handleOpenPerfil}
                     onComentarioCreado={loadFeed}
                   />
-       )}
-
-
+                )}
               </>
             )}
           </section>
