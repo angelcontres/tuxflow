@@ -327,80 +327,87 @@ export const PostCard: React.FC<PostCardProps> = ({
       )}
 
       {/* Barra de Acciones / Interacciones */}
-      <div className="pt-3 border-t border-slateDark-borderSubtle flex items-center gap-6 text-slateDark-textMuted text-xs">
-        {/* Like */}
-        <button
-          onClick={() => handleReaccion('like')}
-          disabled={enVuelo}
-          aria-pressed={isLiked}
-          className={`flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-progress active:scale-95 relative ${
-            isLiked ? 'text-rose-500 font-semibold' : 'hover:text-rose-400'
-          }`}
-        >
-          <span className="relative inline-flex items-center justify-center">
-            <Heart
-              className={`w-4 h-4 transition-transform ${
-                isLiked ? 'fill-rose-500 text-rose-500 animate-heart-pop' : ''
-              }`}
-            />
-            {showSparkles && (
-              <span className="absolute -inset-1.5 pointer-events-none flex items-center justify-center animate-sparkle-burst">
-                <Sparkles className="w-5 h-5 text-rose-400" />
-              </span>
-            )}
-          </span>
-          <span>{likesCount}</span>
-        </button>
-
-        {/* Dislike */}
-        <button
-          onClick={() => handleReaccion('dislike')}
-          disabled={enVuelo}
-          aria-pressed={isDisliked}
-          aria-label="No me gusta"
-          className={`flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-progress active:scale-125 ${
-            isDisliked ? 'text-amber-500 font-semibold' : 'hover:text-amber-400'
-          }`}
-        >
-          <ThumbsDown
-            className={`w-4 h-4 transition-transform ${isDisliked ? 'fill-amber-500 text-amber-500 scale-110' : ''}`}
-          />
-          <span>{dislikesCount}</span>
-        </button>
-
-        {/* Comentarios */}
-        {onComentar && (
+      <div className="pt-3 border-t border-slateDark-borderSubtle flex items-center justify-between text-slateDark-textMuted text-xs">
+        <div className="flex items-center gap-6">
+          {/* Like */}
           <button
-            type="button"
-            onClick={() => onComentar(post)}
-            aria-label="Comentar"
-            className="flex items-center gap-1.5 hover:text-slateDark-primaryLight transition-colors cursor-pointer"
+            onClick={() => handleReaccion('like')}
+            disabled={enVuelo}
+            aria-pressed={isLiked}
+            className={`flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-progress active:scale-95 relative ${
+              isLiked ? 'text-rose-500 font-semibold' : 'hover:text-rose-400'
+            }`}
           >
-            <MessageCircle className="w-4 h-4" />
-            <span>Comentar</span>
+            <span className="relative inline-flex items-center justify-center">
+              <Heart
+                className={`w-4 h-4 transition-transform ${
+                  isLiked ? 'fill-rose-500 text-rose-500 animate-heart-pop' : ''
+                }`}
+              />
+              {showSparkles && (
+                <span className="absolute -inset-1.5 pointer-events-none flex items-center justify-center animate-sparkle-burst">
+                  <Sparkles className="w-5 h-5 text-rose-400" />
+                </span>
+              )}
+            </span>
+            <span>{likesCount}</span>
           </button>
-        )}
 
-        {/* Compartir / Copiar Enlace */}
-        <button
-          onClick={handleCompartir}
-          className={`flex items-center gap-1.5 transition-colors cursor-pointer ${
-            copiado ? 'text-emerald-400 font-medium' : 'hover:text-slateDark-primaryLight'
-          }`}
-          title="Copiar enlace del post"
-        >
-          {copiado ? (
-            <>
-              <Check className="w-4 h-4 text-emerald-400 animate-in zoom-in-50" />
-              <span>¡Copiado!</span>
-            </>
-          ) : (
-            <>
-              <Share2 className="w-4 h-4" />
-              <span>Compartir</span>
-            </>
+          {/* Dislike */}
+          <button
+            onClick={() => handleReaccion('dislike')}
+            disabled={enVuelo}
+            aria-pressed={isDisliked}
+            aria-label="No me gusta"
+            className={`flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-progress active:scale-125 ${
+              isDisliked ? 'text-amber-500 font-semibold' : 'hover:text-amber-400'
+            }`}
+          >
+            <ThumbsDown
+              className={`w-4 h-4 transition-transform ${isDisliked ? 'fill-amber-500 text-amber-500 scale-110' : ''}`}
+            />
+            <span>{dislikesCount}</span>
+          </button>
+
+          {/* Comentarios */}
+          {onComentar && (
+            <button
+              type="button"
+              onClick={() => onComentar(post)}
+              aria-label="Comentar"
+              className="flex items-center gap-1.5 hover:text-slateDark-primaryLight transition-colors cursor-pointer"
+            >
+              <MessageCircle className="w-4 h-4" />
+              <span>Comentar</span>
+            </button>
           )}
-        </button>
+
+          {/* Compartir / Copiar Enlace */}
+          <button
+            onClick={handleCompartir}
+            className={`flex items-center gap-1.5 transition-colors cursor-pointer ${
+              copiado ? 'text-emerald-400 font-medium' : 'hover:text-slateDark-primaryLight'
+            }`}
+            title="Copiar enlace del post"
+          >
+            {copiado ? (
+              <>
+                <Check className="w-4 h-4 text-emerald-400 animate-in zoom-in-50" />
+                <span>¡Copiado!</span>
+              </>
+            ) : (
+              <>
+                <Share2 className="w-4 h-4" />
+                <span>Compartir</span>
+              </>
+            )}
+          </button>
+        </div>
+        {/* Contador de comentarios apegado a la derecha */}
+        <span className="text-slateDark-textMuted flex items-center gap-1">
+          <MessageCircle className="w-4 h-4" />
+          <span>{post.totalComentarios ?? 0}</span>
+        </span>
       </div>
     </article>
   );

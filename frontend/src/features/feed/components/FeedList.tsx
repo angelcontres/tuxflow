@@ -8,6 +8,7 @@ interface FeedListProps {
   currentUserId: string;
   onComentar?: (post: Post) => void;
   onOpenPerfil?: (usuarioId: string) => void;
+  onComentarioCreado?: () => void;
 }
 
 export const FeedList: React.FC<FeedListProps> = ({

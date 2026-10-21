@@ -12,6 +12,7 @@ public class Post {
     private boolean likedByMe;
     private long totalDislikes;
     private boolean dislikedByMe;
+    private long totalComentarios;
 
     public Post() {}
 
@@ -101,5 +102,13 @@ public class Post {
 
     public void setDislikedByMe(boolean dislikedByMe) {
         this.dislikedByMe = dislikedByMe;
+    }
+
+    public long getTotalComentarios() {
+        return totalComentarios;
+    }
+
+    public void setTotalComentarios(long totalComentarios) {
+        this.totalComentarios = totalComentarios;
     }
 }

@@ -37,6 +37,7 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
             WHERE autor = u OR (u)-[:SIGUE]->(autor)
             OPTIONAL MATCH (p)<-[rl:REACCIONA {tipo: 'LIKE'}]-(:Usuario)
             OPTIONAL MATCH (p)<-[rd:REACCIONA {tipo: 'DISLIKE'}]-(:Usuario)
+            OPTIONAL MATCH (p)<-[:COMENTA_EN]-(c:Comentario)
             RETURN p.id AS id,
                    p.texto AS texto,
                    p.mediaUrl AS mediaUrl,
@@ -44,10 +45,11 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                    autor.id AS autorId,
                    autor.username AS autorUsername,
                    autor.avatarUrl AS autorAvatar,
-                   count(DISTINCT rl) AS totalLikes,
-                   count(DISTINCT rd) AS totalDislikes,
-                   EXISTS((u)-[:REACCIONA {tipo: 'LIKE'}]->(p)) AS likedByMe,
-                   EXISTS((u)-[:REACCIONA {tipo: 'DISLIKE'}]->(p)) AS dislikedByMe
+                    count(DISTINCT rl) AS totalLikes,
+                    count(DISTINCT rd) AS totalDislikes,
+                    count(DISTINCT c) AS totalComentarios,
+                    EXISTS((u)-[:REACCIONA {tipo: 'LIKE'}]->(p)) AS likedByMe,
+                    EXISTS((u)-[:REACCIONA {tipo: 'DISLIKE'}]->(p)) AS dislikedByMe
             ORDER BY p.fechaCreacion DESC
             LIMIT 20;
             """;
@@ -79,6 +81,10 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                             p.setTotalLikes(record.get("totalLikes").asLong());
                             p.setLikedByMe(record.get("likedByMe").asBoolean());
                             p.setTotalDislikes(record.get("totalDislikes").asLong());
+                            if (record.containsKey("totalComentarios")
+                                    && !record.get("totalComentarios").isNull()) {
+                                p.setTotalComentarios(record.get("totalComentarios").asLong());
+                            }
                             p.setDislikedByMe(record.get("dislikedByMe").asBoolean());
                             posts.add(p);
                         }
@@ -890,6 +896,7 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
             WHERE p.fechaCreacion IS NOT NULL
             OPTIONAL MATCH (reactorLike:Usuario)-[:REACCIONA {tipo: 'LIKE'}]->(p)
             OPTIONAL MATCH (reactorDislike:Usuario)-[:REACCIONA {tipo: 'DISLIKE'}]->(p)
+            OPTIONAL MATCH (p)<-[:COMENTA_EN]-(c:Comentario)
             OPTIONAL MATCH (visor:Usuario {id: $viewerId})
             RETURN p.id AS id,
                    p.texto AS texto,
@@ -898,10 +905,11 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                    autor.id AS autorId,
                    autor.username AS autorUsername,
                    autor.avatarUrl AS autorAvatar,
-                   count(DISTINCT reactorLike) AS totalLikes,
-                   count(DISTINCT reactorDislike) AS totalDislikes,
-                   EXISTS((visor)-[:REACCIONA {tipo: 'LIKE'}]->(p)) AS likedByMe,
-                   EXISTS((visor)-[:REACCIONA {tipo: 'DISLIKE'}]->(p)) AS dislikedByMe
+                    count(DISTINCT reactorLike) AS totalLikes,
+                    count(DISTINCT reactorDislike) AS totalDislikes,
+                    count(DISTINCT c) AS totalComentarios,
+                    EXISTS((visor)-[:REACCIONA {tipo: 'LIKE'}]->(p)) AS likedByMe,
+                    EXISTS((visor)-[:REACCIONA {tipo: 'DISLIKE'}]->(p)) AS dislikedByMe
             ORDER BY p.fechaCreacion DESC
             LIMIT $limite
             """;
@@ -942,6 +950,9 @@ public class Neo4jGrafoAdapter implements GrafoPersistencePort {
                 record.get("autorAvatar").isNull() ? null : record.get("autorAvatar").asString());
         p.setTotalLikes(record.get("totalLikes").asLong());
         p.setTotalDislikes(record.get("totalDislikes").asLong());
+        if (record.containsKey("totalComentarios") && !record.get("totalComentarios").isNull()) {
+            p.setTotalComentarios(record.get("totalComentarios").asLong());
+        }
         p.setLikedByMe(record.get("likedByMe").asBoolean());
         p.setDislikedByMe(record.get("dislikedByMe").asBoolean());
         return p;

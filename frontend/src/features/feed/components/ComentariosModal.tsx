@@ -15,6 +15,7 @@ interface ComentariosModalProps {
   currentUserId: string;
   onClose: () => void;
   onOpenPerfil?: (usuarioId: string) => void;
+  onComentarioCreado?: () => void;
 }
 
 /**
@@ -109,6 +110,7 @@ export const ComentariosModal: React.FC<ComentariosModalProps> = ({
   currentUserId,
   onClose,
   onOpenPerfil,
+  onComentarioCreado,
 }) => {
   const [comentarios, setComentarios] = useState<Comentario[]>([]);
   const [cargando, setCargando] = useState<boolean>(true);
@@ -178,6 +180,7 @@ export const ComentariosModal: React.FC<ComentariosModalProps> = ({
       const creado = await crearComentario(post.id, { userId: currentUserId, texto });
       agregarComentario(creado);
       setTextoNuevo('');
+      onComentarioCreado?.();
     } catch (err) {
       console.error('Error al comentar:', err);
       setErrorNuevo('No se pudo publicar el comentario. Inténtalo de nuevo.');
@@ -199,8 +202,9 @@ export const ComentariosModal: React.FC<ComentariosModalProps> = ({
         parentId: respondiendoA.id,
       });
       agregarComentario(creado);
-      setTextoRespuesta('');
       setRespondiendoA(null);
+      setTextoRespuesta('');
+      onComentarioCreado?.();
     } catch (err) {
       console.error('Error al responder:', err);
       setErrorRespuesta('No se pudo publicar la respuesta. Inténtalo de nuevo.');
