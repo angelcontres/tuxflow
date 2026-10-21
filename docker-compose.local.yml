@@ -20,8 +20,10 @@ services:
       - NEO4J_PLUGINS=["apoc"]
       - LANG=C.UTF-8
       - LC_ALL=C.UTF-8
+      - NEO4J_apoc_export_file_enabled=true # Export Cypher a archivo (backup legible)
     volumes:
       - neo4j_data:/data
+      - ./backups:/backups:z # Salida de docker/backup-neo4j.sh (dump binario)
     networks:
       - red-distribuida
     healthcheck:
