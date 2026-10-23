@@ -1,7 +1,7 @@
 # Documentación del Proyecto - Red Social Distribuida
 
 Bienvenido al directorio de documentación técnica del sistema de **Red Social Distribuida**.
-
+prueba aws
 ## Índice de Documentos
 
 1. [**Guía de Despliegue Local y Entorno de Desarrollo (guia-desarrollo-local.md)**](./guia-desarrollo-local.md):
