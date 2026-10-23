@@ -85,3 +85,79 @@ falta el locale, si no `cypher-shell` imprime `?` en lugar del carácter
 docker exec -e LANG=C.UTF-8 -e LC_ALL=C.UTF-8 redsocial-neo4j \
   cypher-shell -u neo4j -p password123 --format plain "MATCH (n) RETURN n;"
 ```
+
+## Backup (Neo4j)
+
+`backup-neo4j.sh` genera, **una carpeta por corrida**, en
+`backups/<AAAAmmdd-HHMMSS>/` con estos artefactos:
+
+| Archivo        | Qué es                                 | Para qué sirve                                     |
+| -------------- | -------------------------------------- | -------------------------------------------------- |
+| `neo4j.dump`   | Dump binario offline (`neo4j-admin`)   | **Restore real ante desastre**: rápido y verificable |
+| `system.dump`  | Dump de la BD `system`                 | Usuarios y roles del DBMS                          |
+| `neo4j.cypher` | Script Cypher legible (APOC)           | Sembrar otros entornos, revisión manual, migración |
+
+> El `.cypher` **no reemplaza al dump**: APOC exporta leyendo la BD online, no
+> es un snapshot transaccional consistente. Para prod, el backup de verdad es
+> el dump; el `.cypher` es el complemento portátil.
+
+```bash
+# Correr a mano (downtime de ~1 min, la BD queda offline durante el dump):
+docker/backup-neo4j.sh
+
+# Automatizar con cron (todos los días 03:00):
+0 3 * * * /ruta/al/repo/docker/backup-neo4j.sh >> /var/log/neo4j-backup.log 2>&1
+```
+
+- **Retención**: 30 días por defecto, configurable con `RETENTION_DAYS`.
+- **Requisitos en el compose** (ya presentes en los tres compose del repo):
+  bind mount `./backups:/backups:z` (el `:z` es por SELinux: sin él el
+  contenedor no puede escribir el directorio) y
+  `NEO4J_apoc_export_file_enabled=true`.
+- **Cron**: el usuario del crontab necesita el PATH de `docker` (o la ruta
+  absoluta) y pertenecer al grupo `docker`.
+- **Fuera de la máquina**: un backup en el mismo disco que la BD no sobrevive
+  al servidor. Sincronizar después de cada corrida, por ejemplo:
+  `rsync -a backups/ otra-maquina:/backups-neo4j/` o
+  `aws s3 sync backups/ s3://tu-bucket/neo4j/`.
+
+### Restore del dump
+
+```bash
+docker stop -t 60 redsocial-neo4j
+docker run --rm --volumes-from redsocial-neo4j --entrypoint sh neo4j:5.20-community \
+  -c 'neo4j-admin database load neo4j --from-path=/backups/<AAAAmmdd-HHMMSS>'
+docker start redsocial-neo4j
+```
+
+`--from-path` es el **directorio** que contiene `neo4j.dump` (neo4j-admin
+rechaza cualquier otro nombre de archivo). Verificar después con
+`MATCH (n) RETURN count(n);`.
+
+### Aplicar el .cypher (instancia nueva o vacía)
+
+```bash
+docker exec -i -e LANG=C.UTF-8 -e LC_ALL=C.UTF-8 redsocial-neo4j \
+  cypher-shell -u neo4j -p password123 --format plain < backups/<corrida>/neo4j.cypher
+```
+
+Ojo: el archivo crea constraints (`... IS UNIQUE`), así que **choca si la BD
+ya tiene datos o constraints**; usálo contra una BD vacía (o borrando antes
+con `MATCH (n) DETACH DELETE n;`). `LANG=C.UTF-8` no es opcional: sin él se
+pierden los acentos y emojis (ver la tabla de `seed.sh` arriba).
+
+### Verificar que el backup sirve
+
+Un backup que nunca se restauró no es un backup. Contra una instancia
+descartable (volumen scratch, sin puertos), restaurar y comparar conteos con
+la origen:
+
+```bash
+docker volume create scratch-neo4j
+docker run --rm -v scratch-neo4j:/data -v "$PWD/backups/<corrida>":/incoming:z \
+  --entrypoint sh neo4j:5.20-community \
+  -c 'neo4j-admin database load neo4j --from-path=/incoming'
+# levantar una instancia efímera con ese volumen y comparar:
+#   MATCH (n) RETURN count(n);   MATCH ()-[r]->() RETURN count(r);
+docker volume rm scratch-neo4j
+```

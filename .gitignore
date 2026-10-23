@@ -27,6 +27,7 @@ Thumbs.db
 
 # Docker volumes / temp
 data/
+backups/
 *.log
 .env
 
